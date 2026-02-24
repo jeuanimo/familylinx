@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}My Identity Claims – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'families:family_detail' family.id %}">{{ family.name }}</a></li>
+        <li class="breadcrumb-item active">My Identity Claims</li>
+      </ol>
+    </nav>
+    
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="card">
+          <div class="card-header">
+            <h4 class="mb-0"><i class="bi bi-person-badge me-2"></i>My Identity Claims</h4>
+          </div>
+          <div class="card-body">
+            {% if membership.linked_person %}
+            <div class="alert alert-success">
+              <h6><i class="bi bi-check-circle-fill me-2"></i>Linked to Tree</h6>
+              <p class="mb-0">
+                You are linked to <strong>{{ membership.linked_person }}</strong> in this family tree.
+                <a href="{% url 'families:family_tree_interactive' family.id %}" class="alert-link">View in tree</a>
+              </p>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+              <p class="mb-0">
+                You're not linked to anyone in this family tree yet.
+                <a href="{% url 'families:find_my_match' family.id %}" class="alert-link">Find yourself</a>
+              </p>
+            </div>
+            {% endif %}
+            
+            {% if claims %}
+            <h5 class="mt-4">Claim History</h5>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Person</th>
+                    <th>Status</th>
+                    <th>Match Score</th>
+                    <th>Submitted</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for claim in claims %}
+                  <tr>
+                    <td>
+                      <a href="{% url 'families:person_detail' family.id claim.person.id %}">
+                        {{ claim.person.first_name }} {{ claim.person.last_name }}
+                      </a>
+                      {% if claim.auto_matched %}
+                      <span class="badge bg-info">Auto-suggested</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <span class="badge bg-{% if claim.status == 'PENDING' %}warning{% elif claim.status == 'VERIFIED' %}success{% elif claim.status == 'REJECTED' %}danger{% else %}secondary{% endif %}">
+                        {{ claim.get_status_display }}
+                      </span>
+                    </td>
+                    <td>{{ claim.name_match_score|floatformat:0 }}%</td>
+                    <td>{{ claim.created_at|date:"M d, Y" }}</td>
+                    <td>
+                      {% if claim.status == 'PENDING' %}
+                      <a href="{% url 'families:verify_identity' family.id claim.id %}" class="btn btn-sm btn-primary">
+                        Continue
+                      </a>
+                      {% elif claim.status == 'VERIFIED' %}
+                      <span class="text-success"><i class="bi bi-check-circle"></i></span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% else %}
+            <p class="text-muted mt-4">You haven't made any identity claims yet.</p>
+            {% endif %}
+            
+            <div class="mt-4">
+              <a href="{% url 'families:find_my_match' family.id %}" class="btn btn-outline-primary">
+                <i class="bi bi-search me-1"></i>Find Myself in Tree
+              </a>
+              <a href="{% url 'families:family_tree_interactive' family.id %}" class="btn btn-outline-secondary ms-2">
+                <i class="bi bi-diagram-3 me-1"></i>View Tree
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

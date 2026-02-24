@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Rollback Import – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_tree' family_id=family.id %}">Family Tree</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:gedcom_import_report' family_id=family.id import_id=gedcom_import.id %}">Import Report</a>
+      <span class="separator">/</span>
+      <span class="current">Rollback</span>
+    </nav>
+    
+    <div class="form-page" style="max-width: 700px; margin: 0 auto;">
+      <div class="card" style="border: 2px solid var(--fl-red);">
+        <div class="card-header" style="background: var(--fl-red); color: white;">
+          <span class="card-title">
+            <i class="bi bi-exclamation-triangle"></i> Confirm Rollback
+          </span>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-warning" style="margin-bottom: 1.5rem;">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>Warning:</strong> This action cannot be undone!
+          </div>
+          
+          <p>You are about to rollback the following GEDCOM import:</p>
+          
+          <div class="stack-sm" style="background: var(--fl-surface); padding: 1rem; border-radius: var(--fl-radius); margin: 1rem 0;">
+            <div><strong>File:</strong> {{ gedcom_import.file_name }}</div>
+            <div><strong>Imported:</strong> {{ gedcom_import.created_at|date:"M j, Y g:i a" }}</div>
+            <div><strong>By:</strong> {{ gedcom_import.uploaded_by.email }}</div>
+            <div style="color: var(--fl-red); font-weight: bold;">
+              <strong>Persons to delete:</strong> {{ person_count }}
+            </div>
+          </div>
+          
+          {% if person_count > 0 %}
+          <p>This will <strong>permanently delete</strong> the following people from your family tree:</p>
+          
+          <div class="stack-sm" style="max-height: 300px; overflow-y: auto; background: var(--fl-surface); padding: 1rem; border-radius: var(--fl-radius); margin: 1rem 0;">
+            {% for person in imported_persons %}
+            <div style="padding: 0.25rem 0; border-bottom: 1px solid var(--fl-border);">
+              <i class="bi bi-person"></i> {{ person.full_name }}
+              {% if person.birth_date %}(b. {{ person.birth_date|date:"Y" }}){% endif %}
+            </div>
+            {% endfor %}
+            {% if person_count > 20 %}
+            <div class="muted" style="padding: 0.5rem 0;">
+              ... and {{ person_count|add:"-20" }} more
+            </div>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            No persons from this import remain in the database (they may have been manually deleted or merged).
+          </div>
+          {% endif %}
+          
+          <form method="post" style="margin-top: 1.5rem;">
+            {% csrf_token %}
+            <div class="form-actions">
+              <a href="{% url 'families:gedcom_import_report' family_id=family.id import_id=gedcom_import.id %}" class="btn btn-outline">
+                <i class="bi bi-x"></i> Cancel
+              </a>
+              {% if person_count > 0 %}
+              <button type="submit" name="confirm" value="yes" class="btn btn-danger">
+                <i class="bi bi-trash"></i> Delete {{ person_count }} Person{{ person_count|pluralize }}
+              </button>
+              {% else %}
+              <button type="submit" name="confirm" value="yes" class="btn btn-secondary">
+                <i class="bi bi-check"></i> Mark as Cancelled
+              </button>
+              {% endif %}
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

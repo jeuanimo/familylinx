@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Import GEDCOM – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Upload Progress Overlay */
+  .upload-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9999;
+    display: none;
+    justify-content: center;
+    align-items: center;
+  }
+  .upload-overlay.active {
+    display: flex;
+  }
+  .upload-modal {
+    background: var(--fl-surface);
+    border-radius: var(--fl-radius-lg);
+    padding: 2rem 3rem;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  }
+  .upload-modal h3 {
+    margin: 0 0 0.5rem;
+    color: var(--fl-text);
+  }
+  .upload-modal p {
+    color: var(--fl-muted);
+    margin: 0 0 1.5rem;
+    font-size: 0.9rem;
+  }
+  .upload-icon {
+    font-size: 3rem;
+    color: var(--fl-blue);
+    margin-bottom: 1rem;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+  }
+  .progress-bar-container {
+    background: var(--fl-bg);
+    border-radius: 10px;
+    height: 20px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--fl-blue), var(--fl-green));
+    border-radius: 10px;
+    width: 0%;
+    animation: progress-indeterminate 2s ease-in-out infinite;
+  }
+  @keyframes progress-indeterminate {
+    0% { width: 0%; margin-left: 0%; }
+    50% { width: 60%; margin-left: 20%; }
+    100% { width: 0%; margin-left: 100%; }
+  }
+  .upload-stages {
+    text-align: left;
+    font-size: 0.85rem;
+  }
+  .upload-stage {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    color: var(--fl-muted);
+  }
+  .upload-stage.active {
+    color: var(--fl-blue);
+    font-weight: 500;
+  }
+  .upload-stage.done {
+    color: var(--fl-green);
+  }
+  .upload-stage i {
+    width: 20px;
+    text-align: center;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Upload Progress Overlay -->
+<div class="upload-overlay" id="uploadOverlay">
+  <div class="upload-modal">
+    <div class="upload-icon">
+      <i class="bi bi-cloud-arrow-up"></i>
+    </div>
+    <h3>Importing GEDCOM</h3>
+    <p>Please wait while we process your family tree...</p>
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="upload-stages">
+      <div class="upload-stage active" id="stage1">
+        <i class="bi bi-arrow-repeat"></i> Uploading file...
+      </div>
+      <div class="upload-stage" id="stage2">
+        <i class="bi bi-file-earmark-text"></i> Parsing GEDCOM data...
+      </div>
+      <div class="upload-stage" id="stage3">
+        <i class="bi bi-people"></i> Creating person records...
+      </div>
+      <div class="upload-stage" id="stage4">
+        <i class="bi bi-diagram-3"></i> Building relationships...
+      </div>
+      <div class="upload-stage" id="stage5">
+        <i class="bi bi-search"></i> Detecting duplicates...
+      </div>
+    </div>
+  </div>
+</div>
+
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_tree' family_id=family.id %}">Family Tree</a>
+      <span class="separator">/</span>
+      <span class="current">Import GEDCOM</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-cloud-upload"></i> Import GEDCOM File</h1>
+        <p class="muted">Import your family tree from Ancestry, FamilySearch, or other software</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:gedcom_import_history' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-clock-history"></i> Import History
+        </a>
+      </div>
+    </div>
+    
+    <div class="grid-2" style="grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+      <!-- Main Content -->
+      <div class="stack-lg">
+        <!-- Upload Form -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-file-earmark-arrow-up"></i> Upload GEDCOM</span>
+          </div>
+          <div class="card-body">
+            <div class="info-box" style="margin-bottom: 1.5rem; padding: 1rem; background: var(--fl-surface); border-radius: var(--fl-radius); border-left: 4px solid var(--fl-blue);">
+              <h4 style="margin: 0 0 0.5rem; color: var(--fl-blue);">
+                <i class="bi bi-info-circle"></i> What is GEDCOM?
+              </h4>
+              <p style="margin: 0; font-size: 0.9rem;">
+                GEDCOM is the standard file format used by genealogy software. Export from:
+              </p>
+              <ul style="margin: 0.5rem 0 0; font-size: 0.9rem;">
+                <li><strong>Ancestry.com</strong> – Go to Trees → Export Tree</li>
+                <li><strong>FamilySearch</strong> – Download GEDCOM from any tree</li>
+                <li><strong>MyHeritage</strong> – Export from Family Tree Builder</li>
+              </ul>
+            </div>
+            
+            <form method="post" enctype="multipart/form-data" data-custom-upload="true">
+              {% csrf_token %}
+              
+              <div class="form-group">
+                <label class="form-label required">{{ form.gedcom_file.label }}</label>
+                {{ form.gedcom_file }}
+                {% if form.gedcom_file.errors %}
+                <div class="form-error">{{ form.gedcom_file.errors.0 }}</div>
+                {% endif %}
+                <small class="form-text muted">{{ form.gedcom_file.help_text }}</small>
+              </div>
+              
+              <div class="alert alert-info" style="margin: 1.5rem 0;">
+                <i class="bi bi-magic"></i>
+                <strong>Smart Import:</strong> Our system automatically detects potential 
+                duplicates and lets you review them before merging.
+              </div>
+              
+              {% if show_duplicate_warning %}
+              <div class="alert alert-warning" style="margin: 1.5rem 0; border-left: 4px solid var(--fl-orange);">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Duplicate File Detected!</strong>
+                <p style="margin: 0.5rem 0;">
+                  A file named "<strong>{{ duplicate_file_name }}</strong>" was already imported on 
+                  {{ existing_import.created_at|date:"F j, Y" }} and created {{ existing_import.persons_created }} persons.
+                </p>
+                <div class="form-check" style="margin-top: 1rem;">
+                  <input type="checkbox" name="confirm_duplicate" value="1" id="confirmDuplicate" class="form-check-input" required>
+                  <label for="confirmDuplicate" class="form-check-label">
+                    I understand this may create duplicate records and want to import anyway
+                  </label>
+                </div>
+              </div>
+              {% endif %}
+              
+              <div class="form-actions">
+                <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-outline">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-cloud-upload"></i> Import GEDCOM
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        <!-- What Gets Imported -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-question-circle"></i> What gets imported?</span>
+          </div>
+          <div class="card-body">
+            <div class="grid-2">
+              <div>
+                <h4 style="color: var(--fl-green); margin-bottom: 0.5rem;">
+                  <i class="bi bi-check-lg"></i> Imported
+                </h4>
+                <ul style="font-size: 0.9rem; margin: 0;">
+                  <li>Names (first, last, maiden)</li>
+                  <li>Gender</li>
+                  <li>Birth date and place</li>
+                  <li>Death date and place</li>
+                  <li>Parent-child relationships</li>
+                  <li>Spouse relationships</li>
+                  <li>Marriage dates</li>
+                </ul>
+              </div>
+              <div>
+                <h4 style="color: var(--fl-gold); margin-bottom: 0.5rem;">
+                  <i class="bi bi-dash-lg"></i> Not Imported
+                </h4>
+                <ul style="font-size: 0.9rem; margin: 0;">
+                  <li>Photos (add manually later)</li>
+                  <li>Notes/biographies</li>
+                  <li>Sources/citations</li>
+                  <li>Custom events</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Sidebar -->
+      <div class="stack-lg">
+        <!-- Pending Duplicates Alert -->
+        {% if pending_duplicate_count %}
+        <div class="card" style="border: 2px solid var(--fl-gold);">
+          <div class="card-header" style="background: var(--fl-gold); color: white;">
+            <span class="card-title"><i class="bi bi-people"></i> Pending Reviews</span>
+          </div>
+          <div class="card-body text-center">
+            <div style="font-size: 2.5rem; font-weight: bold; color: var(--fl-gold);">
+              {{ pending_duplicate_count }}
+            </div>
+            <p class="muted mb-2">potential duplicate(s) to review</p>
+            <a href="{% url 'families:duplicate_queue' family_id=family.id %}" class="btn btn-primary">
+              <i class="bi bi-list-check"></i> Review Queue
+            </a>
+          </div>
+        </div>
+        {% endif %}
+        
+        <!-- Recent Imports -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-clock-history"></i> Recent Imports</span>
+          </div>
+          {% if recent_imports %}
+          <ul class="list">
+            {% for imp in recent_imports %}
+            <li>
+              <div style="display: flex; justify-content: space-between; align-items: stretch;">
+                <a href="{% url 'families:gedcom_import_report' family_id=family.id import_id=imp.id %}" 
+                   style="text-decoration: none; color: var(--fl-text); display: block; padding: 0.75rem; flex: 1;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                    <span style="font-size: 0.9rem; font-weight: 500;">{{ imp.file_name|truncatechars:20 }}</span>
+                    {% if imp.status == 'COMPLETED' %}
+                    <span class="badge badge-green" style="font-size: 0.7rem;">Done</span>
+                    {% elif imp.status == 'FAILED' %}
+                    <span class="badge badge-red" style="font-size: 0.7rem;">Failed</span>
+                    {% elif imp.status == 'CANCELLED' %}
+                    <span class="badge" style="font-size: 0.7rem;">Deleted</span>
+                    {% elif imp.status == 'PROCESSING' %}
+                    <span class="badge badge-gold" style="font-size: 0.7rem;">Processing</span>
+                    {% else %}
+                  <span class="badge" style="font-size: 0.7rem;">Pending</span>
+                    {% endif %}
+                  </div>
+                  <small class="muted">
+                    {{ imp.persons_created }} people · {{ imp.created_at|timesince }} ago
+                    {% if imp.duplicates_found %}
+                    <span style="color: var(--fl-gold);">· {{ imp.duplicates_found }} dup</span>
+                    {% endif %}
+                  </small>
+                </a>
+                {% if membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+                {% if imp.status == 'CANCELLED' %}
+                <a href="{% url 'families:gedcom_import_delete' family_id=family.id import_id=imp.id %}" 
+                   class="btn btn-outline btn-sm" 
+                   style="color: var(--fl-red); border-color: var(--fl-red); margin: 0.5rem 0.5rem 0.5rem 0; align-self: center;"
+                   title="Permanently delete record">
+                  <i class="bi bi-x-lg"></i>
+                </a>
+                {% elif imp.status != 'PROCESSING' %}
+                <a href="{% url 'families:gedcom_import_rollback' family_id=family.id import_id=imp.id %}" 
+                   class="btn btn-outline btn-sm" 
+                   style="color: var(--fl-red); border-color: var(--fl-red); margin: 0.5rem 0.5rem 0.5rem 0; align-self: center;"
+                   title="Rollback this import">
+                  <i class="bi bi-trash"></i>
+                </a>
+                {% endif %}
+                {% endif %}
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+          <div class="card-footer text-center">
+            <a href="{% url 'families:gedcom_import_history' family_id=family.id %}" class="btn btn-outline btn-sm">
+              View All History
+            </a>
+          </div>
+          {% else %}
+          <div class="card-body">
+            <p class="muted text-center mb-0">No imports yet</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.querySelector('form[enctype="multipart/form-data"]');
+  const overlay = document.getElementById('uploadOverlay');
+  const stages = ['stage1', 'stage2', 'stage3', 'stage4', 'stage5'];
+  let currentStage = 0;
+  
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      // Check if file is selected
+      const fileInput = form.querySelector('input[type="file"]');
+      if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        return; // Let form validation handle it
+      }
+      
+      // Show overlay
+      overlay.classList.add('active');
+      
+      // Animate through stages
+      function advanceStage() {
+        if (currentStage > 0) {
+          document.getElementById(stages[currentStage - 1]).classList.remove('active');
+          document.getElementById(stages[currentStage - 1]).classList.add('done');
+          document.getElementById(stages[currentStage - 1]).querySelector('i').className = 'bi bi-check-circle-fill';
+        }
+        
+        if (currentStage < stages.length) {
+          document.getElementById(stages[currentStage]).classList.add('active');
+          currentStage++;
+          
+          // Variable timing based on stage
+          const delays = [1500, 2000, 3000, 2500, 2000];
+          setTimeout(advanceStage, delays[currentStage - 1] || 2000);
+        }
+      }
+      
+      // Start stage animation
+      setTimeout(advanceStage, 500);
+    });
+  }
+});
+</script>
+{% endblock %}

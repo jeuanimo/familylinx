@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Link to Family Tree | FamilyLinx{% endblock %}
+
+{% block content %}
+<div class="form-page" style="max-width: 600px; margin: 0 auto;">
+    <nav class="breadcrumb">
+        <a href="{% url 'home' %}">Home</a>
+        <span class="separator">/</span>
+        <a href="{% url 'accounts:my_profile' %}">My Profile</a>
+        <span class="separator">/</span>
+        <span class="current">Link to Tree</span>
+    </nav>
+    
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="bi bi-diagram-3"></i> Link Profile to Family Tree</span>
+        </div>
+        <div class="card-body">
+            <p class="muted" style="margin-bottom: 1.5rem;">
+                Connect your profile to your entry in a family tree. This allows others to see your profile when viewing your record in the tree.
+            </p>
+            
+            {% if profile.linked_person %}
+            <div class="alert alert-info">
+                <strong>Currently linked to:</strong> {{ profile.linked_person.full_name }}
+                in {{ profile.linked_person.family.name }}
+            </div>
+            {% endif %}
+            
+            {% if families %}
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label class="form-label required">Select Family</label>
+                    <select name="family_id" id="family-select" class="form-control" required>
+                        <option value="">-- Choose a family --</option>
+                        {% for family in families %}
+                        <option value="{{ family.id }}">{{ family.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label required">Select Person</label>
+                    <select name="person_id" id="person-select" class="form-control" required disabled>
+                        <option value="">-- Select a family first --</option>
+                    </select>
+                </div>
+                
+                <div class="form-actions">
+                    <a href="{% url 'accounts:my_profile' %}" class="btn btn-outline">Cancel</a>
+                    <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
+                        <i class="bi bi-link"></i> Link to Person
+                    </button>
+                </div>
+            </form>
+            {% else %}
+            <div class="empty-state" style="padding: 2rem;">
+                <i class="bi bi-people" style="font-size: 3rem; color: var(--fl-muted);"></i>
+                <h3 style="margin: 1rem 0 0.5rem;">No Family Spaces</h3>
+                <p class="muted">You need to be a member of a family space with people in the tree.</p>
+                <a href="{% url 'families:family_create' %}" class="btn btn-primary" style="margin-top: 1rem;">
+                    Create Family Space
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const familySelect = document.getElementById('family-select');
+    const personSelect = document.getElementById('person-select');
+    const submitBtn = document.getElementById('submit-btn');
+    
+    if (familySelect) {
+        familySelect.addEventListener('change', function() {
+            const familyId = this.value;
+            
+            if (!familyId) {
+                personSelect.innerHTML = '<option value="">-- Select a family first --</option>';
+                personSelect.disabled = true;
+                submitBtn.disabled = true;
+                return;
+            }
+            
+            // Fetch persons for this family
+            fetch(`/u/api/family/${familyId}/persons/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.persons && data.persons.length > 0) {
+                        let options = '<option value="">-- Select a person --</option>';
+                        data.persons.forEach(person => {
+                            let label = person.name;
+                            if (person.birth_year) {
+                                label += ` (b. ${person.birth_year})`;
+                            }
+                            options += `<option value="${person.id}">${label}</option>`;
+                        });
+                        personSelect.innerHTML = options;
+                        personSelect.disabled = false;
+                    } else {
+                        personSelect.innerHTML = '<option value="">-- No persons in this family --</option>';
+                        personSelect.disabled = true;
+                    }
+                    submitBtn.disabled = true;
+                })
+                .catch(err => {
+                    console.error('Error fetching persons:', err);
+                    personSelect.innerHTML = '<option value="">-- Error loading persons --</option>';
+                });
+        });
+        
+        personSelect.addEventListener('change', function() {
+            submitBtn.disabled = !this.value;
+        });
+    }
+});
+</script>
+{% endblock %}

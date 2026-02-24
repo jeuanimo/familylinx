@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Post | FamilyLinx{% endblock %}
+
+{% block content %}
+<div class="form-page" style="max-width: 500px; margin: 0 auto;">
+    <nav class="breadcrumb">
+        <a href="{% url 'home' %}">Home</a>
+        <span class="separator">/</span>
+        <a href="{% url 'accounts:profile_view' user_id=post.profile.user.id %}">{{ post.profile.get_display_name }}</a>
+        <span class="separator">/</span>
+        <span class="current">Delete Post</span>
+    </nav>
+    
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="bi bi-trash"></i> Delete Post</span>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <strong>Are you sure?</strong>
+                <p style="margin: 0.5rem 0 0;">This action cannot be undone. The post and all its comments will be permanently deleted.</p>
+            </div>
+            
+            <div class="card" style="margin: 1rem 0; background: var(--fl-surface);">
+                <div class="card-body">
+                    <p style="margin: 0;">{{ post.content|truncatechars:200 }}</p>
+                    {% if post.image %}
+                    <img src="{{ post.image.url }}" alt="" style="max-width: 150px; margin-top: 0.5rem; border-radius: var(--fl-radius);">
+                    {% endif %}
+                    <p class="muted" style="margin: 0.5rem 0 0; font-size: 0.85rem;">
+                        Posted {{ post.created_at|timesince }} ago
+                    </p>
+                </div>
+            </div>
+            
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-actions">
+                    <a href="{% url 'accounts:profile_view' user_id=post.profile.user.id %}" class="btn btn-outline">Cancel</a>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete Post
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ person.full_name }} – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_tree' family_id=family.id %}">Family Tree</a>
+      <span class="separator">/</span>
+      <span class="current">{{ person.full_name }}</span>
+    </nav>
+    
+    <div class="grid-2" style="grid-template-columns: 1fr 2fr;">
+      <!-- Profile Card -->
+      <div class="stack-lg">
+        <div class="card">
+          <div class="card-body text-center">
+            {% if person.display_photo_url %}
+            <img src="{{ person.display_photo_url }}" alt="{{ person.full_name }}" class="person-photo-lg">
+            {% else %}
+            <div class="person-photo-placeholder-lg">
+              <i class="bi bi-person"></i>
+            </div>
+            {% endif %}
+            
+            <h2 style="margin: 1rem 0 0.25rem;">{{ person.full_name }}</h2>
+            {% if person.maiden_name %}
+            <p class="muted" style="margin: 0;">née {{ person.maiden_name }}</p>
+            {% endif %}
+            
+            <div class="person-badges">
+              <span class="badge badge-{% if person.gender == 'M' %}blue{% elif person.gender == 'F' %}gold{% else %}green{% endif %}">
+                {{ person.get_gender_display }}
+              </span>
+              {% if not person.is_living %}
+              <span class="badge badge-red">Deceased</span>
+              {% endif %}
+            </div>
+            
+            {% if person.user_profiles.exists %}
+            <div style="margin: 1rem 0;">
+              {% with profile=person.user_profiles.first %}
+              <a href="{% url 'accounts:profile_view' user_id=profile.user.id %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-person-badge"></i> View Profile
+              </a>
+              {% endwith %}
+            </div>
+            {% endif %}
+            
+            {% if membership.role != 'VIEWER' %}
+            <div class="person-actions">
+              <a href="{% url 'families:person_edit' family_id=family.id person_id=person.id %}" class="btn btn-outline btn-sm">
+                <i class="bi bi-pencil"></i> Edit
+              </a>
+              {% if membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+              <a href="{% url 'families:person_delete' family_id=family.id person_id=person.id %}" class="btn btn-outline btn-sm">
+                <i class="bi bi-trash"></i>
+              </a>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- Vital Info -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-calendar3"></i> Vital Information</span>
+          </div>
+          <div class="card-body">
+            {% if person.birth_date or person.birth_place %}
+            <div class="vital-row">
+              <strong><i class="bi bi-star"></i> Born</strong>
+              <div>
+                {% if person.birth_date %}{{ person.birth_date|date:"F j, Y" }}{% endif %}
+                {% if person.birth_date and person.birth_place %}<br>{% endif %}
+                {% if person.birth_place %}{{ person.birth_place }}{% endif %}
+              </div>
+            </div>
+            {% endif %}
+            
+            {% if person.death_date or person.death_place %}
+            <div class="vital-row">
+              <strong><i class="bi bi-heart"></i> Died</strong>
+              <div>
+                {% if person.death_date %}{{ person.death_date|date:"F j, Y" }}{% endif %}
+                {% if person.death_date and person.death_place %}<br>{% endif %}
+                {% if person.death_place %}{{ person.death_place }}{% endif %}
+              </div>
+            </div>
+            {% endif %}
+            
+            {% if not person.birth_date and not person.birth_place and not person.death_date and not person.death_place %}
+            <p class="muted mb-0">No vital information recorded.</p>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- DNA Kits -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-fingerprint"></i> DNA</span>
+          </div>
+          <div class="card-body">
+            {% if person.dna_kits.exists %}
+            <ul class="list" style="margin: 0;">
+              {% for kit in person.dna_kits.all %}
+              <li>
+                <a href="{% url 'families:dna_kit_detail' kit_id=kit.id %}">
+                  <i class="bi bi-{% if kit.provider == 'ANCESTRY' %}tree{% elif kit.provider == '23ANDME' %}dna{% else %}database{% endif %}"></i>
+                  {{ kit.display_name }}
+                </a>
+                <small class="muted">{{ kit.get_provider_display }}</small>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p class="muted mb-2">No DNA kits linked to this person.</p>
+            {% endif %}
+            
+            <a href="{% url 'families:dna_kit_list' %}?link_to={{ person.id }}&family={{ family.id }}" class="btn btn-outline btn-sm w-full" style="margin-top: 0.5rem;">
+              <i class="bi bi-plus-lg"></i> Link DNA Kit
+            </a>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Main Content -->
+      <div class="stack-lg">
+        <!-- Biography -->
+        {% if person.bio %}
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-journal-text"></i> Biography</span>
+          </div>
+          <div class="card-body">
+            {{ person.bio|linebreaks }}
+          </div>
+        </div>
+        {% endif %}
+        
+        <!-- Relationships -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-diagram-3"></i> Relationships</span>
+            {% if membership.role != 'VIEWER' %}
+            <div class="btn-group">
+              <a href="{% url 'families:add_ancestor' family_id=family.id person_id=person.id %}" class="btn btn-outline btn-sm" title="Add parents, grandparents, etc.">
+                <i class="bi bi-arrow-up-circle"></i> Add Ancestor
+              </a>
+              <a href="{% url 'families:relationship_add' family_id=family.id person_id=person.id %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-lg"></i> Add
+              </a>
+            </div>
+            {% endif %}
+          </div>
+          <div class="card-body">
+            <!-- Parents -->
+            {% if person.parents %}
+            <div class="relationship-section">
+              <h4><i class="bi bi-arrow-up-circle"></i> Parents</h4>
+              <div class="relationship-list">
+                {% for parent in person.parents %}
+                <a href="{% url 'families:person_detail' family_id=family.id person_id=parent.id %}" class="relationship-card">
+                  <div class="relationship-avatar">
+                    {% if parent.display_photo_url %}
+                    <img src="{{ parent.display_photo_url }}" alt="{{ parent.full_name }}">
+                    {% else %}
+                    <i class="bi bi-person"></i>
+                    {% endif %}
+                  </div>
+                  <div class="relationship-info">
+                    <strong>{{ parent.full_name }}</strong>
+                    <span class="muted">{{ parent.get_gender_display }}</span>
+                  </div>
+                </a>
+                {% endfor %}
+              </div>
+              {% if membership.role != 'VIEWER' %}
+              <a href="{% url 'families:add_ancestor' family_id=family.id person_id=person.id %}" class="btn btn-outline btn-sm" style="margin-top: 0.5rem;">
+                <i class="bi bi-plus-lg"></i> Add more ancestors (grandparents, etc.)
+              </a>
+              {% endif %}
+            </div>
+            {% else %}
+            {% if membership.role != 'VIEWER' %}
+            <div class="relationship-section">
+              <h4><i class="bi bi-arrow-up-circle"></i> Parents</h4>
+              <p class="muted">No parents recorded.</p>
+              <a href="{% url 'families:add_ancestor' family_id=family.id person_id=person.id %}" class="btn btn-outline btn-sm">
+                <i class="bi bi-plus-lg"></i> Add Parent
+              </a>
+            </div>
+            {% endif %}
+            {% endif %}
+            
+            <!-- Ancestors (grandparents, great-grandparents, etc.) -->
+            {% for gen in person.ancestors %}
+            <div class="relationship-section">
+              <h4><i class="bi bi-arrow-up-circle"></i> {{ gen.label }}</h4>
+              <div class="relationship-list">
+                {% for ancestor in gen.persons %}
+                <a href="{% url 'families:person_detail' family_id=family.id person_id=ancestor.id %}" class="relationship-card">
+                  <div class="relationship-avatar">
+                    {% if ancestor.display_photo_url %}
+                    <img src="{{ ancestor.display_photo_url }}" alt="{{ ancestor.full_name }}">
+                    {% else %}
+                    <i class="bi bi-person"></i>
+                    {% endif %}
+                  </div>
+                  <div class="relationship-info">
+                    <strong>{{ ancestor.full_name }}</strong>
+                    <span class="muted">{{ ancestor.get_gender_display }}</span>
+                    {% for spouse in ancestor.spouses %}
+                    <span class="muted" style="font-size: 0.8em; display: block;">
+                      with <a href="{% url 'families:person_detail' family_id=family.id person_id=spouse.id %}" style="color: inherit; text-decoration: underline;">{{ spouse.full_name }}</a>
+                    </span>
+                    {% endfor %}
+                  </div>
+                </a>
+                {% endfor %}
+              </div>
+            </div>
+            {% endfor %}
+            
+            <!-- Spouses -->
+            {% if person.spouses %}
+            <div class="relationship-section">
+              <h4><i class="bi bi-heart"></i> Spouse{% if person.spouses|length > 1 %}s{% endif %}</h4>
+              <div class="relationship-list">
+                {% for spouse in person.spouses %}
+                <a href="{% url 'families:person_detail' family_id=family.id person_id=spouse.id %}" class="relationship-card">
+                  <div class="relationship-avatar">
+                    {% if spouse.display_photo_url %}
+                    <img src="{{ spouse.display_photo_url }}" alt="{{ spouse.full_name }}">
+                    {% else %}
+                    <i class="bi bi-person"></i>
+                    {% endif %}
+                  </div>
+                  <div class="relationship-info">
+                    <strong>{{ spouse.full_name }}</strong>
+                    <span class="muted">{{ spouse.get_gender_display }}</span>
+                  </div>
+                </a>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+            
+            <!-- Children -->
+            <div class="relationship-section">
+              <h4><i class="bi bi-arrow-down-circle"></i> Children</h4>
+              {% if person.children %}
+              <div class="relationship-list">
+                {% for child in person.children %}
+                <a href="{% url 'families:person_detail' family_id=family.id person_id=child.id %}" class="relationship-card">
+                  <div class="relationship-avatar">
+                    {% if child.display_photo_url %}
+                    <img src="{{ child.display_photo_url }}" alt="{{ child.full_name }}">
+                    {% else %}
+                    <i class="bi bi-person"></i>
+                    {% endif %}
+                  </div>
+                  <div class="relationship-info">
+                    <strong>{{ child.full_name }}</strong>
+                    <span class="muted">{{ child.get_gender_display }}</span>
+                    {% for other_parent in child.parents %}
+                      {% if other_parent.id != person.id %}
+                      <span class="muted" style="font-size: 0.8em; display: block;">
+                        with <a href="{% url 'families:person_detail' family_id=family.id person_id=other_parent.id %}" style="color: inherit; text-decoration: underline;">{{ other_parent.full_name }}</a>
+                      </span>
+                      {% endif %}
+                    {% endfor %}
+                  </div>
+                </a>
+                {% endfor %}
+              </div>
+              {% else %}
+              <p class="muted">No children recorded.</p>
+              {% endif %}
+              {% if membership.role != 'VIEWER' %}
+              <a href="{% url 'families:add_child' family_id=family.id person_id=person.id %}" class="btn btn-outline btn-sm" style="margin-top: 0.5rem;">
+                <i class="bi bi-plus-lg"></i> Add Child (create new person)
+              </a>
+              {% endif %}
+            </div>
+            
+            <!-- Siblings -->
+            {% if person.siblings %}
+            <div class="relationship-section">
+              <h4><i class="bi bi-people"></i> Siblings</h4>
+              <div class="relationship-list">
+                {% for sibling in person.siblings %}
+                <a href="{% url 'families:person_detail' family_id=family.id person_id=sibling.id %}" class="relationship-card">
+                  <div class="relationship-avatar">
+                    {% if sibling.display_photo_url %}
+                    <img src="{{ sibling.display_photo_url }}" alt="{{ sibling.full_name }}">
+                    {% else %}
+                    <i class="bi bi-person"></i>
+                    {% endif %}
+                  </div>
+                  <div class="relationship-info">
+                    <strong>{{ sibling.full_name }}</strong>
+                    <span class="muted">{{ sibling.get_gender_display }}</span>
+                  </div>
+                </a>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+            
+            {% if not person.parents and not person.spouses and not person.children and not person.siblings %}
+            <div class="empty-state" style="padding: 1rem;">
+              <p class="muted mb-0">No relationships recorded yet.</p>
+              {% if membership.role != 'VIEWER' %}
+              <a href="{% url 'families:relationship_add' family_id=family.id person_id=person.id %}" class="btn btn-primary btn-sm mt-2">
+                <i class="bi bi-plus-lg"></i> Add Relationship
+              </a>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-arrow-left"></i> Back to Family Tree
+        </a>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

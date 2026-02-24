@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}{{ family.name }} - FamilyLinx{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="breadcrumb">
+    <a href="{% url 'home' %}">Dashboard</a>
+    <span class="separator">/</span>
+    <span class="current">{{ family.name }}</span>
+</nav>
+
+<div class="page-header">
+    <div class="page-header-content">
+        <h1><i class="bi bi-people"></i> {{ family.name }}</h1>
+        {% if family.description %}
+        <p class="muted mb-0">{{ family.description }}</p>
+        {% endif %}
+        <small class="muted">
+            Created {{ family.created_at|date:"F j, Y" }} by {{ family.created_by.email }}
+        </small>
+    </div>
+    <div class="page-actions">
+        <span class="badge badge-blue" style="font-size: 0.9rem;">{{ membership.role }}</span>
+        {% if membership.role == 'OWNER' %}
+        <a href="{% url 'families:family_delete' family_id=family.id %}" 
+           class="btn btn-outline btn-sm" 
+           style="color: var(--fl-red); border-color: var(--fl-red);"
+           title="Delete this family space">
+          <i class="bi bi-trash"></i> Delete
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid-2" style="grid-template-columns: 2fr 1fr;">
+    <!-- Main Content -->
+    <div class="stack-lg">
+        <!-- Post Creation Form -->
+        {% if membership.role != 'VIEWER' %}
+        <div class="card">
+            <div class="card-body">
+                <form method="post" action="{% url 'families:post_create' family_id=family.id %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="form-group mb-2">
+                        <textarea name="content" 
+                                  class="form-control" 
+                                  rows="3" 
+                                  placeholder="Share something with your family..."
+                                  required></textarea>
+                    </div>
+                    <div class="flex-between">
+                        <label class="btn btn-outline btn-sm" style="cursor: pointer;">
+                            <i class="bi bi-image"></i> Add Photo
+                            <input type="file" name="image" accept="image/*" style="display: none;">
+                        </label>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="bi bi-send"></i> Post
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Family Feed -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-chat-dots"></i> Family Feed</span>
+            </div>
+            {% if posts %}
+            <div class="feed-posts">
+                {% for post in posts %}
+                <div class="feed-post {% if post.is_pinned %}feed-post-pinned{% endif %}">
+                    <div class="feed-post-header">
+                        <div class="flex-center" style="gap: 0.5rem;">
+                            {% if post.author.profile.profile_picture %}
+                            <img src="{{ post.author.profile.profile_picture.url }}" alt="" class="feed-avatar">
+                            {% else %}
+                            <i class="bi bi-person-circle" style="font-size: 1.5rem; color: var(--fl-muted);"></i>
+                            {% endif %}
+                            <div>
+                                <strong>{{ post.author.profile.get_display_name|default:post.author.email }}</strong>
+                                {% if post.is_pinned %}
+                                <span class="badge badge-gold" style="font-size: 0.7rem;"><i class="bi bi-pin-fill"></i> Pinned</span>
+                                {% endif %}
+                                <br>
+                                <small class="muted">{{ post.created_at|timesince }} ago</small>
+                            </div>
+                        </div>
+                        {% if post.author == user or membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+                        <div class="feed-post-actions">
+                            <a href="{% url 'families:post_detail' family_id=family.id post_id=post.id %}" 
+                               class="btn btn-outline btn-sm" title="View & Comment">
+                                <i class="bi bi-chat"></i> {{ post.comments.count }}
+                            </a>
+                            <form method="post" action="{% url 'families:post_delete' family_id=family.id post_id=post.id %}" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline btn-sm" onclick="return confirm('Delete this post?');">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <a href="{% url 'families:post_detail' family_id=family.id post_id=post.id %}" 
+                           class="btn btn-outline btn-sm" title="View & Comment">
+                            <i class="bi bi-chat"></i> {{ post.comments.count }}
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div class="feed-post-content">
+                        {{ post.content|linebreaks }}
+                    </div>
+                    {% if post.image %}
+                    <div class="feed-post-image">
+                        <img src="{{ post.image.url }}" alt="Post image">
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="card-body">
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="bi bi-chat-left-text"></i></div>
+                    <h3>No posts yet</h3>
+                    <p>Be the first to share something with your family!</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Upcoming Events -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-calendar-event"></i> Upcoming Events</span>
+                <a href="{% url 'families:event_list' family_id=family.id %}" class="btn btn-outline btn-sm">View All</a>
+            </div>
+            {% if upcoming_events %}
+            <ul class="list">
+                {% for event in upcoming_events %}
+                <li class="list-item-action">
+                    <a href="{% url 'families:event_detail' family_id=family.id event_id=event.id %}" class="event-list-item">
+                        <div class="event-date-badge-sm">
+                            <span class="event-date-month">{{ event.start_datetime|date:"M" }}</span>
+                            <span class="event-date-day">{{ event.start_datetime|date:"j" }}</span>
+                        </div>
+                        <div>
+                            <strong>{{ event.title }}</strong><br>
+                            <small class="muted">{{ event.start_datetime|time:"g:i A" }}{% if event.location %} · {{ event.location }}{% endif %}</small>
+                        </div>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% if membership.role != 'VIEWER' %}
+            <div class="card-body" style="padding-top: 0;">
+                <a href="{% url 'families:event_create' family_id=family.id %}" class="btn btn-primary btn-sm w-full">
+                    <i class="bi bi-plus-lg"></i> New Event
+                </a>
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="card-body">
+                <div class="empty-state" style="padding: 1.5rem;">
+                    <div class="empty-state-icon" style="font-size: 2rem;"><i class="bi bi-calendar3"></i></div>
+                    <h4>No upcoming events</h4>
+                    <p class="muted mb-0">Plan your next family gathering!</p>
+                    {% if membership.role != 'VIEWER' %}
+                    <a href="{% url 'families:event_create' family_id=family.id %}" class="btn btn-primary btn-sm mt-3">
+                        <i class="bi bi-plus-lg"></i> Create Event
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="stack-lg">
+        <!-- Members Card -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-people"></i> Members ({{ members|length }})</span>
+            </div>
+            <ul class="list">
+                {% for m in members %}
+                <li class="flex-between">
+                    <div class="flex-center" style="gap: 0.5rem;">
+                        {% if m.user.profile.profile_picture %}
+                        <img src="{{ m.user.profile.profile_picture.url }}" alt="" class="member-avatar">
+                        {% else %}
+                        <i class="bi bi-person-circle"></i>
+                        {% endif %}
+                        <span>{{ m.user.profile.get_display_name|default:m.user.email }}</span>
+                        {% if m.user == user %}
+                        <span class="badge badge-green" style="font-size: 0.7rem;">You</span>
+                        {% endif %}
+                    </div>
+                    <span class="badge badge-blue">{{ m.role }}</span>
+                </li>
+                {% empty %}
+                <li class="muted">No members yet</li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+        <!-- Invites Card (Admin/Owner only) -->
+        {% if membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+        <div class="card">
+            <div class="card-header flex-between">
+                <span class="card-title"><i class="bi bi-envelope"></i> Invitations</span>
+                <a href="{% url 'families:invite_create' family_id=family.id %}" 
+                   class="btn btn-primary btn-sm">
+                    <i class="bi bi-plus"></i> Invite
+                </a>
+            </div>
+            {% if invites %}
+            <ul class="list">
+                {% for invite in invites %}
+                <li>
+                    <div class="flex-between mb-1">
+                        <small style="word-break: break-all;">{{ invite.email }}</small>
+                        {% if invite.accepted_at %}
+                        <span class="badge badge-green">Accepted</span>
+                        {% elif not invite.is_valid %}
+                        <span class="badge badge-red">Expired</span>
+                        {% else %}
+                        <span class="badge badge-gold">Pending</span>
+                        {% endif %}
+                    </div>
+                    {% if invite.is_valid and not invite.accepted_at %}
+                    <small class="muted">
+                        Role: {{ invite.role }} &middot; 
+                        Expires: {{ invite.expires_at|date:"M j" }}
+                    </small>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="card-body text-center">
+                <p class="muted mb-2">No invitations sent yet</p>
+                <a href="{% url 'families:invite_create' family_id=family.id %}" 
+                   class="btn btn-outline btn-sm">
+                    <i class="bi bi-envelope-plus"></i> Send First Invite
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Admin Tools Card -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-shield-check"></i> Admin Tools</span>
+            </div>
+            <div class="card-body">
+                <div class="stack-sm">
+                    <a href="{% url 'families:trash_bin' family_id=family.id %}" class="btn btn-outline w-full">
+                        <i class="bi bi-trash3"></i> Trash Bin
+                    </a>
+                    <a href="{% url 'families:audit_log' family_id=family.id %}" class="btn btn-outline w-full">
+                        <i class="bi bi-clock-history"></i> Audit Log
+                    </a>
+                    <a href="{% url 'families:deletion_request_list' family_id=family.id %}" class="btn btn-outline w-full">
+                        <i class="bi bi-inbox"></i> Deletion Requests
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Family Tree -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-diagram-3"></i> Family Tree</span>
+            </div>
+            <div class="card-body">
+                <div class="stack-sm">
+                    <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-primary w-full">
+                        <i class="bi bi-diagram-3"></i> View Tree
+                    </a>
+                    <a href="{% url 'families:person_list' family_id=family.id %}" class="btn btn-outline w-full">
+                        <i class="bi bi-people"></i> All People
+                    </a>
+                    {% if membership.role != 'VIEWER' %}
+                    <a href="{% url 'families:person_create' family_id=family.id %}" class="btn btn-outline w-full">
+                        <i class="bi bi-person-plus"></i> Add Person
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Photo Albums -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-images"></i> Photo Albums</span>
+            </div>
+            <div class="card-body">
+                <div class="stack-sm">
+                    <a href="{% url 'families:album_list' family_id=family.id %}" class="btn btn-primary w-full">
+                        <i class="bi bi-images"></i> View Albums
+                    </a>
+                    {% if membership.role != 'VIEWER' %}
+                    <a href="{% url 'families:album_create' family_id=family.id %}" class="btn btn-outline w-full">
+                        <i class="bi bi-folder-plus"></i> New Album
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Family Chat -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-chat-dots"></i> Family Chat</span>
+            </div>
+            <div class="card-body">
+                <a href="{% url 'families:chat_room' family_id=family.id %}" class="btn btn-primary w-full">
+                    <i class="bi bi-chat-dots"></i> Open Chat
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

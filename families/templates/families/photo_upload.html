@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Upload Photos – {{ album.title }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:album_list' family_id=family.id %}">Photo Albums</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:album_detail' family_id=family.id album_id=album.id %}">{{ album.title }}</a>
+      <span class="separator">/</span>
+      <span class="current">Upload Photos</span>
+    </nav>
+    
+    <div class="form-page">
+      <!-- Quick Upload -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-cloud-upload"></i> Quick Upload</span>
+        </div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="upload-zone" id="dropZone">
+              <i class="bi bi-cloud-arrow-up" style="font-size: 3rem; color: var(--fl-blue);"></i>
+              <p style="margin: 1rem 0 0.5rem;"><strong>Drag & drop photos here</strong></p>
+              <p class="muted">or click to select files</p>
+              <input type="file" name="photos" id="photoInput" accept="image/*" multiple 
+                     style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
+            </div>
+            
+            <div id="previewArea" style="display: none; margin-top: 1rem;">
+              <p class="muted"><strong id="fileCount">0</strong> file(s) selected</p>
+            </div>
+            
+            <div class="form-actions">
+              <a href="{% url 'families:album_detail' family_id=family.id album_id=album.id %}" class="btn btn-outline">Cancel</a>
+              <button type="submit" class="btn btn-primary" id="uploadBtn" disabled>
+                <i class="bi bi-cloud-upload"></i> Upload Photos
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      
+      <!-- Single Photo with Details -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-image"></i> Upload Single Photo (with details)</span>
+        </div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="form-group">
+              <label class="form-label required">{{ form.image.label }}</label>
+              {{ form.image }}
+              {% if form.image.errors %}
+              <div class="form-error">{{ form.image.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">{{ form.caption.label }}</label>
+              {{ form.caption }}
+            </div>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">{{ form.taken_date.label }}</label>
+                {{ form.taken_date }}
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">{{ form.taken_location.label }}</label>
+                {{ form.taken_location }}
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">{{ form.tagged_people.label }}</label>
+              {{ form.tagged_people }}
+              <small class="form-text muted">Hold Ctrl/Cmd to select multiple people</small>
+            </div>
+            
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-cloud-upload"></i> Upload Photo
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Simple drag & drop handling
+  const dropZone = document.getElementById('dropZone');
+  const photoInput = document.getElementById('photoInput');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const fileCount = document.getElementById('fileCount');
+  const previewArea = document.getElementById('previewArea');
+  
+  photoInput.addEventListener('change', function() {
+    const count = this.files.length;
+    fileCount.textContent = count;
+    previewArea.style.display = count > 0 ? 'block' : 'none';
+    uploadBtn.disabled = count === 0;
+  });
+  
+  dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    this.style.borderColor = 'var(--fl-blue)';
+    this.style.background = 'var(--fl-surface)';
+  });
+  
+  dropZone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    this.style.borderColor = 'var(--fl-border)';
+    this.style.background = 'transparent';
+  });
+  
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    this.style.borderColor = 'var(--fl-border)';
+    this.style.background = 'transparent';
+    photoInput.files = e.dataTransfer.files;
+    photoInput.dispatchEvent(new Event('change'));
+  });
+</script>
+{% endblock %}

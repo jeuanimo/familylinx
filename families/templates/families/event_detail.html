@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ event.title }} – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:event_list' family_id=family.id %}">Events</a>
+      <span class="separator">/</span>
+      <span class="current">{{ event.title }}</span>
+    </nav>
+    
+    <div class="grid-2" style="grid-template-columns: 2fr 1fr;">
+      <!-- Event Details -->
+      <div class="stack-lg">
+        {% if event.image %}
+        <div class="event-cover-image">
+          <img src="{{ event.image.url }}" alt="{{ event.title }}" style="width: 100%; max-height: 400px; object-fit: cover; border-radius: var(--fl-radius);">
+        </div>
+        {% endif %}
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <span class="badge badge-{% if event.event_type == 'BIRTHDAY' %}gold{% elif event.event_type == 'REUNION' %}green{% else %}blue{% endif %}" style="margin-bottom: 0.5rem;">
+                {{ event.get_event_type_display }}
+              </span>
+              <h2 style="margin: 0;">{{ event.title }}</h2>
+            </div>
+            {% if event.created_by == user or membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+            <div class="page-actions">
+              <a href="{% url 'families:event_edit' family_id=family.id event_id=event.id %}" class="btn btn-outline btn-sm">
+                <i class="bi bi-pencil"></i> Edit
+              </a>
+              <a href="{% url 'families:event_delete' family_id=family.id event_id=event.id %}" class="btn btn-outline btn-sm">
+                <i class="bi bi-trash"></i>
+              </a>
+            </div>
+            {% endif %}
+          </div>
+          <div class="card-body">
+            <!-- Date & Time -->
+            <div class="event-info-row">
+              <i class="bi bi-calendar3"></i>
+              <div>
+                <strong>{{ event.start_datetime|date:"l, F j, Y" }}</strong><br>
+                <span class="muted">
+                  {{ event.start_datetime|time:"g:i A" }}
+                  {% if event.end_datetime %} – {{ event.end_datetime|time:"g:i A" }}{% endif %}
+                </span>
+              </div>
+            </div>
+            
+            {% if event.location %}
+            <div class="event-info-row">
+              <i class="bi bi-geo-alt"></i>
+              <div>
+                <strong>Location</strong><br>
+                <span class="muted">{{ event.location }}</span>
+              </div>
+            </div>
+            {% endif %}
+            
+            <div class="event-info-row">
+              <i class="bi bi-person"></i>
+              <div>
+                <strong>Organized by</strong><br>
+                <span class="muted">{{ event.created_by.email }}</span>
+              </div>
+            </div>
+            
+            {% if event.description %}
+            <hr style="margin: 1.5rem 0;">
+            <div class="event-description">
+              {{ event.description|linebreaks }}
+            </div>
+            {% endif %}
+            
+            {% if event.is_past %}
+            <div class="alert alert-warning mt-3">
+              <i class="bi bi-clock-history"></i> This event has already passed.
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- RSVP Section -->
+        {% if not event.is_past %}
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-check2-circle"></i> Your Response</span>
+          </div>
+          <div class="card-body">
+            <form method="post" action="{% url 'families:event_rsvp' family_id=family.id event_id=event.id %}">
+              {% csrf_token %}
+              <div class="rsvp-buttons">
+                <button type="submit" name="status" value="GOING" 
+                        class="btn {% if user_rsvp.status == 'GOING' %}btn-success{% else %}btn-outline{% endif %}">
+                  <i class="bi bi-check-lg"></i> Going
+                </button>
+                <button type="submit" name="status" value="MAYBE" 
+                        class="btn {% if user_rsvp.status == 'MAYBE' %}btn-primary{% else %}btn-outline{% endif %}">
+                  <i class="bi bi-question-lg"></i> Maybe
+                </button>
+                <button type="submit" name="status" value="NOT_GOING" 
+                        class="btn {% if user_rsvp.status == 'NOT_GOING' %}btn-danger{% else %}btn-outline{% endif %}">
+                  <i class="bi bi-x-lg"></i> Can't Go
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      
+      <!-- Sidebar: RSVPs -->
+      <div class="stack-lg">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-people"></i> Responses</span>
+          </div>
+          
+          <!-- Going -->
+          <div class="rsvp-section">
+            <div class="rsvp-section-header">
+              <span class="badge badge-green">Going ({{ going.count }})</span>
+            </div>
+            {% if going %}
+            <ul class="list">
+              {% for rsvp in going %}
+              <li>{{ rsvp.user.email }}</li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <div class="rsvp-empty">No responses yet</div>
+            {% endif %}
+          </div>
+          
+          <!-- Maybe -->
+          <div class="rsvp-section">
+            <div class="rsvp-section-header">
+              <span class="badge badge-gold">Maybe ({{ maybe.count }})</span>
+            </div>
+            {% if maybe %}
+            <ul class="list">
+              {% for rsvp in maybe %}
+              <li>{{ rsvp.user.email }}</li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <div class="rsvp-empty">—</div>
+            {% endif %}
+          </div>
+          
+          <!-- Not Going -->
+          <div class="rsvp-section">
+            <div class="rsvp-section-header">
+              <span class="badge badge-red">Not Going ({{ not_going.count }})</span>
+            </div>
+            {% if not_going %}
+            <ul class="list">
+              {% for rsvp in not_going %}
+              <li>{{ rsvp.user.email }}</li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <div class="rsvp-empty">—</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline w-full">
+          <i class="bi bi-arrow-left"></i> Back to Family
+        </a>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

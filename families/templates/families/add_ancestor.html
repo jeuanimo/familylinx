@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Add {{ gen_label }} – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}">{{ person.full_name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Add {{ gen_label }}</span>
+    </nav>
+    
+    <div class="form-page">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-arrow-up-circle"></i> Add {{ gen_label }}</span>
+        </div>
+        <div class="card-body">
+          <!-- Info Box -->
+          <div class="alert alert-info" style="margin-bottom: 1.5rem;">
+            <i class="bi bi-info-circle"></i>
+            <div>
+              <strong>Adding {{ gen_label|lower }} for {{ person.full_name }}</strong><br>
+              <span class="muted">This person will be added as a parent of <strong>{{ attach_to.full_name }}</strong>.</span>
+            </div>
+          </div>
+          
+          <!-- Generation Selection Tabs -->
+          <div style="margin-bottom: 1.5rem;">
+            <label class="form-label"><i class="bi bi-layers"></i> Generation Level</label>
+            <div class="btn-group" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+              <a href="?generation=1&attach_to={{ person.id }}" 
+                 class="btn btn-sm {% if generation == 1 %}btn-primary{% else %}btn-outline{% endif %}">
+                Parent
+              </a>
+              {% if existing_ancestors %}
+              {% for anc in existing_ancestors %}
+              <a href="?generation={{ anc.depth|add:1 }}&attach_to={{ anc.person.id }}" 
+                 class="btn btn-sm {% if attach_to.id == anc.person.id %}btn-primary{% else %}btn-outline{% endif %}">
+                Parent of {{ anc.person.first_name }} ({{ anc.label }})
+              </a>
+              {% endfor %}
+              {% endif %}
+            </div>
+            <small class="form-text muted">
+              Select which ancestor to add a parent for. Start with "Parent" to add direct parents, 
+              then you can add their parents (grandparents), and so on.
+            </small>
+          </div>
+          
+          <hr style="margin: 1.5rem 0; border-color: var(--fl-border);">
+          
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <h4 style="margin-bottom: 1rem; color: var(--fl-blue);">
+              <i class="bi bi-person"></i> {{ gen_label }} Information
+            </h4>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label required">{{ form.first_name.label }}</label>
+                {{ form.first_name }}
+                {% if form.first_name.errors %}
+                <div class="form-error">{{ form.first_name.errors.0 }}</div>
+                {% endif %}
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label required">{{ form.last_name.label }}</label>
+                {{ form.last_name }}
+                {% if form.last_name.errors %}
+                <div class="form-error">{{ form.last_name.errors.0 }}</div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">{{ form.maiden_name.label }}</label>
+                {{ form.maiden_name }}
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">{{ form.gender.label }}</label>
+                {{ form.gender }}
+              </div>
+            </div>
+            
+            <h4 style="margin: 1.5rem 0 1rem; color: var(--fl-blue);">
+              <i class="bi bi-calendar-event"></i> Vital Information
+            </h4>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">{{ form.birth_date.label }}</label>
+                {{ form.birth_date }}
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">{{ form.birth_place.label }}</label>
+                {{ form.birth_place }}
+              </div>
+            </div>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">{{ form.death_date.label }}</label>
+                {{ form.death_date }}
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">{{ form.death_place.label }}</label>
+                {{ form.death_place }}
+              </div>
+            </div>
+            
+            <h4 style="margin: 1.5rem 0 1rem; color: var(--fl-blue);">
+              <i class="bi bi-heart"></i> Spouse (Optional)
+            </h4>
+            <p class="muted" style="margin-bottom: 1rem; font-size: 0.9rem;">
+              If this {{ gen_label|lower }} has a spouse who is also in the tree, link them here.
+            </p>
+            
+            <div class="form-group">
+              <label class="form-label">{{ form.spouse.label }}</label>
+              {{ form.spouse }}
+              <small class="form-text muted">Select existing person as spouse</small>
+            </div>
+            
+            <h4 style="margin: 1.5rem 0 1rem; color: var(--fl-blue);">
+              <i class="bi bi-image"></i> Photo (Optional)
+            </h4>
+            
+            <div class="form-group">
+              <label class="form-label">{{ form.photo.label }}</label>
+              {{ form.photo }}
+            </div>
+            
+            <div class="form-actions">
+              <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" class="btn btn-outline">Cancel</a>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Add {{ gen_label }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      
+      <!-- Quick Add Another Panel -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-diagram-2"></i> Current Ancestor Tree</span>
+        </div>
+        <div class="card-body">
+          <div class="ancestor-tree">
+            <div class="ancestor-node root">
+              <strong>{{ person.full_name }}</strong>
+              <span class="muted">(You are adding ancestors for)</span>
+            </div>
+            
+            {% if existing_ancestors %}
+            <ul class="ancestor-list">
+              {% for anc in existing_ancestors %}
+              <li class="ancestor-item depth-{{ anc.depth }}">
+                <span class="ancestor-label">{{ anc.label }}:</span>
+                <span class="ancestor-name">{{ anc.person.full_name }}</span>
+                {% if anc.depth < 7 %}
+                <a href="?generation={{ anc.depth|add:1 }}&attach_to={{ anc.person.id }}" 
+                   class="btn btn-sm btn-outline" style="margin-left: 0.5rem;">
+                  <i class="bi bi-plus"></i> Add their parent
+                </a>
+                {% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p class="muted" style="margin-top: 1rem;">
+              No ancestors added yet. Add the first parent using the form above.
+            </p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .ancestor-tree {
+    padding: 1rem;
+  }
+  
+  .ancestor-node.root {
+    padding: 0.75rem 1rem;
+    background: var(--fl-blue);
+    color: white;
+    border-radius: var(--fl-radius);
+    display: inline-block;
+  }
+  
+  .ancestor-node.root .muted {
+    color: rgba(255,255,255,0.7);
+    font-size: 0.85rem;
+  }
+  
+  .ancestor-list {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0 0 1.5rem;
+    border-left: 2px solid var(--fl-border);
+  }
+  
+  .ancestor-item {
+    padding: 0.5rem 0 0.5rem 1rem;
+    position: relative;
+  }
+  
+  .ancestor-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 1rem;
+    height: 2px;
+    background: var(--fl-border);
+  }
+  
+  .ancestor-label {
+    color: var(--fl-muted);
+    font-size: 0.85rem;
+  }
+  
+  .ancestor-name {
+    font-weight: 500;
+    color: var(--fl-text);
+  }
+  
+  .depth-1 { margin-left: 0; }
+  .depth-2 { margin-left: 1.5rem; }
+  .depth-3 { margin-left: 3rem; }
+  .depth-4 { margin-left: 4.5rem; }
+  .depth-5 { margin-left: 6rem; }
+  .depth-6 { margin-left: 7.5rem; }
+  .depth-7 { margin-left: 9rem; }
+</style>
+{% endblock %}

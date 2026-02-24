@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Sign In - FamilyLinx{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="auth-logo">
+                <span class="brand-badge" style="width: 56px; height: 56px; font-size: 1.5rem;">FL</span>
+            </div>
+            <h1>Welcome Back</h1>
+            <p class="muted">Sign in to continue to FamilyLinx</p>
+        </div>
+        
+        <form method="post" action="{% url 'account_login' %}" class="auth-form">
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                {{ error }}
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <div class="form-group">
+                <label for="id_login" class="form-label">Email Address</label>
+                <input type="email" 
+                       name="login" 
+                       id="id_login"
+                       class="form-control {% if form.login.errors %}is-invalid{% endif %}"
+                       placeholder="you@example.com"
+                       value="{{ form.login.value|default:'' }}"
+                       autofocus
+                       required>
+                {% if form.login.errors %}
+                <div class="form-error">
+                    {% for error in form.login.errors %}{{ error }}{% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <div class="form-label-row">
+                    <label for="id_password" class="form-label">Password</label>
+                    <a href="{% url 'account_reset_password' %}" class="form-link">Forgot password?</a>
+                </div>
+                <input type="password" 
+                       name="password" 
+                       id="id_password"
+                       class="form-control {% if form.password.errors %}is-invalid{% endif %}"
+                       placeholder="Enter your password"
+                       required>
+                {% if form.password.errors %}
+                <div class="form-error">
+                    {% for error in form.password.errors %}{{ error }}{% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="remember" id="id_remember">
+                    <span>Remember me</span>
+                </label>
+            </div>
+            
+            {% if redirect_field_value %}
+            <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+            {% endif %}
+            
+            <button type="submit" class="btn btn-primary btn-lg w-full">
+                <i class="bi bi-box-arrow-in-right"></i> Sign In
+            </button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>Don't have an account? <a href="{% url 'account_signup' %}">Create one</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.auth-page {
+    min-height: calc(100vh - 200px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--fl-surface);
+    border-radius: var(--fl-radius);
+    box-shadow: var(--fl-shadow);
+    padding: 2.5rem;
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.auth-logo {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.25rem;
+}
+
+.auth-header h1 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--fl-blue);
+}
+
+.auth-header p {
+    margin: 0;
+}
+
+.auth-form .form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.35rem;
+}
+
+.form-label-row .form-label {
+    margin-bottom: 0;
+}
+
+.form-link {
+    font-size: 0.875rem;
+    color: var(--fl-blue);
+}
+
+.form-link:hover {
+    text-decoration: underline;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: var(--fl-text);
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--fl-blue);
+}
+
+.auth-footer {
+    text-align: center;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--fl-border);
+}
+
+.auth-footer p {
+    margin: 0;
+    color: var(--fl-muted);
+}
+
+.auth-footer a {
+    color: var(--fl-blue);
+    font-weight: 600;
+}
+</style>
+{% endblock %}

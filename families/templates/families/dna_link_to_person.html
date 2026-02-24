@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Link DNA Kit to Person | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:dna_kit_list' %}">DNA Dashboard</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:dna_kit_detail' kit_id=kit.id %}">{{ kit.display_name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Link to Person</span>
+    </nav>
+    
+    <div class="form-page">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-link"></i> Link DNA Kit to Family Tree</span>
+        </div>
+        <div class="card-body">
+          <div class="info-box" style="margin-bottom: 1.5rem; padding: 1rem; background: var(--fl-surface); border-radius: var(--fl-radius); border-left: 4px solid var(--fl-blue);">
+            <p style="margin: 0; font-size: 0.9rem;">
+              <strong>DNA Kit:</strong> {{ kit.display_name }} ({{ kit.get_provider_display }})<br>
+              <strong>Family:</strong> {{ family.name }}
+            </p>
+          </div>
+          
+          <p class="muted">
+            Select a person in the {{ family.name }} family tree to link with this DNA kit:
+          </p>
+          
+          <form method="post">
+            {% csrf_token %}
+            
+            <div class="form-group">
+              <label class="form-label required">Select Person</label>
+              <select name="person_id" class="form-control" required>
+                <option value="">-- Select a person --</option>
+                {% for person in people %}
+                <option value="{{ person.id }}" {% if kit.linked_person == person or person.id|stringformat:"s" == selected_person_id %}selected{% endif %}>
+                  {{ person.full_name }}
+                  {% if person.birth_date %} (b. {{ person.birth_date|date:"Y" }}){% endif %}
+                  {% if person.dna_kits.exists %} [Has DNA Kit]{% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="form-actions">
+              <a href="{% url 'families:dna_kit_detail' kit_id=kit.id %}" class="btn btn-outline">Cancel</a>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-link"></i> Link to Person
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      
+      <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-info-circle"></i> Why Link?</span>
+        </div>
+        <div class="card-body" style="font-size: 0.9rem;">
+          <p class="muted mb-0">
+            Linking a DNA kit to a person in your family tree helps:
+          </p>
+          <ul style="margin: 0.5rem 0 0;">
+            <li>Visualize DNA connections on your tree</li>
+            <li>Auto-suggest relationships for DNA matches</li>
+            <li>Track which family members have tested</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

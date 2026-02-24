@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Review Suggestion | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:dna_kit_list' %}">DNA Dashboard</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:relationship_suggestion_list' %}">Suggestions</a>
+      <span class="separator">/</span>
+      <span class="current">Review</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-diagram-3"></i> Attach to Family Tree</h1>
+        <p class="muted">Link this DNA match to a person in {{ family.name }}</p>
+      </div>
+    </div>
+    
+    <!-- Match Summary -->
+    <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid var(--fl-blue);">
+      <div class="card-body">
+        <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+          <!-- cM Display -->
+          <div style="text-align: center; padding: 1rem; background: var(--fl-surface); border-radius: var(--fl-radius); min-width: 100px;">
+            <div style="font-size: 2rem; font-weight: bold; color: var(--fl-blue);">
+              {{ match.shared_cm|floatformat:0 }}
+            </div>
+            <small class="muted">cM shared</small>
+          </div>
+          
+          <!-- Match Info -->
+          <div style="flex: 1; min-width: 200px;">
+            <h3 style="margin: 0 0 0.5rem;">{{ match.predicted_relationship }}</h3>
+            <p class="muted mb-0">
+              Your kit: <strong>{{ suggestion.suggested_for_kit.display_name }}</strong><br>
+              Matched with: <strong>{{ other_kit.display_name }}</strong> ({{ other_kit.user.email }})
+            </p>
+          </div>
+          
+          <a href="{% url 'families:dna_match_detail' match_id=match.id %}" class="btn btn-outline">
+            <i class="bi bi-arrow-up-right"></i> View Match
+          </a>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Action Form -->
+    <form method="post">
+      {% csrf_token %}
+      
+      <div class="grid-2" style="gap: 1.5rem; grid-template-columns: 2fr 1fr;">
+        <!-- Main Content -->
+        <div class="stack-lg">
+          <!-- Link to Existing Person -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title"><i class="bi bi-person-check"></i> Link to Existing Person</span>
+            </div>
+            <div class="card-body">
+              <p class="muted mb-3">
+                If this DNA match corresponds to someone already in your family tree, select them below:
+              </p>
+              
+              {% if people %}
+              <div class="form-group">
+                <select name="person_id" class="form-control" id="person-select">
+                  <option value="">-- Select a person --</option>
+                  {% for person in people %}
+                  <option value="{{ person.id }}">
+                    {{ person.full_name }}
+                    {% if person.birth_date %} (b. {{ person.birth_date|date:"Y" }}){% endif %}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Notes (optional)</label>
+                <textarea name="notes" class="form-control" rows="2" placeholder="Add any notes about this relationship..."></textarea>
+              </div>
+              
+              <button type="submit" name="action" value="accept" class="btn btn-primary">
+                <i class="bi bi-link"></i> Link to Selected Person
+              </button>
+              {% else %}
+              <p class="muted text-center">No people in this family tree yet.</p>
+              {% endif %}
+            </div>
+          </div>
+          
+          <!-- Create New Person -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title"><i class="bi bi-person-plus"></i> Create New Person</span>
+            </div>
+            <div class="card-body">
+              <p class="muted mb-3">
+                If this is someone new, create a person record in your family tree:
+              </p>
+              
+              <input type="hidden" name="create_new" value="false" id="create-new-input">
+              
+              <button type="submit" name="action" value="accept" class="btn btn-outline" 
+                      onclick="document.getElementById('create-new-input').value='true'; document.getElementById('person-select').value='';">
+                <i class="bi bi-plus-lg"></i> Create New Person & Link
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="stack-lg">
+          <!-- Quick Actions -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title"><i class="bi bi-hand-index"></i> Other Actions</span>
+            </div>
+            <div class="card-body stack">
+              <button type="submit" name="action" value="reject" class="btn btn-outline" style="width: 100%;">
+                <i class="bi bi-x-lg"></i> Not a Match
+              </button>
+              <button type="submit" name="action" value="ignore" class="btn btn-outline" style="width: 100%;">
+                <i class="bi bi-dash-lg"></i> Skip for Now
+              </button>
+            </div>
+          </div>
+          
+          <!-- Help -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title"><i class="bi bi-info-circle"></i> Help</span>
+            </div>
+            <div class="card-body" style="font-size: 0.9rem;">
+              <p class="muted mb-2">
+                <strong>{{ match.shared_cm|floatformat:0 }} cM</strong> suggests:
+              </p>
+              <p style="margin: 0;">{{ match.predicted_relationship }}</p>
+              
+              <hr style="margin: 1rem 0;">
+              
+              <p class="muted mb-0" style="font-size: 0.85rem;">
+                <strong>Link to Existing:</strong> Connect this match to someone already in your tree.<br><br>
+                <strong>Create New:</strong> Add a new person record for this match.<br><br>
+                <strong>Not a Match:</strong> Mark this as incorrect (won't show again).<br><br>
+                <strong>Skip:</strong> Review later.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+    
+    <!-- Back Link -->
+    <div class="text-center mt-3">
+      <a href="{% url 'families:relationship_suggestion_list' %}" class="btn btn-outline">
+        <i class="bi bi-arrow-left"></i> Back to Suggestions
+      </a>
+    </div>
+  </div>
+</main>
+{% endblock %}

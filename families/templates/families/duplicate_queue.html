@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Duplicate Review Queue – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_tree' family_id=family.id %}">Family Tree</a>
+      <span class="separator">/</span>
+      <span class="current">Duplicate Review Queue</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-people"></i> Duplicate Review Queue</h1>
+        <p class="muted">
+          {% if duplicates %}
+          {{ duplicates|length }} potential duplicate(s) to review, sorted by confidence
+          {% else %}
+          No pending duplicates
+          {% endif %}
+        </p>
+      </div>
+      <div class="page-actions">
+        {% if perfect_duplicates_count > 0 %}
+        {% if membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+        <a href="{% url 'families:bulk_delete_perfect_duplicates' family_id=family.id %}" class="btn btn-outline" style="color: var(--fl-green); border-color: var(--fl-green);">
+          <i class="bi bi-trash"></i> Auto-Remove {{ perfect_duplicates_count }} Identical (100%)
+        </a>
+        {% endif %}
+        {% endif %}
+        <a href="{% url 'families:gedcom_import' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-cloud-upload"></i> Import GEDCOM
+        </a>
+        <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-diagram-3"></i> View Tree
+        </a>
+      </div>
+    </div>
+    
+    {% if duplicates %}
+    <div class="card">
+      <ul class="list">
+        {% for dup in duplicates %}
+        <li style="{% if forloop.counter <= 3 %}border-left: 4px solid var(--fl-gold);{% endif %}">
+          <div style="display: flex; align-items: center; padding: 1rem; gap: 1rem;">
+            <!-- Confidence Badge -->
+            <div style="width: 60px; height: 60px; border-radius: 50%; 
+                        {% if dup.confidence_score >= 80 %}
+                        background: linear-gradient(135deg, var(--fl-gold), #f5a623);
+                        {% elif dup.confidence_score >= 60 %}
+                        background: linear-gradient(135deg, var(--fl-blue), #5b9fd4);
+                        {% else %}
+                        background: var(--fl-surface);
+                        {% endif %}
+                        display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <span style="font-weight: bold; font-size: 1.1rem; color: {% if dup.confidence_score >= 60 %}white{% else %}var(--fl-text){% endif %};">
+                {{ dup.confidence_score }}%
+              </span>
+            </div>
+            
+            <!-- Names -->
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <strong>{{ dup.existing_person.full_name }}</strong>
+                <span class="muted">↔</span>
+                <strong>{{ dup.imported_person.full_name }}</strong>
+              </div>
+              <small class="muted" style="display: block; margin-top: 0.25rem;">
+                {% if dup.existing_person.birth_date or dup.imported_person.birth_date %}
+                Born: {{ dup.existing_person.birth_date|date:"Y"|default:"?" }} / {{ dup.imported_person.birth_date|date:"Y"|default:"?" }}
+                {% endif %}
+                {% if dup.existing_person.birth_place %}
+                · {{ dup.existing_person.birth_place|truncatechars:25 }}
+                {% endif %}
+              </small>
+              <small style="color: var(--fl-blue); display: block; margin-top: 0.25rem;">
+                From: {{ dup.gedcom_import.file_name|truncatechars:30 }}
+              </small>
+            </div>
+            
+            <!-- Action Button -->
+            <a href="{% url 'families:duplicate_review' family_id=family.id duplicate_id=dup.id %}" 
+               class="btn btn-primary">
+              Review
+            </a>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    
+    <div class="alert alert-info" style="margin-top: 1.5rem;">
+      <i class="bi bi-lightbulb"></i>
+      <strong>Tip:</strong> Records with higher confidence scores (80%+) are more likely to be true duplicates. 
+      Start from the top for best results.
+    </div>
+    
+    {% else %}
+    <div class="card">
+      <div class="card-body text-center" style="padding: 3rem;">
+        <i class="bi bi-check-circle" style="font-size: 3rem; color: var(--fl-green);"></i>
+        <h3 style="margin: 1rem 0 0.5rem;">All Caught Up!</h3>
+        <p class="muted">No potential duplicates waiting for review.</p>
+        <div class="stack-inline mt-2">
+          <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-primary">
+            <i class="bi bi-diagram-3"></i> View Family Tree
+          </a>
+          <a href="{% url 'families:gedcom_import_history' family_id=family.id %}" class="btn btn-outline">
+            <i class="bi bi-clock-history"></i> Import History
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

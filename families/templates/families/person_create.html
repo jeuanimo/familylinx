@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Add Person – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_tree' family_id=family.id %}">Family Tree</a>
+      <span class="separator">/</span>
+      <span class="current">Add Person</span>
+    </nav>
+    
+    <div class="form-page">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-person-plus"></i> Add Person to Family Tree</span>
+        </div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <h4 style="margin-bottom: 1rem; color: var(--fl-blue);">Basic Information</h4>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label required">{{ form.first_name.label }}</label>
+                {{ form.first_name }}
+                {% if form.first_name.errors %}
+                <div class="form-error">{{ form.first_name.errors.0 }}</div>
+                {% endif %}
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label required">{{ form.last_name.label }}</label>
+                {{ form.last_name }}
+                {% if form.last_name.errors %}
+                <div class="form-error">{{ form.last_name.errors.0 }}</div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">{{ form.maiden_name.label }}</label>
+                {{ form.maiden_name }}
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">{{ form.gender.label }}</label>
+                {{ form.gender }}
+              </div>
+            </div>
+            
+            <h4 style="margin: 1.5rem 0 1rem; color: var(--fl-blue);">Vital Information</h4>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">{{ form.birth_date.label }}</label>
+                {{ form.birth_date }}
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">{{ form.birth_place.label }}</label>
+                {{ form.birth_place }}
+              </div>
+            </div>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">{{ form.death_date.label }}</label>
+                {{ form.death_date }}
+                <small class="form-text muted">Leave blank if still living</small>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">{{ form.death_place.label }}</label>
+                {{ form.death_place }}
+              </div>
+            </div>
+            
+            <h4 style="margin: 1.5rem 0 1rem; color: var(--fl-blue);">Biography & Photo</h4>
+            
+            <div class="form-group">
+              <label class="form-label">{{ form.bio.label }}</label>
+              {{ form.bio }}
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">{{ form.photo.label }}</label>
+              {{ form.photo }}
+            </div>
+            
+            <h4 style="margin: 1.5rem 0 1rem; color: var(--fl-blue);">
+              <i class="bi bi-diagram-3"></i> Family Relationships
+            </h4>
+            <p class="muted" style="margin-bottom: 1rem; font-size: 0.9rem;">
+              Link this person to existing family members. You can also add relationships later.
+            </p>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">{{ form.father.label }}</label>
+                {{ form.father }}
+                <small class="form-text muted">Select from existing people</small>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">{{ form.mother.label }}</label>
+                {{ form.mother }}
+                <small class="form-text muted">Select from existing people</small>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">{{ form.spouse.label }}</label>
+              {{ form.spouse }}
+              <small class="form-text muted">Current or most recent spouse</small>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">{{ form.children.label }}</label>
+              {{ form.children }}
+              <small class="form-text muted">{{ form.children.help_text }}</small>
+            </div>
+            
+            <div class="form-actions">
+              <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-outline">Cancel</a>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-person-plus"></i> Add Person
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

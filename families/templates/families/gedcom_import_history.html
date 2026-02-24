@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Import History – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_tree' family_id=family.id %}">Family Tree</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:gedcom_import' family_id=family.id %}">Import GEDCOM</a>
+      <span class="separator">/</span>
+      <span class="current">History</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-clock-history"></i> Import History</h1>
+        <p class="muted">All GEDCOM imports for {{ family.name }}</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:gedcom_import' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-cloud-upload"></i> New Import
+        </a>
+      </div>
+    </div>
+    
+    {% if imports %}
+    <div class="card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>File Name</th>
+            <th>Status</th>
+            <th>People</th>
+            <th>Relationships</th>
+            <th>Duplicates</th>
+            <th>Imported By</th>
+            <th>Date</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for imp in imports %}
+          <tr>
+            <td>
+              <a href="{% url 'families:gedcom_import_report' family_id=family.id import_id=imp.id %}">
+                <i class="bi bi-file-earmark-text"></i> {{ imp.file_name|truncatechars:30 }}
+              </a>
+            </td>
+            <td>
+              {% if imp.status == 'COMPLETED' %}
+              <span class="badge badge-green">Completed</span>
+              {% elif imp.status == 'FAILED' %}
+              <span class="badge badge-red">Failed</span>
+              {% elif imp.status == 'PROCESSING' %}
+              <span class="badge badge-gold">Processing</span>
+              {% elif imp.status == 'CANCELLED' %}
+              <span class="badge">Cancelled</span>
+              {% else %}
+              <span class="badge">Pending</span>
+              {% endif %}
+            </td>
+            <td>
+              <span style="color: var(--fl-blue);">+{{ imp.persons_created }}</span>
+              {% if imp.persons_updated %}<span class="muted"> / {{ imp.persons_updated }} updated</span>{% endif %}
+            </td>
+            <td>{{ imp.relationships_created }}</td>
+            <td>
+              {% if imp.duplicates_found %}
+              <span style="color: var(--fl-gold);">{{ imp.duplicates_found }}</span>
+              {% else %}
+              <span class="muted">0</span>
+              {% endif %}
+            </td>
+            <td>{{ imp.uploaded_by.get_full_name|default:imp.uploaded_by.email|truncatechars:20 }}</td>
+            <td>
+              <span title="{{ imp.created_at|date:'M d, Y g:i A' }}">
+                {{ imp.created_at|timesince }} ago
+              </span>
+            </td>
+            <td>
+              <div style="display: flex; gap: 0.5rem;">
+                <a href="{% url 'families:gedcom_import_report' family_id=family.id import_id=imp.id %}" 
+                   class="btn btn-outline btn-sm">
+                  View
+                </a>
+                {% if membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+                {% if imp.status == 'CANCELLED' %}
+                <a href="{% url 'families:gedcom_import_delete' family_id=family.id import_id=imp.id %}" 
+                   class="btn btn-outline btn-sm" style="color: var(--fl-red); border-color: var(--fl-red);" title="Permanently delete record">
+                  <i class="bi bi-x-lg"></i> Remove
+                </a>
+                {% elif imp.status != 'PROCESSING' %}
+                <a href="{% url 'families:gedcom_import_rollback' family_id=family.id import_id=imp.id %}" 
+                   class="btn btn-outline btn-sm" style="color: var(--fl-red); border-color: var(--fl-red);" title="Rollback this import">
+                  <i class="bi bi-arrow-counterclockwise"></i>
+                </a>
+                {% endif %}
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body text-center" style="padding: 3rem;">
+        <i class="bi bi-clock-history" style="font-size: 3rem; color: var(--fl-muted);"></i>
+        <h3 style="margin: 1rem 0 0.5rem;">No Import History</h3>
+        <p class="muted">You haven't imported any GEDCOM files yet.</p>
+        <a href="{% url 'families:gedcom_import' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-cloud-upload"></i> Import Your First GEDCOM
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Post by {{ post.author.email }} – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Post</span>
+    </nav>
+    
+    <div class="form-page">
+      <!-- The Post -->
+      <div class="card">
+        <div class="card-header">
+          <div class="flex-center" style="gap: 0.5rem;">
+            {% if post.author.profile.profile_picture %}
+            <img src="{{ post.author.profile.profile_picture.url }}" alt="" class="feed-avatar">
+            {% else %}
+            <i class="bi bi-person-circle" style="font-size: 1.5rem; color: var(--fl-muted);"></i>
+            {% endif %}
+            <div>
+              <strong>{{ post.author.profile.get_display_name|default:post.author.email }}</strong>
+              {% if post.is_pinned %}
+              <span class="badge badge-gold" style="margin-left: 0.5rem;"><i class="bi bi-pin-fill"></i> Pinned</span>
+              {% endif %}
+            </div>
+          </div>
+          <small class="muted">{{ post.created_at|date:"M j, Y g:i a" }}</small>
+        </div>
+        <div class="card-body">
+          <div class="feed-post-content">
+            {{ post.content|linebreaks }}
+          </div>
+          {% if post.image %}
+          <div class="feed-post-image">
+            <img src="{{ post.image.url }}" alt="Post image">
+          </div>
+          {% endif %}
+          
+          <!-- Post Actions -->
+          {% if post.author == user or membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+          <div class="flex-between mt-3" style="padding-top: 1rem; border-top: 1px solid var(--fl-border);">
+            <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline btn-sm">
+              <i class="bi bi-arrow-left"></i> Back to Feed
+            </a>
+            <form method="post" action="{% url 'families:post_delete' family_id=family.id post_id=post.id %}" style="display: inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this post and all its comments?');">
+                <i class="bi bi-trash"></i> Delete Post
+              </button>
+            </form>
+          </div>
+          {% else %}
+          <div class="mt-3" style="padding-top: 1rem; border-top: 1px solid var(--fl-border);">
+            <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline btn-sm">
+              <i class="bi bi-arrow-left"></i> Back to Feed
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Comments Section -->
+      <div class="card mt-3">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-chat-dots"></i> Comments ({{ comments.count }})</span>
+        </div>
+        <div class="card-body">
+          <!-- Comment Form -->
+          {% if membership.role != 'VIEWER' %}
+          <form method="post" class="mb-3">
+            {% csrf_token %}
+            <div class="form-group mb-2">
+              <textarea name="content" 
+                        class="form-control" 
+                        rows="2" 
+                        placeholder="Add a comment..."
+                        required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">
+              <i class="bi bi-send"></i> Post Comment
+            </button>
+          </form>
+          {% endif %}
+          
+          <!-- Comments List -->
+          {% if comments %}
+          <div class="comments-list">
+            {% for comment in comments %}
+            <div class="comment">
+              <div class="comment-avatar">
+                {% if comment.author.profile.profile_picture %}
+                <img src="{{ comment.author.profile.profile_picture.url }}" alt="">
+                {% else %}
+                <i class="bi bi-person"></i>
+                {% endif %}
+              </div>
+              <div class="comment-body">
+                <div class="comment-header">
+                  <span class="comment-author">{{ comment.author.profile.get_display_name|default:comment.author.email }}</span>
+                  <div>
+                    <span class="comment-meta">{{ comment.created_at|timesince }} ago</span>
+                    {% if comment.author == user or membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+                    <form method="post" action="{% url 'families:comment_delete' family_id=family.id comment_id=comment.id %}" style="display: inline;">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-outline btn-sm" style="padding: 0.2rem 0.5rem; margin-left: 0.5rem;" onclick="return confirm('Delete this comment?');">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="comment-content">
+                  {{ comment.content|linebreaks }}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="empty-state" style="padding: 1rem;">
+            <p class="muted mb-0">No comments yet. Be the first to comment!</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

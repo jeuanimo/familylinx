@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Invite to {{ family.name }} - FamilyLinx{% endblock %}
+
+{% block content %}
+<div class="form-page">
+    <nav class="breadcrumb" aria-label="breadcrumb">
+        <a href="{% url 'home' %}">Dashboard</a>
+        <span class="separator">/</span>
+        <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+        <span class="separator">/</span>
+        <span class="current">Send Invite</span>
+    </nav>
+    
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="bi bi-envelope-plus"></i> Invite to {{ family.name }}</span>
+        </div>
+        <div class="card-body">
+            <p class="muted mb-3">
+                Send an invitation to a family member. They'll receive a secure link 
+                to join this Family Space.
+            </p>
+            
+            <form method="post" novalidate>
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label for="id_email" class="form-label">
+                        Email Address <span class="required">*</span>
+                    </label>
+                    <input type="email" 
+                           name="email" 
+                           id="id_email"
+                           class="form-control {% if form.email.errors %}is-invalid{% endif %}"
+                           placeholder="relative@example.com"
+                           value="{{ form.email.value|default:'' }}"
+                           required>
+                    {% if form.email.errors %}
+                    <div class="form-error">
+                        {% for error in form.email.errors %}{{ error }}{% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="form-hint">
+                        The invitation will be sent to this email address.
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_role" class="form-label">
+                        Member Role <span class="required">*</span>
+                    </label>
+                    <select name="role" 
+                            id="id_role"
+                            class="form-control {% if form.role.errors %}is-invalid{% endif %}">
+                        <option value="MEMBER" {% if form.role.value == 'MEMBER' %}selected{% endif %}>
+                            Member - Can view and add basic content
+                        </option>
+                        <option value="EDITOR" {% if form.role.value == 'EDITOR' %}selected{% endif %}>
+                            Editor - Can modify family tree data
+                        </option>
+                        <option value="ADMIN" {% if form.role.value == 'ADMIN' %}selected{% endif %}>
+                            Admin - Can manage members and invites
+                        </option>
+                        <option value="VIEWER" {% if form.role.value == 'VIEWER' %}selected{% endif %}>
+                            Viewer - Read-only access
+                        </option>
+                    </select>
+                    {% if form.role.errors %}
+                    <div class="form-error">
+                        {% for error in form.role.errors %}{{ error }}{% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="form-hint">
+                        Select the permission level for this member.
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <a href="{% url 'families:family_detail' family_id=family.id %}" 
+                       class="btn btn-outline">
+                        Cancel
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-envelope"></i> Send Invitation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card mt-3">
+        <div class="card-body">
+            <h4 class="mb-2"><i class="bi bi-info-circle"></i> About Roles</h4>
+            <div class="muted" style="font-size: 0.9rem;">
+                <p class="mb-1"><strong>Owner</strong> — Full control, can delete the Family Space</p>
+                <p class="mb-1"><strong>Admin</strong> — Can manage members and invites</p>
+                <p class="mb-1"><strong>Editor</strong> — Can modify family tree data</p>
+                <p class="mb-1"><strong>Member</strong> — Can view and add basic content</p>
+                <p class="mb-0"><strong>Viewer</strong> — Read-only access</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="alert alert-info mt-3">
+        <i class="bi bi-lightbulb"></i>
+        <strong>Note:</strong> Invitations expire after 14 days. The recipient will need 
+        to create an account (or sign in) to accept the invitation.
+    </div>
+</div>
+{% endblock %}

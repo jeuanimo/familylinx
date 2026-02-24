@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Access Denied - FamilyLinx{% endblock %}
+
+{% block content %}
+<div class="form-page">
+    <div class="card text-center">
+        <div class="card-body" style="padding: 3rem;">
+            <i class="bi bi-shield-lock" style="font-size: 4rem; color: var(--danger);"></i>
+            
+            <h2 class="mt-3">Access Denied</h2>
+            
+            <p class="muted" style="font-size: 1.1rem;">
+                You don't have permission to access this Family Space.
+            </p>
+            
+            {% if family %}
+            <p class="muted">
+                The Family Space <strong>"{{ family.name }}"</strong> is private 
+                and only accessible to its members.
+            </p>
+            {% endif %}
+            
+            <hr style="margin: 2rem 0;">
+            
+            <a href="{% url 'home' %}" class="btn btn-primary">
+                <i class="bi bi-house"></i> Go to Dashboard
+            </a>
+        </div>
+    </div>
+    
+    <div class="card mt-3">
+        <div class="card-body">
+            <h4 class="mb-2"><i class="bi bi-lightbulb"></i> How to get access</h4>
+            <ul class="muted mb-0" style="font-size: 0.9rem;">
+                <li>Ask a member of this Family Space to send you an invitation</li>
+                <li>Check your email for any pending invitations</li>
+                <li>If you have an invite link, make sure you're signed in with the correct email</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

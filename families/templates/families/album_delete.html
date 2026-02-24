@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Delete {{ album.title }} – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:album_list' family_id=family.id %}">Photo Albums</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:album_detail' family_id=family.id album_id=album.id %}">{{ album.title }}</a>
+      <span class="separator">/</span>
+      <span class="current">Delete</span>
+    </nav>
+    
+    <div class="form-page">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title danger"><i class="bi bi-exclamation-triangle"></i> Delete Album</span>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-error">
+            <p><strong>Are you sure you want to delete "{{ album.title }}"?</strong></p>
+            <p>This will permanently delete:</p>
+            <ul>
+              <li>The album and all its settings</li>
+              <li><strong>{{ album.photo_count }} photo{{ album.photo_count|pluralize }}</strong> in this album</li>
+            </ul>
+            <p class="mb-0"><strong>This action cannot be undone.</strong></p>
+          </div>
+          
+          <form method="post">
+            {% csrf_token %}
+            <div class="form-actions">
+              <a href="{% url 'families:album_detail' family_id=family.id album_id=album.id %}" class="btn btn-outline">Cancel</a>
+              <button type="submit" class="btn btn-danger">
+                <i class="bi bi-trash"></i> Delete Album & Photos
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

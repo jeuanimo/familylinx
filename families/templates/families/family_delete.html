@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Delete Family Space – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Dashboard</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Delete</span>
+    </nav>
+    
+    <div class="form-page" style="max-width: 600px; margin: 0 auto;">
+      <div class="card" style="border: 2px solid var(--fl-danger);">
+        <div class="card-header" style="background: var(--fl-danger); color: white;">
+          <span class="card-title"><i class="bi bi-exclamation-triangle"></i> Delete Family Space</span>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-danger" style="margin-bottom: 1.5rem;">
+            <i class="bi bi-exclamation-octagon"></i>
+            <strong>Warning: This action cannot be undone!</strong>
+          </div>
+          
+          <div style="background: var(--fl-bg); padding: 1rem; border-radius: var(--fl-radius); margin-bottom: 1.5rem;">
+            <h4 style="margin: 0 0 0.5rem;">{{ family.name }}</h4>
+            {% if family.description %}
+            <p class="muted" style="margin: 0; font-size: 0.9rem;">{{ family.description }}</p>
+            {% endif %}
+          </div>
+          
+          <p style="margin-bottom: 1rem;"><strong>The following data will be permanently deleted:</strong></p>
+          
+          <div style="background: var(--fl-bg); padding: 1rem; border-radius: var(--fl-radius); margin-bottom: 1.5rem;">
+            <div class="grid-2" style="gap: 0.5rem;">
+              <div style="display: flex; justify-content: space-between; padding: 0.25rem 0;">
+                <span class="muted">Family Members</span>
+                <strong style="color: var(--fl-danger);">{{ member_count }}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding: 0.25rem 0;">
+                <span class="muted">People in Tree</span>
+                <strong style="color: var(--fl-danger);">{{ person_count }}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding: 0.25rem 0;">
+                <span class="muted">Relationships</span>
+                <strong style="color: var(--fl-danger);">{{ relationship_count }}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding: 0.25rem 0;">
+                <span class="muted">Posts</span>
+                <strong style="color: var(--fl-danger);">{{ post_count }}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding: 0.25rem 0;">
+                <span class="muted">Events</span>
+                <strong style="color: var(--fl-danger);">{{ event_count }}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding: 0.25rem 0;">
+                <span class="muted">Photos</span>
+                <strong style="color: var(--fl-danger);">{{ photo_count }}</strong>
+              </div>
+            </div>
+          </div>
+          
+          <p class="muted" style="font-size: 0.9rem; margin-bottom: 1.5rem;">
+            All other members will lose access to this family space immediately.
+          </p>
+          
+          <form method="post">
+            {% csrf_token %}
+            <div class="form-actions" style="display: flex; gap: 1rem; justify-content: flex-end; flex-wrap: wrap;">
+              <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline">
+                <i class="bi bi-x"></i> Cancel
+              </a>
+              <button type="submit" class="btn btn-danger" style="background: var(--fl-danger); color: white;">
+                <i class="bi bi-trash"></i> Permanently Delete
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

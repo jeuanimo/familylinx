@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}My Deletion Requests - {{ family.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="mb-4">
+        <h1><i class="bi bi-list-check"></i> My Deletion Requests</h1>
+        <p class="text-muted">Track the status of your deletion requests</p>
+    </div>
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="card">
+        <div class="card-body">
+            {% if requests %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Submitted</th>
+                            <th>Reviewer Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in requests %}
+                        <tr>
+                            <td><strong>{{ req.object_repr }}</strong></td>
+                            <td>
+                                <span class="badge bg-secondary">{{ req.get_object_type_display }}</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-{% if req.status == 'PENDING' %}warning text-dark{% elif req.status == 'APPROVED' %}success{% elif req.status == 'REJECTED' %}danger{% else %}secondary{% endif %}">
+                                    {{ req.get_status_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <small title="{{ req.created_at }}">
+                                    {{ req.created_at|timesince }} ago
+                                </small>
+                            </td>
+                            <td>
+                                {% if req.reviewer_notes %}
+                                <small>{{ req.reviewer_notes }}</small>
+                                {% elif req.status == 'PENDING' %}
+                                <em class="text-muted">Awaiting review</em>
+                                {% else %}
+                                <em class="text-muted">No notes</em>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0"><i class="bi bi-check-circle"></i> You haven't made any deletion requests.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="mt-4">
+        <a href="{% url 'families:family_detail' family.id %}" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-left"></i> Back to Family
+        </a>
+    </div>
+</div>
+{% endblock %}

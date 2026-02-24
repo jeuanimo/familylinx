@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Trash Bin - {{ family.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1><i class="bi bi-trash3"></i> Trash Bin</h1>
+            <p class="text-muted mb-0">Deleted items can be restored within 30 days</p>
+        </div>
+        {% if membership.role == 'OWNER' and deleted_persons or deleted_relationships %}
+        <form method="post" action="{% url 'families:empty_trash' family.id %}" 
+              onsubmit="return confirm('Are you sure you want to permanently delete ALL items in trash? This cannot be undone!');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">
+                <i class="bi bi-trash-fill"></i> Empty Trash
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- Deleted Persons -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-person-x"></i> Deleted People ({{ deleted_persons|length }})</h5>
+        </div>
+        <div class="card-body">
+            {% if deleted_persons %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Birth Date</th>
+                            <th>Deleted</th>
+                            <th>Deleted By</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for person in deleted_persons %}
+                        <tr>
+                            <td>
+                                <strong>{{ person.full_name }}</strong>
+                                {% if person.maiden_name %}
+                                <small class="text-muted">(née {{ person.maiden_name }})</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ person.birth_date|default:"Unknown" }}</td>
+                            <td>
+                                <span title="{{ person.deleted_at }}">
+                                    {{ person.deleted_at|timesince }} ago
+                                </span>
+                            </td>
+                            <td>{{ person.deleted_by.get_full_name|default:person.deleted_by.username }}</td>
+                            <td>
+                                <form method="post" action="{% url 'families:restore_person' family.id person.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-success" title="Restore">
+                                        <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                    </button>
+                                </form>
+                                {% if membership.role == 'OWNER' %}
+                                <a href="{% url 'families:permanent_delete_person' family.id person.id %}" 
+                                   class="btn btn-sm btn-outline-danger" title="Permanently Delete">
+                                    <i class="bi bi-x-circle"></i>
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0"><i class="bi bi-check-circle"></i> No deleted people</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Deleted Relationships -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-diagram-3"></i> Deleted Relationships ({{ deleted_relationships|length }})</h5>
+        </div>
+        <div class="card-body">
+            {% if deleted_relationships %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Relationship</th>
+                            <th>Type</th>
+                            <th>Deleted</th>
+                            <th>Deleted By</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rel in deleted_relationships %}
+                        <tr>
+                            <td>{{ rel }}</td>
+                            <td>
+                                <span class="badge bg-{% if rel.relationship_type == 'SPOUSE' %}primary{% else %}info{% endif %}">
+                                    {{ rel.get_relationship_type_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <span title="{{ rel.deleted_at }}">
+                                    {{ rel.deleted_at|timesince }} ago
+                                </span>
+                            </td>
+                            <td>{{ rel.deleted_by.get_full_name|default:rel.deleted_by.username }}</td>
+                            <td>
+                                <form method="post" action="{% url 'families:restore_relationship' family.id rel.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-success" title="Restore">
+                                        <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0"><i class="bi bi-check-circle"></i> No deleted relationships</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="d-flex gap-2">
+        <a href="{% url 'families:family_tree' family.id %}" class="btn btn-outline-primary">
+            <i class="bi bi-diagram-3"></i> Back to Tree
+        </a>
+        <a href="{% url 'families:audit_log' family.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-clock-history"></i> View Audit Log
+        </a>
+    </div>
+</div>
+{% endblock %}

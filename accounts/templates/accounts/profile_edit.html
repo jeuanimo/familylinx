@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile | FamilyLinx{% endblock %}
+
+{% block content %}
+<div class="form-page" style="max-width: 700px; margin: 0 auto;">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+        <a href="{% url 'home' %}">Home</a>
+        <span class="separator">/</span>
+        <a href="{% url 'accounts:my_profile' %}">My Profile</a>
+        <span class="separator">/</span>
+        <span class="current">Edit Profile</span>
+    </nav>
+    
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="bi bi-person-gear"></i> Edit Profile</span>
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <!-- Profile Images -->
+                <fieldset style="border: 1px solid var(--fl-border); padding: 1rem; border-radius: var(--fl-radius); margin-bottom: 1.5rem;">
+                    <legend style="font-weight: 600; padding: 0 0.5rem;">Profile Images</legend>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Profile Picture</label>
+                        {% if profile.profile_picture %}
+                        <div style="margin-bottom: 0.5rem;">
+                            <img src="{{ profile.profile_picture.url }}" alt="Current" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;">
+                        </div>
+                        {% endif %}
+                        {{ form.profile_picture }}
+                        <small class="form-hint">Recommended: 180x180 pixels</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Cover Photo</label>
+                        {% if profile.cover_photo %}
+                        <div style="margin-bottom: 0.5rem;">
+                            <img src="{{ profile.cover_photo.url }}" alt="Current" style="width: 200px; height: 76px; border-radius: var(--fl-radius); object-fit: cover;">
+                        </div>
+                        {% endif %}
+                        {{ form.cover_photo }}
+                        <small class="form-hint">Recommended: 820x312 pixels</small>
+                    </div>
+                </fieldset>
+                
+                <!-- Basic Info -->
+                <fieldset style="border: 1px solid var(--fl-border); padding: 1rem; border-radius: var(--fl-radius); margin-bottom: 1.5rem;">
+                    <legend style="font-weight: 600; padding: 0 0.5rem;">Basic Information</legend>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Display Name</label>
+                        {{ form.display_name }}
+                        <small class="form-hint">This is how your name appears to others</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Bio</label>
+                        {{ form.bio }}
+                        <small class="form-hint">Tell us about yourself (max 500 characters)</small>
+                    </div>
+                    
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label">Location</label>
+                            {{ form.location }}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Website</label>
+                            {{ form.website }}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Date of Birth</label>
+                        {{ form.date_of_birth }}
+                    </div>
+                </fieldset>
+                
+                <!-- Privacy Settings -->
+                <fieldset style="border: 1px solid var(--fl-border); padding: 1rem; border-radius: var(--fl-radius); margin-bottom: 1.5rem;">
+                    <legend style="font-weight: 600; padding: 0 0.5rem;">Privacy Settings</legend>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Profile Visibility</label>
+                        {{ form.profile_visibility }}
+                        <small class="form-hint">Who can see your profile</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-check">
+                            {{ form.show_email }}
+                            <span>Show email address on profile</span>
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-check">
+                            {{ form.show_birthday }}
+                            <span>Show birthday on profile</span>
+                        </label>
+                    </div>
+                </fieldset>
+                
+                <div class="form-actions">
+                    <a href="{% url 'accounts:my_profile' %}" class="btn btn-outline">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,664 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="FamilyLinx - Connect with your family, preserve your heritage">
+    
+    <!-- CSRF Token for AJAX requests -->
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    
+    <title>{% block title %}FamilyLinx{% endblock %}</title>
+    
+    <!-- Bootstrap Icons (for icons only) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <!-- Cropper.js for image cropping -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+    
+    <!-- FamilyLinx Theme -->
+    <link href="{% static 'css/theme.css' %}" rel="stylesheet">
+    
+    <!-- Global Upload Progress Styles -->
+    <style>
+      .upload-overlay-global {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 9999;
+        display: none;
+        justify-content: center;
+        align-items: center;
+      }
+      .upload-overlay-global.active {
+        display: flex;
+      }
+      .upload-modal-global {
+        background: var(--fl-surface);
+        border-radius: var(--fl-radius-lg);
+        padding: 2rem 3rem;
+        text-align: center;
+        max-width: 380px;
+        width: 90%;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+      }
+      .upload-modal-global h3 {
+        margin: 0 0 0.5rem;
+        color: var(--fl-text);
+      }
+      .upload-modal-global p {
+        color: var(--fl-muted);
+        margin: 0 0 1.5rem;
+        font-size: 0.9rem;
+      }
+      .upload-icon-global {
+        font-size: 3rem;
+        color: var(--fl-blue);
+        margin-bottom: 1rem;
+        animation: upload-pulse 1.5s ease-in-out infinite;
+      }
+      @keyframes upload-pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.7; transform: scale(1.05); }
+      }
+      .progress-container-global {
+        background: var(--fl-bg);
+        border-radius: 10px;
+        height: 16px;
+        overflow: hidden;
+        margin-bottom: 0.75rem;
+      }
+      .progress-fill-global {
+        height: 100%;
+        background: linear-gradient(90deg, var(--fl-blue), var(--fl-green));
+        border-radius: 10px;
+        width: 0%;
+        transition: width 0.3s ease;
+      }
+      .progress-text-global {
+        font-size: 0.85rem;
+        color: var(--fl-muted);
+      }
+      .upload-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid var(--fl-border);
+        border-top-color: var(--fl-blue);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 0.5rem;
+        vertical-align: middle;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      
+      /* Global Image Cropper Modal */
+      .cropper-modal-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.85);
+        z-index: 10000;
+        display: none;
+        justify-content: center;
+        align-items: center;
+        padding: 1rem;
+      }
+      .cropper-modal-overlay.active { display: flex; }
+      .cropper-modal-box {
+        background: var(--fl-surface);
+        border-radius: var(--fl-radius-lg);
+        width: 100%;
+        max-width: 700px;
+        max-height: 90vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .cropper-modal-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--fl-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .cropper-modal-header h3 { margin: 0; font-size: 1.1rem; }
+      .cropper-modal-close {
+        background: none; border: none; font-size: 1.5rem;
+        cursor: pointer; color: var(--fl-muted); padding: 0;
+      }
+      .cropper-modal-close:hover { color: var(--fl-text); }
+      .cropper-modal-body {
+        flex: 1;
+        min-height: 300px;
+        max-height: 50vh;
+        overflow: hidden;
+        background: #1a1a1a;
+      }
+      .cropper-modal-body img {
+        display: block;
+        max-width: 100%;
+      }
+      .cropper-modal-controls {
+        padding: 1rem;
+        background: var(--fl-bg);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+        border-bottom: 1px solid var(--fl-border);
+      }
+      .cropper-modal-controls button {
+        padding: 0.4rem 0.75rem;
+        border: 1px solid var(--fl-border);
+        background: var(--fl-surface);
+        border-radius: var(--fl-radius);
+        cursor: pointer;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        transition: all 0.2s;
+      }
+      .cropper-modal-controls button:hover {
+        background: var(--fl-blue);
+        color: white;
+        border-color: var(--fl-blue);
+      }
+      .cropper-modal-footer {
+        padding: 1rem 1.5rem;
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-end;
+      }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <a class="brand" href="{% url 'home' %}">
+                <span class="brand-badge">FL</span>
+                <span>FamilyLinx</span>
+            </a>
+            
+            {% if user.is_authenticated %}
+            <div class="nav-links">
+                <a class="nav-link" href="{% url 'home' %}">
+                    <i class="bi bi-house"></i> Dashboard
+                </a>
+                <a class="nav-link" href="{% url 'families:family_create' %}">
+                    <i class="bi bi-plus-circle"></i> New Space
+                </a>
+                <a class="nav-link" href="{% url 'accounts:my_profile' %}">
+                    <i class="bi bi-person"></i> Profile
+                </a>
+            </div>
+            {% endif %}
+            
+            <div class="nav-actions">
+                {% if user.is_authenticated %}
+                <!-- Messages Icon -->
+                <div class="notification-bell">
+                    <a href="{% url 'accounts:message_inbox' %}" class="bell-btn" title="Messages">
+                        <i class="bi bi-chat-dots"></i>
+                    </a>
+                </div>
+                
+                <!-- Notification Bell -->
+                <div class="notification-bell">
+                    <a href="{% url 'families:notification_list' %}" class="bell-btn" title="Notifications">
+                        <i class="bi bi-bell"></i>
+                        <span class="bell-badge" id="notification-badge" style="display: none;">0</span>
+                    </a>
+                </div>
+                
+                <div class="user-menu">
+                    <button class="user-btn">
+                        {% if user_profile and user_profile.profile_picture %}
+                        <img src="{{ user_profile.profile_picture.url }}" alt="" class="navbar-avatar">
+                        {% else %}
+                        <i class="bi bi-person-circle"></i>
+                        {% endif %}
+                        <span>{{ user_profile.get_display_name|default:user.email|truncatechars:20 }}</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </button>
+                    <div class="user-dropdown">
+                        <a href="{% url 'accounts:my_profile' %}" class="dropdown-item">
+                            <i class="bi bi-person"></i> My Profile
+                        </a>
+                        <a href="{% url 'accounts:message_inbox' %}" class="dropdown-item">
+                            <i class="bi bi-chat-dots"></i> Messages
+                        </a>
+                        <a href="{% url 'families:notification_list' %}" class="dropdown-item">
+                            <i class="bi bi-bell"></i> Notifications
+                        </a>
+                        <a href="{% url 'accounts:profile_edit' %}" class="dropdown-item">
+                            <i class="bi bi-gear"></i> Settings
+                        </a>
+                        <form method="post" action="{% url 'account_logout' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="dropdown-item danger w-full" style="background: none; border: none; cursor: pointer; text-align: left;">
+                                <i class="bi bi-box-arrow-right"></i> Sign Out
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% else %}
+                <a href="{% url 'account_login' %}" class="btn btn-secondary btn-sm">
+                    <i class="bi bi-box-arrow-in-right"></i> Sign In
+                </a>
+                <a href="{% url 'account_signup' %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-person-plus"></i> Sign Up
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Messages -->
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}">
+            <span>{{ message }}</span>
+            <button type="button" class="alert-close" onclick="this.parentElement.remove()">&times;</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <!-- Main Content -->
+    <main>
+        <div class="container">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+    
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div>
+                    <strong>FamilyLinx</strong> &copy; 2026
+                    <span class="muted">&middot; Connect with your family, preserve your heritage.</span>
+                </div>
+                <div class="footer-links">
+                    <a href="#">Privacy</a>
+                    <a href="#">Terms</a>
+                    <a href="#">Help</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Global Upload Progress Overlay -->
+    <div class="upload-overlay-global" id="globalUploadOverlay">
+      <div class="upload-modal-global">
+        <div class="upload-icon-global">
+          <i class="bi bi-cloud-arrow-up"></i>
+        </div>
+        <h3 id="uploadTitle">Uploading...</h3>
+        <p id="uploadMessage">Please wait while we process your file...</p>
+        <div class="progress-container-global">
+          <div class="progress-fill-global" id="uploadProgress"></div>
+        </div>
+        <div class="progress-text-global" id="uploadProgressText">
+          <span class="upload-spinner"></span> Starting upload...
+        </div>
+      </div>
+    </div>
+    
+    <!-- Global Image Cropper Modal -->
+    <div class="cropper-modal-overlay" id="cropperModal">
+      <div class="cropper-modal-box">
+        <div class="cropper-modal-header">
+          <h3><i class="bi bi-crop"></i> Crop Image</h3>
+          <button class="cropper-modal-close" onclick="FLCropper.cancel()">&times;</button>
+        </div>
+        <div class="cropper-modal-body">
+          <img id="cropperImage" src="" alt="Crop preview">
+        </div>
+        <div class="cropper-modal-controls">
+          <button type="button" onclick="FLCropper.zoomIn()"><i class="bi bi-zoom-in"></i> Zoom In</button>
+          <button type="button" onclick="FLCropper.zoomOut()"><i class="bi bi-zoom-out"></i> Zoom Out</button>
+          <button type="button" onclick="FLCropper.rotateLeft()"><i class="bi bi-arrow-counterclockwise"></i> Rotate</button>
+          <button type="button" onclick="FLCropper.rotateRight()"><i class="bi bi-arrow-clockwise"></i> Rotate</button>
+          <button type="button" onclick="FLCropper.reset()"><i class="bi bi-arrow-repeat"></i> Reset</button>
+          <button type="button" onclick="FLCropper.flipH()"><i class="bi bi-symmetry-vertical"></i> Flip H</button>
+          <button type="button" onclick="FLCropper.flipV()"><i class="bi bi-symmetry-horizontal"></i> Flip V</button>
+        </div>
+        <div class="cropper-modal-footer">
+          <button type="button" class="btn btn-outline" onclick="FLCropper.cancel()">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="FLCropper.apply()">
+            <i class="bi bi-check-lg"></i> Apply Crop
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Cropper.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    
+    <!-- FamilyLinx Global Image Cropper -->
+    <script>
+    const FLCropper = {
+      cropper: null,
+      modal: null,
+      image: null,
+      currentInput: null,
+      currentForm: null,
+      aspectRatio: NaN,  // Free crop by default
+      outputWidth: 800,
+      outputHeight: 600,
+      onComplete: null,
+      
+      init() {
+        this.modal = document.getElementById('cropperModal');
+        this.image = document.getElementById('cropperImage');
+        
+        // Auto-attach to image inputs with data-crop attribute
+        document.querySelectorAll('input[type="file"][accept*="image"]').forEach(input => {
+          // Skip inputs that explicitly disable cropping
+          if (input.dataset.noCrop === 'true') return;
+          // Skip multiple file inputs (photo albums)
+          if (input.multiple) return;
+          
+          input.addEventListener('change', (e) => this.handleFileSelect(e));
+        });
+      },
+      
+      handleFileSelect(e) {
+        const input = e.target;
+        const file = input.files[0];
+        if (!file || !file.type.startsWith('image/')) return;
+        
+        this.currentInput = input;
+        this.currentForm = input.closest('form');
+        
+        // Determine aspect ratio based on input name or data attribute
+        const name = input.name || '';
+        const dataRatio = input.dataset.cropRatio;
+        
+        if (dataRatio) {
+          // Custom ratio from data attribute (e.g., "16:9", "1:1", "free")
+          if (dataRatio === 'free') {
+            this.aspectRatio = NaN;
+          } else {
+            const [w, h] = dataRatio.split(':').map(Number);
+            this.aspectRatio = w / h;
+          }
+        } else if (name.includes('cover') || name.includes('banner')) {
+          // Cover photos: wide landscape (820:312)
+          this.aspectRatio = 820 / 312;
+          this.outputWidth = 820;
+          this.outputHeight = 312;
+        } else if (name.includes('profile') || name.includes('avatar') || name.includes('photo')) {
+          // Profile/person photos: square
+          this.aspectRatio = 1;
+          this.outputWidth = 400;
+          this.outputHeight = 400;
+        } else if (name.includes('event')) {
+          // Event images: 16:9 landscape
+          this.aspectRatio = 16 / 9;
+          this.outputWidth = 800;
+          this.outputHeight = 450;
+        } else {
+          // Default: free crop
+          this.aspectRatio = NaN;
+          this.outputWidth = 1200;
+          this.outputHeight = 900;
+        }
+        
+        // Read and display file
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          this.image.src = e.target.result;
+          this.show();
+        };
+        reader.readAsDataURL(file);
+      },
+      
+      show() {
+        this.modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        
+        // Destroy existing cropper
+        if (this.cropper) {
+          this.cropper.destroy();
+        }
+        
+        // Initialize new cropper
+        this.cropper = new Cropper(this.image, {
+          aspectRatio: this.aspectRatio,
+          viewMode: 1,
+          dragMode: 'move',
+          autoCropArea: 0.9,
+          restore: false,
+          guides: true,
+          center: true,
+          highlight: false,
+          cropBoxMovable: true,
+          cropBoxResizable: !isNaN(this.aspectRatio),
+          toggleDragModeOnDblclick: false,
+        });
+      },
+      
+      hide() {
+        this.modal.classList.remove('active');
+        document.body.style.overflow = '';
+        if (this.cropper) {
+          this.cropper.destroy();
+          this.cropper = null;
+        }
+      },
+      
+      zoomIn() { if (this.cropper) this.cropper.zoom(0.1); },
+      zoomOut() { if (this.cropper) this.cropper.zoom(-0.1); },
+      rotateLeft() { if (this.cropper) this.cropper.rotate(-90); },
+      rotateRight() { if (this.cropper) this.cropper.rotate(90); },
+      reset() { if (this.cropper) this.cropper.reset(); },
+      flipH() { if (this.cropper) this.cropper.scaleX(-this.cropper.getData().scaleX || -1); },
+      flipV() { if (this.cropper) this.cropper.scaleY(-this.cropper.getData().scaleY || -1); },
+      
+      cancel() {
+        this.hide();
+        // Clear the file input
+        if (this.currentInput) {
+          this.currentInput.value = '';
+        }
+      },
+      
+      apply() {
+        if (!this.cropper || !this.currentForm) return;
+        
+        // Get cropped canvas
+        const canvas = this.cropper.getCroppedCanvas({
+          width: this.outputWidth,
+          height: isNaN(this.aspectRatio) ? undefined : this.outputHeight,
+          imageSmoothingEnabled: true,
+          imageSmoothingQuality: 'high',
+        });
+        
+        // Convert to blob and create new file
+        canvas.toBlob((blob) => {
+          // Create a hidden input for the cropped image data
+          let hiddenInput = this.currentForm.querySelector('input[name="cropped_image_data"]');
+          if (!hiddenInput) {
+            hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = 'cropped_image_data';
+            this.currentForm.appendChild(hiddenInput);
+          }
+          hiddenInput.value = canvas.toDataURL('image/jpeg', 0.9);
+          
+          // Store original filename
+          let filenameInput = this.currentForm.querySelector('input[name="cropped_image_filename"]');
+          if (!filenameInput) {
+            filenameInput = document.createElement('input');
+            filenameInput.type = 'hidden';
+            filenameInput.name = 'cropped_image_filename';
+            this.currentForm.appendChild(filenameInput);
+          }
+          filenameInput.value = this.currentInput.files[0]?.name || 'image.jpg';
+          
+          // Create a preview if there's a preview element
+          const previewId = this.currentInput.dataset.previewId;
+          if (previewId) {
+            const preview = document.getElementById(previewId);
+            if (preview) {
+              preview.src = canvas.toDataURL('image/jpeg', 0.9);
+              preview.style.display = 'block';
+            }
+          }
+          
+          // Show thumbnail next to file input if possible
+          const wrapper = this.currentInput.closest('.form-group') || this.currentInput.parentElement;
+          let thumb = wrapper.querySelector('.crop-thumbnail');
+          if (!thumb) {
+            thumb = document.createElement('img');
+            thumb.className = 'crop-thumbnail';
+            thumb.style.cssText = 'max-width:150px;max-height:100px;margin-top:0.5rem;border-radius:var(--fl-radius);display:block;';
+            wrapper.appendChild(thumb);
+          }
+          thumb.src = canvas.toDataURL('image/jpeg', 0.9);
+          
+          this.hide();
+        }, 'image/jpeg', 0.9);
+      }
+    };
+    
+    // Initialize on DOM ready
+    document.addEventListener('DOMContentLoaded', () => FLCropper.init());
+    </script>
+    
+    <!-- Auto-dismiss messages after 5 seconds -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Global upload progress handler for ALL file upload forms
+            const uploadForms = document.querySelectorAll('form[enctype="multipart/form-data"]');
+            const overlay = document.getElementById('globalUploadOverlay');
+            const progressBar = document.getElementById('uploadProgress');
+            const progressText = document.getElementById('uploadProgressText');
+            const uploadTitle = document.getElementById('uploadTitle');
+            const uploadMessage = document.getElementById('uploadMessage');
+            
+            uploadForms.forEach(function(form) {
+              // Skip forms that have their own custom handler (like GEDCOM import)
+              if (form.dataset.customUpload === 'true') return;
+              
+              form.addEventListener('submit', function(e) {
+                // Check if form has a file input with a file selected
+                const fileInput = form.querySelector('input[type="file"]');
+                if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                  return; // Let regular validation handle it
+                }
+                
+                // Determine upload type based on form/page content
+                let title = 'Uploading...';
+                let message = 'Please wait while we process your file...';
+                
+                if (form.closest('.gedcom-import') || window.location.pathname.includes('import')) {
+                  title = 'Importing GEDCOM';
+                  message = 'Processing your family tree data...';
+                } else if (form.closest('.photo-upload') || fileInput.accept && fileInput.accept.includes('image')) {
+                  title = 'Uploading Photo';
+                  message = 'Processing your image...';
+                } else if (window.location.pathname.includes('profile')) {
+                  title = 'Updating Profile';
+                  message = 'Saving your changes...';
+                }
+                
+                uploadTitle.textContent = title;
+                uploadMessage.textContent = message;
+                
+                // Show overlay
+                overlay.classList.add('active');
+                
+                // Disable form submission button to prevent double clicks
+                const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+                if (submitBtn) {
+                  submitBtn.disabled = true;
+                }
+                
+                // Animate progress bar (simulated since we can't track actual upload with regular form submit)
+                let progress = 0;
+                const progressInterval = setInterval(function() {
+                  // Slow down as we get closer to 90% (never reach 100% until actual completion)
+                  if (progress < 30) {
+                    progress += Math.random() * 8;
+                  } else if (progress < 60) {
+                    progress += Math.random() * 4;
+                  } else if (progress < 85) {
+                    progress += Math.random() * 2;
+                  } else if (progress < 95) {
+                    progress += Math.random() * 0.5;
+                  }
+                  
+                  progress = Math.min(progress, 95);
+                  progressBar.style.width = progress + '%';
+                  
+                  if (progress < 30) {
+                    progressText.innerHTML = '<span class="upload-spinner"></span> Uploading file...';
+                  } else if (progress < 60) {
+                    progressText.innerHTML = '<span class="upload-spinner"></span> Processing...';
+                  } else if (progress < 85) {
+                    progressText.innerHTML = '<span class="upload-spinner"></span> Almost done...';
+                  } else {
+                    progressText.innerHTML = '<span class="upload-spinner"></span> Finalizing...';
+                  }
+                }, 300);
+                
+                // Store interval ID to clean up if needed
+                form.dataset.progressInterval = progressInterval;
+              });
+            });
+            
+            setTimeout(function() {
+                const alerts = document.querySelectorAll('.messages .alert');
+                alerts.forEach(function(alert) {
+                    alert.style.opacity = '0';
+                    alert.style.transform = 'translateX(20px)';
+                    alert.style.transition = 'all 0.3s ease';
+                    setTimeout(() => alert.remove(), 300);
+                });
+            }, 5000);
+            
+            // Notification badge polling (for authenticated users)
+            {% if user.is_authenticated %}
+            function updateNotificationBadge() {
+                fetch('{% url "families:notification_dropdown" %}')
+                    .then(response => response.json())
+                    .then(data => {
+                        const badge = document.getElementById('notification-badge');
+                        if (badge) {
+                            if (data.unread_count > 0) {
+                                badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+                                badge.style.display = 'flex';
+                            } else {
+                                badge.style.display = 'none';
+                            }
+                        }
+                    })
+                    .catch(err => console.log('Notification fetch error:', err));
+            }
+            
+            // Initial check
+            updateNotificationBadge();
+            
+            // Poll every 30 seconds
+            setInterval(updateNotificationBadge, 30000);
+            {% endif %}
+        });
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

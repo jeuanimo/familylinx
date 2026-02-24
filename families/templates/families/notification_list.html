@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <span class="current">Notifications</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-bell"></i> Notifications</h1>
+        <p class="muted">
+          {% if unread_count %}
+            {{ unread_count }} unread notification{{ unread_count|pluralize }}
+          {% else %}
+            All caught up!
+          {% endif %}
+        </p>
+      </div>
+      <div class="page-actions">
+        {% if unread_count %}
+        <form method="post" action="{% url 'families:notification_mark_all_read' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline">
+            <i class="bi bi-check-all"></i> Mark All Read
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    
+    <div class="card">
+      {% if notifications %}
+      <ul class="notification-list">
+        {% for notification in notifications %}
+        <li class="notification-item {% if not notification.is_read %}notification-unread{% endif %}">
+          <a href="{% url 'families:notification_mark_read' notification_id=notification.id %}" class="notification-link">
+            <div class="notification-icon notification-icon-{{ notification.notification_type|lower }}">
+              {% if notification.notification_type == 'POST' %}
+              <i class="bi bi-chat-left-text"></i>
+              {% elif notification.notification_type == 'COMMENT' %}
+              <i class="bi bi-reply"></i>
+              {% elif notification.notification_type == 'EVENT' %}
+              <i class="bi bi-calendar-event"></i>
+              {% elif notification.notification_type == 'INVITE' %}
+              <i class="bi bi-envelope"></i>
+              {% elif notification.notification_type == 'RSVP' %}
+              <i class="bi bi-calendar-check"></i>
+              {% elif notification.notification_type == 'PHOTO' %}
+              <i class="bi bi-image"></i>
+              {% elif notification.notification_type == 'PERSON' %}
+              <i class="bi bi-person"></i>
+              {% elif notification.notification_type == 'CHAT' %}
+              <i class="bi bi-chat-dots"></i>
+              {% else %}
+              <i class="bi bi-bell"></i>
+              {% endif %}
+            </div>
+            <div class="notification-content">
+              <div class="notification-title">{{ notification.title }}</div>
+              {% if notification.message %}
+              <div class="notification-message">{{ notification.message|truncatewords:20 }}</div>
+              {% endif %}
+              <div class="notification-meta">
+                {% if notification.family %}
+                <span class="notification-family">{{ notification.family.name }}</span>
+                <span class="separator">·</span>
+                {% endif %}
+                <span class="notification-time">{{ notification.created_at|timesince }} ago</span>
+              </div>
+            </div>
+            {% if not notification.is_read %}
+            <div class="notification-badge"></div>
+            {% endif %}
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon"><i class="bi bi-bell-slash"></i></div>
+          <h3>No notifications yet</h3>
+          <p class="muted">When something happens in your family spaces, you'll see it here.</p>
+          <a href="{% url 'home' %}" class="btn btn-primary">
+            <i class="bi bi-house"></i> Go to Dashboard
+          </a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</main>
+{% endblock %}

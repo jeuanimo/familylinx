@@ -1,0 +1,1965 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Interactive Family Tree – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Tree Container */
+  .tree-container {
+    width: 100%;
+    height: calc(100vh - 200px);
+    min-height: 600px;
+    background: var(--fl-surface);
+    border-radius: var(--fl-radius-lg);
+    overflow: hidden;
+    position: relative;
+  }
+  
+  /* SVG styles */
+  .tree-svg {
+    width: 100%;
+    height: 100%;
+  }
+  
+  /* Nodes */
+  .node {
+    cursor: pointer;
+  }
+  
+  .node rect {
+    fill: var(--fl-surface);
+    stroke: var(--fl-border);
+    stroke-width: 2px;
+    rx: 8;
+    ry: 8;
+    transition: all 0.2s ease;
+  }
+  
+  .node:hover rect {
+    stroke: var(--fl-blue);
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
+  }
+  
+  .node.male rect {
+    fill: #e3f2fd;
+    stroke: #1976d2;
+  }
+  
+  .node.female rect {
+    fill: #fce4ec;
+    stroke: #c2185b;
+  }
+  
+  .node.selected rect {
+    stroke: var(--fl-gold);
+    stroke-width: 3px;
+    filter: drop-shadow(0 4px 12px rgba(255, 193, 7, 0.3));
+  }
+  
+  .node-name {
+    font-size: 8px;
+    font-weight: 600;
+    fill: var(--fl-text);
+    text-anchor: middle;
+  }
+  
+  .node-dates {
+    font-size: 6px;
+    fill: var(--fl-muted);
+    text-anchor: middle;
+  }
+  
+  /* Family unit styling */
+  .family-connector {
+    stroke: #999;
+    stroke-width: 2px;
+    fill: none;
+  }
+  
+  .spouse-connector {
+    stroke: #e91e63;
+    stroke-width: 3px;
+    fill: none;
+  }
+  
+  .node-photo {
+    clip-path: circle(20px at center);
+  }
+  
+  /* Links */
+  .link {
+    fill: none;
+    stroke: var(--fl-border);
+    stroke-width: 2px;
+  }
+  
+  .link.parent-child {
+    stroke: #666;
+  }
+  
+  .link.spouse {
+    stroke: #e91e63;
+    stroke-dasharray: 5, 3;
+  }
+  
+  /* Generation collapse indicator */
+  .gen-collapse-indicator {
+    cursor: pointer;
+  }
+  
+  .gen-collapse-indicator rect {
+    fill: #fff3e0;
+    stroke: #ff9800;
+    stroke-width: 2px;
+    stroke-dasharray: 4, 2;
+  }
+  
+  .gen-collapse-indicator:hover rect {
+    fill: #ffe0b2;
+    stroke: #f57c00;
+  }
+  
+  .gen-collapse-indicator text {
+    fill: #e65100;
+    font-size: 9px;
+    font-weight: 600;
+    text-anchor: middle;
+  }
+  
+  /* Generation controls - compact bottom toolbar */
+  .gen-controls {
+    position: absolute;
+    bottom: 0.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.25rem;
+    background: rgba(255,255,255,0.9);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+    font-size: 10px;
+  }
+  
+  .gen-controls button {
+    padding: 0.15rem 0.4rem;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    background: #fff;
+    color: #333;
+    font-size: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  
+  .gen-controls button:hover {
+    background: var(--fl-blue);
+    color: white;
+  }
+  
+  .gen-controls button.active {
+    background: var(--fl-blue);
+    color: white;
+  }
+  
+  .gen-controls span {
+    display: flex;
+    align-items: center;
+    font-size: 10px;
+    color: #666;
+    padding: 0 0.25rem;
+  }
+  
+  .gen-controls .divider {
+    width: 1px;
+    background: #ddd;
+    margin: 0 0.25rem;
+  }
+
+  /* Controls - small zoom buttons */
+  .tree-controls {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    z-index: 100;
+  }
+  
+  .tree-controls button {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.9);
+    color: #333;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    font-size: 12px;
+  }
+  
+  .tree-controls button:hover {
+    background: var(--fl-blue);
+    color: white;
+  }
+  
+  /* Info Panel */
+  .info-panel {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    width: 280px;
+    max-height: calc(100% - 2rem);
+    background: var(--fl-bg);
+    border-radius: var(--fl-radius-lg);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    z-index: 100;
+    display: none;
+  }
+  
+  .info-panel.active {
+    display: block;
+  }
+  
+  .info-panel-header {
+    padding: 1rem;
+    background: var(--fl-surface);
+    border-bottom: 1px solid var(--fl-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .info-panel-header h4 {
+    margin: 0;
+    font-size: 1rem;
+  }
+  
+  .info-panel-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--fl-muted);
+    font-size: 1.25rem;
+    padding: 0;
+  }
+  
+  .info-panel-body {
+    padding: 1rem;
+    overflow-y: auto;
+    max-height: 400px;
+  }
+  
+  .info-panel-photo {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin: 0 auto 1rem;
+    display: block;
+    border: 3px solid var(--fl-border);
+  }
+  
+  .info-panel-photo-placeholder {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--fl-surface);
+    margin: 0 auto 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: var(--fl-muted);
+    border: 3px solid var(--fl-border);
+  }
+  
+  .info-item {
+    margin-bottom: 0.75rem;
+  }
+  
+  .info-label {
+    font-size: 0.75rem;
+    color: var(--fl-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .info-value {
+    font-size: 0.9rem;
+    color: var(--fl-text);
+  }
+  
+  .info-panel-actions {
+    padding: 1rem;
+    border-top: 1px solid var(--fl-border);
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .info-panel-actions .btn {
+    flex: 1;
+    font-size: 0.85rem;
+    padding: 0.5rem;
+  }
+  
+  /* Loading state */
+  .tree-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+  
+  .tree-loading i {
+    font-size: 3rem;
+    color: var(--fl-blue);
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  /* Edit Mode Toolbar */
+  .edit-toolbar {
+    position: absolute;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--fl-bg);
+    border-radius: var(--fl-radius-lg);
+    padding: 0.75rem 1rem;
+    display: flex;
+    gap: 0.75rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+  }
+  
+  .edit-toolbar button {
+    padding: 0.5rem 1rem;
+    border-radius: var(--fl-radius);
+    border: 1px solid var(--fl-border);
+    background: var(--fl-surface);
+    color: var(--fl-text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+  }
+  
+  .edit-toolbar button:hover {
+    background: var(--fl-blue);
+    color: white;
+    border-color: var(--fl-blue);
+  }
+  
+  .edit-toolbar button.danger:hover {
+    background: var(--fl-red);
+    border-color: var(--fl-red);
+  }
+  
+  /* Minimap */
+  .minimap {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    width: 150px;
+    height: 100px;
+    background: var(--fl-bg);
+    border-radius: var(--fl-radius);
+    border: 1px solid var(--fl-border);
+    overflow: hidden;
+    z-index: 50;
+  }
+  
+  /* Stats bar */
+  .tree-stats {
+    padding: 0.5rem 1rem;
+    background: var(--fl-surface);
+    border-bottom: 1px solid var(--fl-border);
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.85rem;
+  }
+  
+  .tree-stat {
+    color: var(--fl-muted);
+  }
+  
+  .tree-stat strong {
+    color: var(--fl-text);
+  }
+  
+  /* Find Me / Link Me buttons */
+  .btn-find-me, .btn-link-me {
+    background: var(--fl-gold) !important;
+    color: #333 !important;
+    font-weight: 600 !important;
+    width: auto !important;
+    padding: 0.5rem 0.75rem !important;
+    border-radius: 20px !important;
+  }
+  
+  .btn-find-me:hover, .btn-link-me:hover {
+    background: #ffc107 !important;
+    transform: scale(1.05);
+  }
+  
+  /* Link to Tree Modal */
+  .link-tree-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+  }
+  
+  .link-tree-content {
+    background: white;
+    border-radius: 12px;
+    max-width: 400px;
+    width: 90%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  }
+  
+  .link-tree-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .link-tree-header h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--fl-navy);
+  }
+  
+  .link-tree-header .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #999;
+    cursor: pointer;
+    line-height: 1;
+  }
+  
+  .link-tree-body {
+    padding: 1.25rem;
+    overflow-y: auto;
+  }
+  
+  .link-tree-body p {
+    margin: 0 0 1rem 0;
+    color: #666;
+    font-size: 0.9rem;
+  }
+  
+  .link-search-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .link-search-input:focus {
+    outline: none;
+    border-color: var(--fl-blue);
+  }
+  
+  .link-search-results {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  
+  .link-person-item {
+    padding: 0.75rem 1rem;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+  }
+  
+  .link-person-item:hover {
+    background: #f5f5f5;
+    border-color: var(--fl-blue);
+  }
+  
+  .link-person-item.linked {
+    background: #e8f5e9;
+    border-color: #4caf50;
+  }
+  
+  .link-person-item .person-name {
+    font-weight: 500;
+    flex: 1;
+  }
+  
+  .link-person-item .person-year {
+    color: #999;
+    font-size: 0.85rem;
+  }
+  
+  .link-person-item .linked-badge {
+    color: #4caf50;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  
+  .link-search-results .no-results,
+  .link-search-results .error {
+    text-align: center;
+    color: #999;
+    padding: 2rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Interactive Tree</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-diagram-3"></i> Interactive Family Tree</h1>
+        <p class="muted">Click on a person to view details, drag to pan, scroll to zoom</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-grid-3x3"></i> Classic View
+        </a>
+        {% if can_edit %}
+        <a href="{% url 'families:person_create' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-plus-lg"></i> Add Person
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    
+    <div class="card" style="padding: 0; overflow: hidden;">
+      <!-- Stats bar -->
+      <div class="tree-stats">
+        <span class="tree-stat"><strong id="personCount">0</strong> people</span>
+        <span class="tree-stat"><strong id="generationCount">0</strong> generations</span>
+        <span class="tree-stat"><strong id="relationshipCount">0</strong> relationships</span>
+      </div>
+      
+      <!-- Tree Container -->
+      <div class="tree-container" id="treeContainer">
+        <!-- Loading -->
+        <div class="tree-loading" id="treeLoading">
+          <i class="bi bi-arrow-repeat"></i>
+          <p>Loading family tree...</p>
+        </div>
+        
+        <!-- SVG will be inserted here -->
+        
+        <!-- Controls -->
+        <div class="tree-controls">
+          <button onclick="zoomIn()" title="Zoom In"><i class="bi bi-zoom-in"></i></button>
+          <button onclick="zoomOut()" title="Zoom Out"><i class="bi bi-zoom-out"></i></button>
+          <button onclick="resetZoom()" title="Reset View"><i class="bi bi-arrows-fullscreen"></i></button>
+          <button onclick="fitToScreen()" title="Fit to Screen"><i class="bi bi-fullscreen"></i></button>
+          {% if linked_person_id %}
+          <button onclick="focusOnMe()" title="Find Me" class="btn-find-me"><i class="bi bi-person-fill"></i> Me</button>
+          {% else %}
+          <a href="{% url 'families:find_my_match' family.id %}" title="Verify your identity to link to the tree" class="btn-link-me" style="text-decoration: none;">
+            <i class="bi bi-person-check"></i> Find Me
+          </a>
+          {% endif %}
+        </div>
+        
+        <!-- All Controls - Single Compact Bottom Bar -->
+        <div class="gen-controls">
+          <!-- Tree Scope -->
+          <button id="btnMyFamily" onclick="showMyFamily()" title="My connected family" class="active">My Family</button>
+          <button id="btnAllTrees" onclick="showAllFamilies()" title="All trees">All</button>
+          <span id="componentInfo"></span>
+          <div class="divider"></div>
+          <!-- Generations -->
+          <button onclick="showFewerGenerations()" title="Fewer generations">-Gen</button>
+          <span><strong id="visibleGenCount">5</strong>g</span>
+          <button onclick="showMoreGenerations()" title="More generations">+Gen</button>
+          <div class="divider"></div>
+          <!-- Node Size -->
+          <button onclick="decreaseNodeSize()" title="Smaller (Shift+Scroll)">-</button>
+          <span><strong id="nodeSizePercent">100</strong>%</span>
+          <button onclick="increaseNodeSize()" title="Larger (Shift+Scroll)">+</button>
+        </div>
+        
+        <!-- Info Panel -->
+        <div class="info-panel" id="infoPanel">
+          <div class="info-panel-header">
+            <h4 id="infoPanelName">Person Details</h4>
+            <button class="info-panel-close" onclick="closeInfoPanel()">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+          <div class="info-panel-body">
+            <div id="infoPanelPhoto"></div>
+            <div id="infoPanelContent"></div>
+          </div>
+          <div class="info-panel-actions">
+            <a id="infoPanelViewLink" href="#" class="btn btn-outline">
+              <i class="bi bi-eye"></i> View
+            </a>
+            {% if can_edit %}
+            <a id="infoPanelEditLink" href="#" class="btn btn-primary">
+              <i class="bi bi-pencil"></i> Edit
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<!-- D3.js -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<script>
+  // Configuration
+  const familyId = {{ family.id }};
+  const linkedPersonId = {{ linked_person_id|default:"null" }};
+  const linkToTreeUrl = '{% url "families:link_to_tree" family.id %}';
+  const apiUrl = '/api/families/' + familyId + '/tree/';
+  const nodeWidth = 70;
+  const nodeHeight = 32;
+  const horizontalSpacing = 90;
+  const verticalSpacing = 70;
+  const spouseGap = 12; // Gap between spouses
+  const siblingGap = 25; // Gap between sibling units
+  
+  // State
+  let treeData = null;
+  let svg = null;
+  let g = null;
+  let zoom = null;
+  let selectedNode = null;
+  let collapsedGenerations = new Set(); // Track which generations are collapsed
+  let maxVisibleGen = 5; // Show more generations by default
+  let showAllTrees = false; // Only show connected family tree by default
+  let focusedComponentIndex = 0; // Which component to focus on
+  let nodeScale = 1.0; // Scale factor for node sizes (0.5 to 2.0)
+  
+  // Initialize
+  document.addEventListener('DOMContentLoaded', function() {
+    initTree();
+    loadTreeData();
+  });
+  
+  function initTree() {
+    const container = document.getElementById('treeContainer');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    
+    // Create SVG
+    svg = d3.select('#treeContainer')
+      .append('svg')
+      .attr('class', 'tree-svg')
+      .attr('width', width)
+      .attr('height', height);
+    
+    // Create zoom behavior
+    zoom = d3.zoom()
+      .scaleExtent([0.1, 3])
+      .on('zoom', (event) => {
+        g.attr('transform', event.transform);
+      });
+    
+    svg.call(zoom);
+    
+    // Add Shift+scroll for node size adjustment
+    container.addEventListener('wheel', (event) => {
+      if (event.shiftKey) {
+        event.preventDefault();
+        if (event.deltaY < 0) {
+          increaseNodeSize();
+        } else {
+          decreaseNodeSize();
+        }
+      }
+    }, { passive: false });
+    
+    // Create main group for transformations
+    g = svg.append('g')
+      .attr('class', 'tree-group');
+    
+    // Create groups for links and nodes
+    g.append('g').attr('class', 'links-group');
+    g.append('g').attr('class', 'nodes-group');
+  }
+  
+  // Node size adjustment functions
+  function increaseNodeSize() {
+    if (nodeScale < 2.0) {
+      nodeScale = Math.min(2.0, nodeScale + 0.1);
+      updateNodeSizeDisplay();
+      renderTree();
+    }
+  }
+  
+  function decreaseNodeSize() {
+    if (nodeScale > 0.4) {
+      nodeScale = Math.max(0.4, nodeScale - 0.1);
+      updateNodeSizeDisplay();
+      renderTree();
+    }
+  }
+  
+  function updateNodeSizeDisplay() {
+    document.getElementById('nodeSizePercent').textContent = Math.round(nodeScale * 100);
+  }
+  
+  async function loadTreeData() {
+    try {
+      console.log('Loading tree data from:', apiUrl);
+      const response = await fetch(apiUrl, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('Response body:', text);
+        throw new Error(`Failed to load tree data (${response.status})`);
+      }
+      
+      treeData = await response.json();
+      console.log('Tree data loaded:', treeData.nodes.length, 'persons,', treeData.links.length, 'relationships');
+      
+      // Debug: Check for nodes with photoUrl
+      const nodesWithPhotos = treeData.nodes.filter(n => n.photoUrl);
+      console.log('Nodes with photos:', nodesWithPhotos.length, nodesWithPhotos.map(n => ({id: n.id, name: n.name, photoUrl: n.photoUrl})));
+      
+      // Debug: Also show first 3 nodes with all their properties to verify photoUrl key
+      console.log('First 3 nodes (full):', JSON.stringify(treeData.nodes.slice(0, 3), null, 2));
+      
+      // Update stats - total counts
+      document.getElementById('relationshipCount').textContent = treeData.links.length;
+      
+      // Calculate generations
+      const generations = calculateGenerations(treeData);
+      const totalGens = Object.keys(generations).length;
+      document.getElementById('generationCount').textContent = totalGens;
+      
+      // Adjust maxVisibleGen if needed
+      if (maxVisibleGen > totalGens) {
+        maxVisibleGen = totalGens;
+      }
+      
+      // Update person count with visible info
+      const visibleGens = Math.min(maxVisibleGen, totalGens);
+      const visibleCount = Object.keys(generations)
+        .slice(0, visibleGens)
+        .reduce((sum, gk) => sum + generations[gk].length, 0);
+      document.getElementById('personCount').textContent = 
+        visibleCount < treeData.nodes.length 
+          ? `${visibleCount}/${treeData.nodes.length}` 
+          : treeData.nodes.length;
+      
+      // Hide loading
+      document.getElementById('treeLoading').style.display = 'none';
+      
+      // Render tree
+      renderTree(treeData, generations);
+      
+      // Update component info display
+      updateComponentInfo();
+      
+      // Debug: Check if linked person is in visible component
+      if (linkedPersonId) {
+        const linkedNode = treeData.nodes.find(n => String(n.id) === String(linkedPersonId));
+        if (linkedNode) {
+          console.log('Linked person found:', linkedNode.name, 'component:', linkedNode.componentIndex, 'generation:', linkedNode.generation);
+          console.log('Linked person position:', linkedNode.x, linkedNode.y);
+          console.log('focusedComponentIndex:', focusedComponentIndex, 'showAllTrees:', showAllTrees);
+          
+          // If user's component isn't index 0, fix it
+          if (linkedNode.componentIndex !== 0 && !showAllTrees) {
+            console.log('WARNING: Linked person not in component 0, adjusting focusedComponentIndex');
+            focusedComponentIndex = linkedNode.componentIndex;
+            renderTree(treeData, generations);
+          }
+        } else {
+          console.log('WARNING: Linked person not found in nodes');
+        }
+      }
+      
+      // Focus on linked person if set, otherwise fit to screen
+      if (linkedPersonId) {
+        setTimeout(() => focusOnPerson(linkedPersonId), 300);
+      } else {
+        setTimeout(fitToScreen, 100);
+      }
+      
+    } catch (error) {
+      console.error('Error loading tree:', error);
+      document.getElementById('treeLoading').innerHTML = `
+        <i class="bi bi-exclamation-triangle" style="color: var(--fl-red);"></i>
+        <p>Error loading tree: ${error.message}</p>
+        <p style="font-size: 0.8rem; margin-top: 0.5rem;">Check browser console (F12) for details</p>
+        <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-outline" style="margin-top: 1rem;">
+          Try Classic View
+        </a>
+      `;
+    }
+  }
+  
+  function calculateGenerations(data) {
+    const generations = {};
+    const nodes = data.nodes;
+    const parentChildLinks = data.parentChildLinks;
+    const spouseLinks = data.spouseLinks;
+    
+    // Build parent map
+    const childToParents = {};
+    const parentToChildren = {};
+    
+    parentChildLinks.forEach(link => {
+      if (!childToParents[link.target]) childToParents[link.target] = [];
+      childToParents[link.target].push(link.source);
+      
+      if (!parentToChildren[link.source]) parentToChildren[link.source] = [];
+      parentToChildren[link.source].push(link.target);
+    });
+    
+    // Build adjacency for connected component detection (includes spouse links)
+    const adjacency = {};
+    nodes.forEach(n => adjacency[n.id] = new Set());
+    
+    parentChildLinks.forEach(link => {
+      adjacency[link.source].add(link.target);
+      adjacency[link.target].add(link.source);
+    });
+    
+    spouseLinks.forEach(link => {
+      adjacency[link.source].add(link.target);
+      adjacency[link.target].add(link.source);
+    });
+    
+    // Find connected components (separate family trees)
+    const visited = new Set();
+    const components = [];
+    
+    nodes.forEach(node => {
+      if (visited.has(node.id)) return;
+      
+      const component = [];
+      const stack = [node.id];
+      
+      while (stack.length > 0) {
+        const current = stack.pop();
+        if (visited.has(current)) continue;
+        visited.add(current);
+        component.push(current);
+        
+        adjacency[current].forEach(neighbor => {
+          if (!visited.has(neighbor)) {
+            stack.push(neighbor);
+          }
+        });
+      }
+      
+      components.push(component);
+    });
+    
+    // Debug: log linkedPersonId and what components contain
+    console.log('linkedPersonId:', linkedPersonId, 'type:', typeof linkedPersonId);
+    if (linkedPersonId !== null) {
+      components.forEach((comp, i) => {
+        const hasLinked = comp.some(id => String(id) === String(linkedPersonId));
+        if (hasLinked) {
+          console.log('BEFORE SORT: Component', i, 'contains linkedPersonId. Size:', comp.length);
+        }
+      });
+    }
+    
+    // Sort components: put the component containing linkedPersonId first, then by size
+    // Use String comparison to handle potential type mismatches
+    components.sort((a, b) => {
+      const aHasLinked = linkedPersonId && a.some(id => String(id) === String(linkedPersonId));
+      const bHasLinked = linkedPersonId && b.some(id => String(id) === String(linkedPersonId));
+      if (aHasLinked && !bHasLinked) return -1;
+      if (bHasLinked && !aHasLinked) return 1;
+      return b.length - a.length; // Larger components first
+    });
+    
+    // Debug: verify sorting worked
+    if (linkedPersonId !== null) {
+      components.forEach((comp, i) => {
+        const hasLinked = comp.some(id => String(id) === String(linkedPersonId));
+        if (hasLinked) {
+          console.log('AFTER SORT: Component', i, 'contains linkedPersonId. Size:', comp.length);
+        }
+      });
+    }
+    
+    // Store component index on each node
+    const nodeToComponent = {};
+    components.forEach((comp, idx) => {
+      comp.forEach(nodeId => nodeToComponent[nodeId] = idx);
+    });
+    
+    nodes.forEach(n => n.componentIndex = nodeToComponent[n.id]);
+    
+    // Find roots (no parents) for each component
+    const componentRoots = components.map(comp => {
+      return comp.filter(nodeId => !childToParents[nodeId] || childToParents[nodeId].length === 0);
+    });
+    
+    // BFS to assign generations within each component
+    const nodeGen = {};
+    
+    components.forEach((comp, compIdx) => {
+      const roots = componentRoots[compIdx];
+      const queue = roots.map(id => ({ id, gen: 0 }));
+      
+      while (queue.length > 0) {
+        const { id, gen } = queue.shift();
+        
+        if (nodeGen[id] !== undefined) continue;
+        nodeGen[id] = gen;
+        
+        // Add children
+        const children = parentToChildren[id] || [];
+        children.forEach(childId => {
+          if (nodeGen[childId] === undefined && comp.includes(childId)) {
+            queue.push({ id: childId, gen: gen + 1 });
+          }
+        });
+      }
+      
+      // Handle any still-unassigned nodes in this component
+      comp.forEach(nodeId => {
+        if (nodeGen[nodeId] === undefined) {
+          nodeGen[nodeId] = 0;
+        }
+      });
+    });
+    
+    // IMPORTANT: Normalize spouse generations - spouses MUST be in the same generation
+    // After normalizing, cascade down to ensure children stay below parents
+    let changed = true;
+    let iterations = 0;
+    while (changed && iterations < 20) {
+      changed = false;
+      iterations++;
+      
+      // First: sync spouse generations (use MAX)
+      spouseLinks.forEach(link => {
+        const gen1 = nodeGen[link.source];
+        const gen2 = nodeGen[link.target];
+        if (gen1 !== gen2) {
+          const maxGen = Math.max(gen1, gen2);
+          nodeGen[link.source] = maxGen;
+          nodeGen[link.target] = maxGen;
+          changed = true;
+        }
+      });
+      
+      // Second: ensure all children are at least one generation below their parents
+      Object.keys(parentToChildren).forEach(parentId => {
+        const parentGen = nodeGen[parentId];
+        if (parentGen === undefined) return;
+        
+        const children = parentToChildren[parentId] || [];
+        children.forEach(childId => {
+          const childGen = nodeGen[childId];
+          if (childGen !== undefined && childGen <= parentGen) {
+            nodeGen[childId] = parentGen + 1;
+            changed = true;
+          }
+        });
+      });
+    }
+    
+    // Group by generation
+    nodes.forEach(n => {
+      const gen = nodeGen[n.id];
+      if (!generations[gen]) generations[gen] = [];
+      generations[gen].push(n);
+    });
+    
+    // Store generation on node
+    nodes.forEach(n => {
+      n.generation = nodeGen[n.id];
+    });
+    
+    // Store components info for layout
+    data._components = components;
+    data._nodeToComponent = nodeToComponent;
+    
+    return generations;
+  }
+  
+  function renderTree(data, generations) {
+    const container = document.getElementById('treeContainer');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    
+    // Apply node scale to all dimensions
+    const nw = nodeWidth * nodeScale;
+    const nh = nodeHeight * nodeScale;
+    const hSpacing = horizontalSpacing * nodeScale;
+    const vSpacing = verticalSpacing * nodeScale;
+    const sGap = spouseGap * nodeScale;
+    const sibGap = siblingGap * nodeScale;
+    
+    // Get components - filter to show only the focused component unless showAllTrees
+    const components = data._components || [data.nodes.map(n => n.id)];
+    const nodeToComponent = data._nodeToComponent || {};
+    
+    // Determine which components to render
+    let componentsToShow;
+    if (showAllTrees) {
+      componentsToShow = components;
+    } else {
+      // Just show the first component (which contains linked person due to sorting)
+      componentsToShow = components.length > 0 ? [components[focusedComponentIndex]] : [];
+    }
+    
+    // Create set of nodes in visible components
+    const visibleComponentNodeIds = new Set();
+    componentsToShow.forEach(comp => {
+      comp.forEach(nodeId => visibleComponentNodeIds.add(nodeId));
+    });
+    
+    // Update stats to show component info
+    const numComponents = components.length;
+    const currentCompSize = componentsToShow.length > 0 ? componentsToShow[0].length : 0;
+    if (!showAllTrees && numComponents > 1) {
+      document.getElementById('personCount').textContent = `${currentCompSize} (of ${data.nodes.length} total)`;
+    }
+    
+    // Calculate total generations and update display
+    const allGenKeys = Object.keys(generations).map(k => parseInt(k)).sort((a, b) => a - b);
+    const totalGens = allGenKeys.length;
+    document.getElementById('visibleGenCount').textContent = Math.min(maxVisibleGen, totalGens);
+    
+    // Filter generations to show (only show first maxVisibleGen generations + only from visible components)
+    const visibleGenKeys = allGenKeys.slice(0, maxVisibleGen);
+    const hiddenGenKeys = allGenKeys.slice(maxVisibleGen);
+    
+    // Create filtered data with only visible nodes (by generation and component)
+    const visibleNodeIds = new Set();
+    visibleGenKeys.forEach(genKey => {
+      (generations[genKey] || []).forEach(n => {
+        if (visibleComponentNodeIds.has(n.id)) {
+          visibleNodeIds.add(n.id);
+        }
+      });
+    });
+    
+    // Find nodes that are parents of visible nodes but themselves hidden
+    const hiddenParentIds = new Set();
+    data.parentChildLinks.forEach(link => {
+      if (visibleNodeIds.has(link.target) && !visibleNodeIds.has(link.source)) {
+        hiddenParentIds.add(link.source);
+      }
+    });
+    
+    // Build relationship maps (only for visible component nodes)
+    const childToParents = {};
+    const parentToChildren = {};
+    
+    data.parentChildLinks.forEach(link => {
+      if (!visibleComponentNodeIds.has(link.source) && !visibleComponentNodeIds.has(link.target)) return;
+      
+      if (!childToParents[link.target]) childToParents[link.target] = [];
+      if (!childToParents[link.target].includes(link.source)) {
+        childToParents[link.target].push(link.source);
+      }
+      
+      if (!parentToChildren[link.source]) parentToChildren[link.source] = [];
+      if (!parentToChildren[link.source].includes(link.target)) {
+        parentToChildren[link.source].push(link.target);
+      }
+    });
+    
+    // Build spouse mapping
+    const spouseOf = {};
+    data.spouseLinks.forEach(link => {
+      if (!visibleComponentNodeIds.has(link.source) || !visibleComponentNodeIds.has(link.target)) return;
+      if (!spouseOf[link.source]) spouseOf[link.source] = [];
+      if (!spouseOf[link.source].includes(link.target)) spouseOf[link.source].push(link.target);
+      if (!spouseOf[link.target]) spouseOf[link.target] = [];
+      if (!spouseOf[link.target].includes(link.source)) spouseOf[link.target].push(link.source);
+    });
+    
+    // Group siblings by their parent-pair
+    const siblingGroups = {};
+    data.nodes.forEach(node => {
+      const parents = (childToParents[node.id] || []).slice().sort((a, b) => a - b);
+      const parentKey = parents.length > 0 ? parents.join('-') : `orphan-${node.id}`;
+      if (!siblingGroups[parentKey]) siblingGroups[parentKey] = [];
+      siblingGroups[parentKey].push(node);
+    });
+    
+    // Sort siblings by birth year within each group
+    Object.values(siblingGroups).forEach(siblings => {
+      siblings.sort((a, b) => (a.birthYear || 9999) - (b.birthYear || 9999));
+    });
+    
+    // Position nodes generation by generation - only visible generations
+    // Group nodes by component for proper layout
+    const nodePositions = {};
+    const componentGap = 200; // Gap between separate family trees
+    
+    // Calculate layout for each visible component separately
+    let componentStartX = 100;
+    
+    componentsToShow.forEach((componentIds, compIndex) => {
+      // Get nodes in this component that are visible
+      const compVisibleNodes = data.nodes.filter(n => 
+        componentIds.includes(n.id) && visibleNodeIds.has(n.id)
+      );
+      
+      if (compVisibleNodes.length === 0) return;
+      
+      // Group by generation within this component
+      const compGenerations = {};
+      compVisibleNodes.forEach(n => {
+        if (!compGenerations[n.generation]) compGenerations[n.generation] = [];
+        compGenerations[n.generation].push(n);
+      });
+      
+      const compGenKeys = Object.keys(compGenerations).map(k => parseInt(k)).sort((a, b) => a - b);
+      let maxXInComponent = componentStartX;
+      
+      compGenKeys.forEach((genKey, genIndex) => {
+        const genNodes = compGenerations[genKey];
+        const y = 100 + genKey * vSpacing;  // Use genKey, not genIndex for consistent Y across components
+        
+        // Assign y to all nodes in this generation
+        genNodes.forEach(node => {
+          node.y = y;
+        });
+        
+        if (genIndex === 0) {
+          // Root generation of this component: arrange spouse pairs with spacing
+          const processed = new Set();
+          const units = [];
+          
+          // Sort root nodes by birth year
+          genNodes.sort((a, b) => (a.birthYear || 9999) - (b.birthYear || 9999));
+          
+          genNodes.forEach(node => {
+            if (processed.has(node.id)) return;
+            processed.add(node.id);
+            
+            const unit = [node];
+            const spouses = (spouseOf[node.id] || []).filter(sid => {
+              const sp = data.nodes.find(n => n.id === sid);
+              return sp && sp.generation == genKey && !processed.has(sid) && componentIds.includes(sid);
+            });
+            
+            spouses.forEach(sid => {
+              const sp = data.nodes.find(n => n.id === sid);
+              if (sp) {
+                processed.add(sid);
+                unit.push(sp);
+              }
+            });
+            
+            units.push(unit);
+          });
+          
+          // Position from left to right within this component's space
+          let currentX = componentStartX;
+          
+          units.forEach(unit => {
+            if (unit.length === 2) {
+              unit[0].x = currentX + nw / 2;
+              unit[1].x = currentX + nw + sGap + nw / 2;
+              nodePositions[unit[0].id] = { x: unit[0].x, y };
+              nodePositions[unit[1].id] = { x: unit[1].x, y };
+              currentX += nw * 2 + sGap + hSpacing;
+            } else {
+              unit[0].x = currentX + nw / 2;
+              nodePositions[unit[0].id] = { x: unit[0].x, y };
+              currentX += nw + hSpacing;
+            }
+            maxXInComponent = Math.max(maxXInComponent, currentX);
+          });
+          
+        } else {
+        // Child generations: position spouse pairs together, children centered under parents
+        const positioned = new Set();
+        
+        // First pass: identify all spouse pairs and position them together
+          // Build a list of "family units" - each is a spouse pair (or single person) who are parents
+          const familyUnits = [];
+          
+          genNodes.forEach(node => {
+            if (positioned.has(node.id)) return;
+            if (!componentIds.includes(node.id)) return; // Skip nodes not in this component
+            positioned.add(node.id);
+            
+            // Create family unit with this person
+            const unit = {
+              adults: [node],
+              children: [] // Will be filled later
+            };
+            
+            // Add spouse if they're in the same generation and same component
+            const spouses = (spouseOf[node.id] || []).filter(sid => {
+              const sp = data.nodes.find(n => n.id === sid);
+              return sp && sp.generation == genKey && !positioned.has(sid) && componentIds.includes(sid);
+            });
+            
+            spouses.forEach(sid => {
+              const sp = data.nodes.find(n => n.id === sid);
+              if (sp) {
+                positioned.add(sid);
+                unit.adults.push(sp);
+              }
+            });
+            
+            // Find all children of this couple
+            unit.adults.forEach(adult => {
+              const adultChildren = parentToChildren[adult.id] || [];
+              adultChildren.forEach(childId => {
+                if (!unit.children.includes(childId)) {
+                  unit.children.push(childId);
+                }
+              });
+            });
+            
+            familyUnits.push(unit);
+          });
+          
+          // Get parents of each unit to determine positioning
+          familyUnits.forEach(unit => {
+            // Find parents of the first adult (for positioning reference)
+            const firstAdult = unit.adults[0];
+            unit.parentIds = (childToParents[firstAdult.id] || []).slice();
+            
+            // Calculate parent center for positioning
+            const parentXs = unit.parentIds.map(pid => nodePositions[pid]?.x).filter(x => x !== undefined);
+            unit.parentCenterX = parentXs.length > 0 
+              ? parentXs.reduce((sum, x) => sum + x, 0) / parentXs.length 
+              : null;
+          });
+          
+          // Sort units by their parent's X position
+          familyUnits.sort((a, b) => {
+            const ax = a.parentCenterX !== null ? a.parentCenterX : 99999;
+            const bx = b.parentCenterX !== null ? b.parentCenterX : 99999;
+            return ax - bx;
+          });
+          
+          // Position each family unit - start from componentStartX for this component
+          let nextX = componentStartX;
+          
+          familyUnits.forEach(unit => {
+            const unitWidth = unit.adults.length === 2 
+              ? nw * 2 + sGap 
+              : nw;
+            
+            // Try to center under parents if known, otherwise use next available position
+            let startX;
+            if (unit.parentCenterX !== null) {
+              startX = unit.parentCenterX - unitWidth / 2;
+              // But don't overlap with previous units
+              if (startX < nextX) {
+                startX = nextX;
+              }
+            } else {
+              startX = nextX;
+            }
+            
+            // Position adults
+            if (unit.adults.length === 2) {
+              unit.adults[0].x = startX + nw / 2;
+              unit.adults[1].x = startX + nw + sGap + nw / 2;
+              nodePositions[unit.adults[0].id] = { x: unit.adults[0].x, y };
+              nodePositions[unit.adults[1].id] = { x: unit.adults[1].x, y };
+              nextX = startX + nw * 2 + sGap + sibGap;
+            } else {
+              unit.adults[0].x = startX + nw / 2;
+              nodePositions[unit.adults[0].id] = { x: unit.adults[0].x, y };
+              nextX = startX + nw + sibGap;
+            }
+            maxXInComponent = Math.max(maxXInComponent, nextX);
+          });
+        }
+      });
+      
+      // Update startX for next component
+      componentStartX = maxXInComponent + componentGap;
+    });
+    
+    // Build spouse lookup for collision detection
+    const spousePairs = {};
+    data.spouseLinks.forEach(link => {
+      spousePairs[link.source] = link.target;
+      spousePairs[link.target] = link.source;
+    });
+    
+    // Collision detection: spread out overlapping nodes within each generation
+    // Keep spouse pairs together - they move as a unit
+    visibleGenKeys.forEach(genKey => {
+      const genNodes = generations[genKey].slice().sort((a, b) => a.x - b.x);
+      const minGap = nw + 10; // Minimum gap between node centers
+      
+      for (let i = 1; i < genNodes.length; i++) {
+        const prev = genNodes[i - 1];
+        const curr = genNodes[i];
+        
+        // Check if prev and curr are spouses (should have sGap between them, not minGap)
+        const areSpouses = spousePairs[prev.id] === curr.id;
+        const requiredGap = areSpouses ? (nw + sGap) : minGap;
+        
+        if (curr.x - prev.x < requiredGap) {
+          const shift = requiredGap - (curr.x - prev.x);
+          curr.x += shift;
+          nodePositions[curr.id].x = curr.x;
+          
+          // If curr has a spouse to the right, move them too
+          const currSpouseId = spousePairs[curr.id];
+          if (currSpouseId && currSpouseId !== prev.id) {
+            const currSpouse = genNodes.find(n => n.id === currSpouseId);
+            if (currSpouse && currSpouse.x > curr.x) {
+              currSpouse.x += shift;
+              nodePositions[currSpouseId].x = currSpouse.x;
+            }
+          }
+        }
+      }
+    });
+    
+    // Get only visible nodes for rendering
+    const visibleNodes = data.nodes.filter(n => visibleNodeIds.has(n.id));
+    
+    // Render links
+    const linksGroup = g.select('.links-group');
+    
+    // First, draw spouse connection lines (horizontal line between spouses)
+    const spouseLinkData = data.spouseLinks.filter(link => {
+      return visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target);
+    });
+    
+    linksGroup.selectAll('.link.spouse')
+      .data(spouseLinkData)
+      .enter()
+      .append('line')
+      .attr('class', 'link spouse')
+      .attr('x1', d => {
+        const source = data.nodes.find(n => n.id === d.source);
+        return source ? source.x + nw / 2 : 0;
+      })
+      .attr('y1', d => {
+        const source = data.nodes.find(n => n.id === d.source);
+        return source ? source.y : 0;
+      })
+      .attr('x2', d => {
+        const target = data.nodes.find(n => n.id === d.target);
+        return target ? target.x - nw / 2 : 0;
+      })
+      .attr('y2', d => {
+        const target = data.nodes.find(n => n.id === d.target);
+        return target ? target.y : 0;
+      })
+      .attr('stroke', '#e91e63')
+      .attr('stroke-width', 3);
+    
+    // Filter parent-child links for visible nodes only
+    const visibleParentChildLinks = data.parentChildLinks.filter(link => {
+      return visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target);
+    });
+    
+    // Parent-child links with proper family connectors
+    const parentChildLinks = linksGroup.selectAll('.link.parent-child')
+      .data(visibleParentChildLinks)
+      .enter()
+      .append('path')
+      .attr('class', 'link parent-child')
+      .attr('d', d => {
+        const parent = visibleNodes.find(n => n.id === d.source);
+        const child = visibleNodes.find(n => n.id === d.target);
+        if (!parent || !child) return '';
+        
+        // Find if there's a co-parent (spouse who also has this child)
+        const spouses = spouseOf[parent.id] || [];
+        let coParent = null;
+        for (const spId of spouses) {
+          const spChildren = parentToChildren[spId] || [];
+          if (spChildren.includes(child.id)) {
+            coParent = visibleNodes.find(n => n.id === spId);
+            break;
+          }
+        }
+        
+        // Calculate connection points
+        const py = parent.y + nh / 2;
+        const cy = child.y - nh / 2;
+        const midY = (py + cy) / 2;
+        
+        if (coParent && Math.abs(parent.x - coParent.x) < hSpacing) {
+          // Two parents: drop from center between them
+          const centerX = (parent.x + coParent.x) / 2;
+          return `M ${parent.x} ${py} L ${parent.x} ${py + 15} L ${centerX} ${py + 15} L ${centerX} ${midY} L ${child.x} ${midY} L ${child.x} ${cy}`;
+        } else {
+          // Single parent or parents far apart
+          return `M ${parent.x} ${py} L ${parent.x} ${midY} L ${child.x} ${midY} L ${child.x} ${cy}`;
+        }
+      });
+    
+    // Render nodes
+    const nodesGroup = g.select('.nodes-group');
+    
+    const nodeElements = nodesGroup.selectAll('.node')
+      .data(visibleNodes)
+      .enter()
+      .append('g')
+      .attr('class', d => `node ${d.gender === 'M' ? 'male' : d.gender === 'F' ? 'female' : ''}`)
+      .attr('transform', d => `translate(${d.x - nw/2}, ${d.y - nh/2})`)
+      .on('click', (event, d) => selectNode(d))
+      .on('dblclick', (event, d) => {
+        window.location.href = `/families/${familyId}/persons/${d.id}/`;
+      });
+    
+    // Node rectangle
+    nodeElements.append('rect')
+      .attr('width', nw)
+      .attr('height', nh)
+      .attr('rx', 5 * nodeScale)
+      .attr('ry', 5 * nodeScale);
+    
+    // Photo circle (if available) - replaces gender indicator
+    const photoSize = 14 * nodeScale;
+    const photoRadius = 8 * nodeScale;
+    const genderRadius = 4 * nodeScale;
+    
+    nodeElements.each(function(d) {
+      const node = d3.select(this);
+      // Debug: Log if this person has a photoUrl
+      if (d.photoUrl) {
+        console.log('Person with photo:', d.name, d.id, 'photoUrl:', d.photoUrl);
+      }
+      if (d.photoUrl) {
+        // Add a background circle for the photo
+        node.append('circle')
+          .attr('cx', 10 * nodeScale)
+          .attr('cy', nh / 2)
+          .attr('r', photoRadius)
+          .attr('fill', '#fff')
+          .attr('stroke', d.gender === 'M' ? '#1976d2' : d.gender === 'F' ? '#c2185b' : '#757575')
+          .attr('stroke-width', 1.5 * nodeScale);
+        
+        // Add the photo image using foreignObject for better compatibility
+        node.append('foreignObject')
+          .attr('x', 3 * nodeScale)
+          .attr('y', nh / 2 - photoSize / 2)
+          .attr('width', photoSize)
+          .attr('height', photoSize)
+          .append('xhtml:img')
+          .attr('src', d.photoUrl)
+          .style('width', photoSize + 'px')
+          .style('height', photoSize + 'px')
+          .style('border-radius', '50%')
+          .style('object-fit', 'cover');
+      } else {
+        // Gender indicator (small circle) for people without photos
+        node.append('circle')
+          .attr('cx', 9 * nodeScale)
+          .attr('cy', nh / 2)
+          .attr('r', genderRadius)
+          .attr('fill', d.gender === 'M' ? '#1976d2' : d.gender === 'F' ? '#c2185b' : '#757575');
+      }
+    });
+    
+    // Node name - centered and truncated for small boxes
+    nodeElements.append('text')
+      .attr('class', 'node-name')
+      .attr('x', nw / 2 + 3 * nodeScale)
+      .attr('y', nh / 2 - 2 * nodeScale)
+      .style('font-size', (8 * nodeScale) + 'px')
+      .text(d => {
+        const name = d.name || 'Unknown';
+        const maxChars = Math.max(6, Math.floor(10 * nodeScale));
+        return name.length > maxChars ? name.substring(0, maxChars - 2) + '..' : name;
+      });
+    
+    // Node dates - smaller
+    nodeElements.append('text')
+      .attr('class', 'node-dates')
+      .attr('x', nw / 2 + 3 * nodeScale)
+      .attr('y', nh / 2 + 8 * nodeScale)
+      .style('font-size', (6 * nodeScale) + 'px')
+      .text(d => {
+        if (d.birthYear && d.deathYear) {
+          return `${d.birthYear}-${d.deathYear}`;
+        } else if (d.birthYear) {
+          return `b.${d.birthYear}`;
+        }
+        return '';
+      });
+    
+    // Add indicator for hidden generations at the bottom
+    if (hiddenGenKeys.length > 0) {
+      const hiddenCount = hiddenGenKeys.reduce((sum, gk) => sum + (generations[gk]?.length || 0), 0);
+      const lastVisibleY = 100 + (visibleGenKeys.length - 1) * vSpacing;
+      
+      // Find center X of the visible tree
+      const allVisibleX = visibleNodes.map(n => n.x).filter(x => x !== undefined);
+      const centerX = allVisibleX.length > 0 
+        ? (Math.min(...allVisibleX) + Math.max(...allVisibleX)) / 2 
+        : width / 2;
+      
+      const indicator = nodesGroup.append('g')
+        .attr('class', 'gen-collapse-indicator')
+        .attr('transform', `translate(${centerX - 60}, ${lastVisibleY + verticalSpacing - 25})`)
+        .style('cursor', 'pointer')
+        .on('click', () => showMoreGenerations());
+      
+      indicator.append('rect')
+        .attr('width', 120)
+        .attr('height', 35)
+        .attr('rx', 6);
+      
+      indicator.append('text')
+        .attr('x', 60)
+        .attr('y', 15)
+        .text(`+ ${hiddenGenKeys.length} more gens`);
+      
+      indicator.append('text')
+        .attr('x', 60)
+        .attr('y', 27)
+        .text(`(${hiddenCount} people)`);
+    }
+  }
+  
+  // Generation control functions
+  function showMoreGenerations() {
+    const generations = calculateGenerations(treeData);
+    const totalGens = Object.keys(generations).length;
+    if (maxVisibleGen < totalGens) {
+      maxVisibleGen++;
+      refreshTree();
+    }
+  }
+  
+  function showFewerGenerations() {
+    if (maxVisibleGen > 1) {
+      maxVisibleGen--;
+      refreshTree();
+    }
+  }
+  
+  function showAllGenerations() {
+    const generations = calculateGenerations(treeData);
+    const totalGens = Object.keys(generations).length;
+    maxVisibleGen = totalGens;
+    refreshTree();
+  }
+  
+  // Tree scope toggle functions
+  function showMyFamily() {
+    showAllTrees = false;
+    
+    // Find the correct component for the linked person
+    if (linkedPersonId && treeData && treeData.nodes) {
+      const linkedNode = treeData.nodes.find(n => String(n.id) === String(linkedPersonId));
+      if (linkedNode && linkedNode.componentIndex !== undefined) {
+        focusedComponentIndex = linkedNode.componentIndex;
+        console.log('showMyFamily: Found linked person in component', focusedComponentIndex);
+      } else {
+        focusedComponentIndex = 0;
+        console.log('showMyFamily: Linked person not found, using component 0');
+      }
+    } else {
+      focusedComponentIndex = 0;
+      console.log('showMyFamily: No linked person, using component 0');
+    }
+    
+    document.getElementById('btnMyFamily').classList.add('active');
+    document.getElementById('btnAllTrees').classList.remove('active');
+    refreshTree();
+    setTimeout(() => {
+      fitToScreen();
+      // Also focus on me if linked
+      if (linkedPersonId) {
+        setTimeout(() => focusOnPerson(linkedPersonId), 200);
+      }
+    }, 100);
+  }
+  
+  function showAllFamilies() {
+    showAllTrees = true;
+    document.getElementById('btnMyFamily').classList.remove('active');
+    document.getElementById('btnAllTrees').classList.add('active');
+    refreshTree();
+    // Don't auto-fit when showing all - it might be too zoomed out
+  }
+  
+  function updateComponentInfo() {
+    const components = treeData._components || [];
+    const infoEl = document.getElementById('componentInfo');
+    if (components.length > 1) {
+      if (showAllTrees) {
+        infoEl.textContent = `${components.length} family groups`;
+      } else {
+        infoEl.textContent = `1 of ${components.length} groups`;
+      }
+    } else {
+      infoEl.textContent = '';
+    }
+  }
+  
+  function refreshTree() {
+    // Clear existing tree
+    g.select('.links-group').selectAll('*').remove();
+    g.select('.nodes-group').selectAll('*').remove();
+    
+    // Re-calculate generations
+    const generations = calculateGenerations(treeData);
+    const totalGens = Object.keys(generations).length;
+    
+    // Update person count with visible info
+    const visibleGens = Math.min(maxVisibleGen, totalGens);
+    const visibleGenKeys = Object.keys(generations).sort((a, b) => a - b).slice(0, visibleGens);
+    const visibleCount = visibleGenKeys.reduce((sum, gk) => sum + generations[gk].length, 0);
+    document.getElementById('personCount').textContent = 
+      visibleCount < treeData.nodes.length 
+        ? `${visibleCount}/${treeData.nodes.length}` 
+        : treeData.nodes.length;
+    
+    // Update component info
+    updateComponentInfo();
+    
+    // Re-render
+    renderTree(treeData, generations);
+    fitToScreen();
+  }
+  
+  function selectNode(node) {
+    // Deselect previous
+    if (selectedNode) {
+      d3.selectAll('.node').classed('selected', false);
+    }
+    
+    selectedNode = node;
+    
+    // Select new
+    d3.selectAll('.node')
+      .filter(d => d.id === node.id)
+      .classed('selected', true);
+    
+    // Show info panel
+    showInfoPanel(node);
+  }
+  
+  function showInfoPanel(node) {
+    const panel = document.getElementById('infoPanel');
+    const nameEl = document.getElementById('infoPanelName');
+    const photoEl = document.getElementById('infoPanelPhoto');
+    const contentEl = document.getElementById('infoPanelContent');
+    const viewLink = document.getElementById('infoPanelViewLink');
+    const editLink = document.getElementById('infoPanelEditLink');
+    
+    nameEl.textContent = node.name || 'Unknown';
+    
+    // Photo
+    if (node.photoUrl) {
+      photoEl.innerHTML = `<img src="${node.photoUrl}" class="info-panel-photo" alt="${node.name}">`;
+    } else {
+      const icon = node.gender === 'M' ? 'bi-person' : node.gender === 'F' ? 'bi-person-standing-dress' : 'bi-person';
+      photoEl.innerHTML = `<div class="info-panel-photo-placeholder"><i class="bi ${icon}"></i></div>`;
+    }
+    
+    // Content
+    let html = '';
+    
+    if (node.gender) {
+      html += `<div class="info-item">
+        <div class="info-label">Gender</div>
+        <div class="info-value">${node.gender === 'M' ? 'Male' : node.gender === 'F' ? 'Female' : 'Other'}</div>
+      </div>`;
+    }
+    
+    if (node.birthYear) {
+      html += `<div class="info-item">
+        <div class="info-label">Born</div>
+        <div class="info-value">${node.birthYear}${node.birthPlace ? ', ' + node.birthPlace : ''}</div>
+      </div>`;
+    }
+    
+    if (node.deathYear) {
+      html += `<div class="info-item">
+        <div class="info-label">Died</div>
+        <div class="info-value">${node.deathYear}</div>
+      </div>`;
+    }
+    
+    contentEl.innerHTML = html || '<p class="muted">No additional details</p>';
+    
+    // Links
+    viewLink.href = `/families/${familyId}/persons/${node.id}/`;
+    if (editLink) {
+      editLink.href = `/families/${familyId}/persons/${node.id}/edit/`;
+    }
+    
+    panel.classList.add('active');
+  }
+  
+  function closeInfoPanel() {
+    document.getElementById('infoPanel').classList.remove('active');
+    selectedNode = null;
+    d3.selectAll('.node').classed('selected', false);
+  }
+  
+  // Zoom controls
+  function zoomIn() {
+    svg.transition().duration(300).call(zoom.scaleBy, 1.3);
+  }
+  
+  function zoomOut() {
+    svg.transition().duration(300).call(zoom.scaleBy, 0.7);
+  }
+  
+  function resetZoom() {
+    svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+  }
+  
+  function fitToScreen() {
+    const container = document.getElementById('treeContainer');
+    const bounds = g.node().getBBox();
+    
+    if (bounds.width === 0 || bounds.height === 0) return;
+    
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    const padding = 50;
+    
+    const scale = Math.min(
+      (width - padding * 2) / bounds.width,
+      (height - padding * 2) / bounds.height,
+      1.5
+    );
+    
+    const tx = (width - bounds.width * scale) / 2 - bounds.x * scale;
+    const ty = (height - bounds.height * scale) / 2 - bounds.y * scale;
+    
+    svg.transition()
+      .duration(500)
+      .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+  }
+  
+  // Handle window resize
+  window.addEventListener('resize', () => {
+    const container = document.getElementById('treeContainer');
+    svg.attr('width', container.clientWidth).attr('height', container.clientHeight);
+  });
+  
+  // Focus on a specific person by ID
+  function focusOnPerson(personId) {
+    if (!treeData || !treeData.nodes) {
+      console.log('focusOnPerson: no treeData or nodes');
+      return false;
+    }
+    
+    // Use String comparison to handle type mismatches
+    const node = treeData.nodes.find(n => String(n.id) === String(personId));
+    if (!node) {
+      console.log('focusOnPerson: node not found for id', personId);
+      console.log('Available node IDs (first 10):', treeData.nodes.slice(0, 10).map(n => n.id));
+      return false;
+    }
+    
+    // Check if node is in a visible component
+    if (!showAllTrees && node.componentIndex !== focusedComponentIndex) {
+      console.log('focusOnPerson: node is in component', node.componentIndex, 'but showing component', focusedComponentIndex);
+      // Switch to the correct component
+      focusedComponentIndex = node.componentIndex;
+      const generations = calculateGenerations(treeData);
+      renderTree(treeData, generations);
+      // Retry after a brief delay
+      setTimeout(() => focusOnPerson(personId), 200);
+      return false;
+    }
+    
+    if (node.x === undefined || node.y === undefined) {
+      console.log('focusOnPerson: node has no position. generation:', node.generation, 'maxVisibleGen:', maxVisibleGen);
+      // Check if it's a generation issue
+      if (node.generation !== undefined && node.generation >= maxVisibleGen) {
+        console.log('Node is in hidden generation. Expanding generations.');
+        maxVisibleGen = node.generation + 1;
+        const generations = calculateGenerations(treeData);
+        renderTree(treeData, generations);
+        setTimeout(() => focusOnPerson(personId), 200);
+      }
+      return false;
+    }
+    
+    const container = document.getElementById('treeContainer');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    const scale = 1.2; // Zoom in a bit
+    
+    const tx = width / 2 - node.x * scale;
+    const ty = height / 2 - node.y * scale;
+    
+    svg.transition()
+      .duration(750)
+      .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+    
+    // Select and highlight the node
+    selectNode(node);
+    return true;
+  }
+  
+  // Focus on current user (linked person)
+  function focusOnMe() {
+    console.log('focusOnMe called. linkedPersonId:', linkedPersonId);
+    if (linkedPersonId) {
+      // First ensure we're showing the right component
+      const linkedNode = treeData.nodes.find(n => String(n.id) === String(linkedPersonId));
+      if (linkedNode && linkedNode.componentIndex !== undefined) {
+        if (!showAllTrees && linkedNode.componentIndex !== focusedComponentIndex) {
+          console.log('Switching to component', linkedNode.componentIndex, 'to find linked person');
+          focusedComponentIndex = linkedNode.componentIndex;
+          const generations = calculateGenerations(treeData);
+          renderTree(treeData, generations);
+        }
+      }
+      setTimeout(() => focusOnPerson(linkedPersonId), 200);
+    } else {
+      console.log('No linked person ID');
+      alert('You are not linked to anyone in this family tree yet. Click "Find Me" to link yourself.');
+    }
+  }
+  
+  // Show link-to-tree modal
+  function showLinkModal() {
+    // Create modal if it doesn't exist
+    let modal = document.getElementById('linkTreeModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'linkTreeModal';
+      modal.className = 'link-tree-modal';
+      modal.innerHTML = `
+        <div class="link-tree-content">
+          <div class="link-tree-header">
+            <h4><i class="bi bi-person-lines-fill"></i> Link Yourself to the Tree</h4>
+            <button onclick="closeLinkModal()" class="close-btn">&times;</button>
+          </div>
+          <div class="link-tree-body">
+            <p>Search for your name and select yourself from the family tree:</p>
+            <input type="text" id="linkSearchInput" placeholder="Type your name..." 
+                   oninput="searchPersonsToLink(this.value)" class="link-search-input">
+            <div id="linkSearchResults" class="link-search-results"></div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    modal.style.display = 'flex';
+    document.getElementById('linkSearchInput').focus();
+    searchPersonsToLink(''); // Load initial list
+  }
+  
+  function closeLinkModal() {
+    const modal = document.getElementById('linkTreeModal');
+    if (modal) modal.style.display = 'none';
+  }
+  
+  async function searchPersonsToLink(query) {
+    const resultsDiv = document.getElementById('linkSearchResults');
+    try {
+      const res = await fetch(`${linkToTreeUrl}?q=${encodeURIComponent(query)}`, {
+        credentials: 'include'
+      });
+      const data = await res.json();
+      
+      if (data.persons && data.persons.length > 0) {
+        resultsDiv.innerHTML = data.persons.map(p => `
+          <div class="link-person-item ${p.is_linked ? 'linked' : ''}" onclick="linkToPerson(${p.id}, '${p.name.replace(/'/g, "\\'")}')">
+            <span class="person-name">${p.name}</span>
+            ${p.birth_year ? `<span class="person-year">(b. ${p.birth_year})</span>` : ''}
+            ${p.is_linked ? '<span class="linked-badge"><i class="bi bi-check-circle-fill"></i> Linked</span>' : ''}
+          </div>
+        `).join('');
+      } else {
+        resultsDiv.innerHTML = '<p class="no-results">No matching persons found</p>';
+      }
+    } catch (err) {
+      resultsDiv.innerHTML = '<p class="error">Error loading persons</p>';
+    }
+  }
+  
+  async function linkToPerson(personId, personName) {
+    try {
+      const res = await fetch(linkToTreeUrl, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify({ person_id: personId })
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        closeLinkModal();
+        // Reload page to update UI
+        window.location.reload();
+      } else {
+        alert(data.error || 'Failed to link');
+      }
+    } catch (err) {
+      alert('Error linking to person');
+    }
+  }
+  
+  function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+           document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+  }
+</script>
+{% endblock %}

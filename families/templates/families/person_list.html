@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}People – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">People</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-people"></i> Family Members</h1>
+        <p class="muted">{{ persons|length }} people in the family tree</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-diagram-3"></i> View Tree
+        </a>
+        {% if membership.role != 'VIEWER' %}
+        <a href="{% url 'families:person_create' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-plus-lg"></i> Add Person
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    
+    {% if persons %}
+    <div class="person-grid">
+      {% for person in persons %}
+      <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" class="person-card">
+        <div class="person-card-photo">
+          {% if person.photo %}
+          <img src="{{ person.photo.url }}" alt="{{ person.full_name }}">
+          {% else %}
+          <div class="person-photo-placeholder">
+            <i class="bi bi-person"></i>
+          </div>
+          {% endif %}
+        </div>
+        <div class="person-card-info">
+          <strong>{{ person.full_name }}</strong>
+          <span class="muted">
+            {% if person.birth_date %}{{ person.birth_date|date:"Y" }}{% endif %}
+            {% if person.birth_date and person.death_date %} – {% endif %}
+            {% if person.death_date %}{{ person.death_date|date:"Y" }}{% endif %}
+          </span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon">
+            <i class="bi bi-people"></i>
+          </div>
+          <h3>No people in the family tree yet</h3>
+          <p class="muted">Start building your family tree by adding family members.</p>
+          {% if membership.role != 'VIEWER' %}
+          <a href="{% url 'families:person_create' family_id=family.id %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Add First Person
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    
+    <div style="margin-top: 1.5rem;">
+      <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline">
+        <i class="bi bi-arrow-left"></i> Back to Family
+      </a>
+    </div>
+  </div>
+</main>
+{% endblock %}

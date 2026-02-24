@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Restore {{ item_type }} - {{ family.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0"><i class="bi bi-arrow-counterclockwise"></i> Restore {{ item_type }}</h4>
+                </div>
+                <div class="card-body">
+                    <p>Are you sure you want to restore this {{ item_type|lower }}?</p>
+                    
+                    <div class="alert alert-info">
+                        <strong>{{ item }}</strong>
+                        {% if item_type == 'Person' %}
+                        <br><small class="text-muted">
+                            Birth: {{ item.birth_date|default:"Unknown" }}
+                            {% if item.death_date %} | Death: {{ item.death_date }}{% endif %}
+                        </small>
+                        {% endif %}
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-lg"></i> Yes, Restore
+                            </button>
+                            <a href="{% url 'families:trash_bin' family.id %}" class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

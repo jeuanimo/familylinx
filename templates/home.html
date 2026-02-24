@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - FamilyLinx{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-content">
+        <h1><i class="bi bi-house"></i> Welcome{% if user.first_name %}, {{ user.first_name }}{% endif %}!</h1>
+        <p class="muted mb-0">Your family spaces and activity at a glance.</p>
+    </div>
+    <div class="page-actions">
+        <a href="{% url 'families:family_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Create Family Space
+        </a>
+    </div>
+</div>
+
+<!-- User's Family Spaces -->
+<div class="grid-2" style="grid-template-columns: 2fr 1fr;">
+    <div class="stack-lg">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-people"></i> Your Family Spaces</span>
+            </div>
+            {% if memberships %}
+            <ul class="list">
+                {% for membership in memberships %}
+                <li>
+                    <div style="display: flex; justify-content: space-between; align-items: stretch;">
+                        <a href="{% url 'families:family_detail' family_id=membership.family.id %}" 
+                           class="list-item-action" style="flex: 1;">
+                            <div>
+                                <strong>{{ membership.family.name }}</strong>
+                                <p class="muted mb-0" style="font-size: 0.9rem;">
+                                    {% if membership.family.description %}
+                                    {{ membership.family.description|truncatewords:15 }}
+                                    {% else %}
+                                    No description
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <span class="badge badge-blue">{{ membership.role }}</span>
+                        </a>
+                        {% if membership.role == 'OWNER' %}
+                        <a href="{% url 'families:family_delete' family_id=membership.family.id %}" 
+                           class="btn btn-outline btn-sm" 
+                           style="color: var(--fl-red); border-color: var(--fl-red); margin: 0.5rem 0.5rem 0.5rem 0; align-self: center;"
+                           title="Delete this family space">
+                          <i class="bi bi-trash"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="card-body">
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="bi bi-people"></i></div>
+                    <h3>No family spaces yet</h3>
+                    <p>Create your first family space to get started!</p>
+                    <a href="{% url 'families:family_create' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Create Family Space
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="stack-lg">
+        <!-- Pending Invites -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-envelope"></i> Pending Invites</span>
+            </div>
+            {% if pending_invites %}
+            <ul class="list">
+                {% for invite in pending_invites %}
+                <li>
+                    <div class="flex-between mb-1">
+                        <strong>{{ invite.family.name }}</strong>
+                        <span class="badge badge-gold">{{ invite.role }}</span>
+                    </div>
+                    <a href="{% url 'families:invite_accept' token=invite.token %}" 
+                       class="btn btn-success btn-sm w-full">
+                        Accept Invite
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="card-body text-center p-3">
+                <p class="muted mb-0"><i class="bi bi-inbox"></i> No pending invites</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Quick Stats -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-bar-chart"></i> Quick Stats</span>
+            </div>
+            <div class="card-body">
+                <div class="flex-between mb-2">
+                    <span class="muted">Family Spaces</span>
+                    <strong>{{ memberships|length }}</strong>
+                </div>
+                <div class="flex-between">
+                    <span class="muted">Pending Invites</span>
+                    <strong>{{ pending_invites|length }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

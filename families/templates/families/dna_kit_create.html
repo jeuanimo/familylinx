@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Register DNA Kit | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:dna_kit_list' %}">DNA Dashboard</a>
+      <span class="separator">/</span>
+      <span class="current">Register Kit</span>
+    </nav>
+    
+    <div class="form-page">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-plus-lg"></i> Register DNA Kit</span>
+        </div>
+        <div class="card-body">
+          <div class="info-box" style="margin-bottom: 1.5rem; padding: 1rem; background: var(--fl-surface); border-radius: var(--fl-radius); border-left: 4px solid var(--fl-blue);">
+            <h4 style="margin: 0 0 0.5rem; color: var(--fl-blue);">
+              <i class="bi bi-info-circle"></i> About DNA Kits
+            </h4>
+            <p style="margin: 0; font-size: 0.9rem;">
+              Register your DNA test from services like AncestryDNA, 23andMe, or FamilyTreeDNA.
+              Your kit is <strong>private by default</strong> – you control who can see it and compare DNA.
+            </p>
+          </div>
+          
+          <form method="post">
+            {% csrf_token %}
+            
+            {% if link_to_person %}
+            <input type="hidden" name="link_to_person" value="{{ link_to_person.id }}">
+            <div class="alert alert-info" style="margin-bottom: 1.5rem;">
+              <i class="bi bi-link-45deg"></i>
+              This kit will be automatically linked to <strong>{{ link_to_person.display_name }}</strong> after registration.
+            </div>
+            {% endif %}
+            
+            <div class="form-group">
+              <label class="form-label required">Provider</label>
+              {{ form.provider }}
+              {% if form.provider.errors %}
+              <div class="form-error">{{ form.provider.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label required">Display Name</label>
+              {{ form.display_name }}
+              {% if form.display_name.errors %}
+              <div class="form-error">{{ form.display_name.errors.0 }}</div>
+              {% endif %}
+              <small class="form-text muted">A friendly name like "My AncestryDNA Kit" or "Dad's 23andMe"</small>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Kit ID (Optional)</label>
+              {{ form.kit_id }}
+              {% if form.kit_id.errors %}
+              <div class="form-error">{{ form.kit_id.errors.0 }}</div>
+              {% endif %}
+              <small class="form-text muted">The kit identifier from your DNA provider (optional)</small>
+            </div>
+            
+            <hr style="margin: 1.5rem 0;">
+            
+            <h4 style="margin-bottom: 1rem;"><i class="bi bi-shield-lock"></i> Privacy Settings</h4>
+            
+            <div class="form-group">
+              <div class="form-check">
+                {{ form.is_private }}
+                <label class="form-check-label" for="{{ form.is_private.id_for_label }}">
+                  <strong>Keep this kit private</strong>
+                  <small class="muted" style="display: block;">When checked, other users cannot see this kit</small>
+                </label>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <div class="form-check">
+                {{ form.allow_matching }}
+                <label class="form-check-label" for="{{ form.allow_matching.id_for_label }}">
+                  <strong>Allow DNA matching</strong>
+                  <small class="muted" style="display: block;">
+                    When checked, other users who also enable matching can compare DNA with you
+                  </small>
+                </label>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Private Notes</label>
+              {{ form.notes }}
+              {% if form.notes.errors %}
+              <div class="form-error">{{ form.notes.errors.0 }}</div>
+              {% endif %}
+              <small class="form-text muted">Notes visible only to you</small>
+            </div>
+            
+            <div class="form-actions">
+              {% if link_to_person and link_to_family %}
+              <a href="{% url 'families:person_detail' family_id=link_to_family.id person_id=link_to_person.id %}" class="btn btn-outline">Cancel</a>
+              {% else %}
+              <a href="{% url 'families:dna_kit_list' %}" class="btn btn-outline">Cancel</a>
+              {% endif %}
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-lg"></i> Register Kit
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

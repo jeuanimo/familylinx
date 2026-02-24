@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Find Myself in the Tree – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'families:family_detail' family.id %}">{{ family.name }}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'families:family_tree_interactive' family.id %}">Family Tree</a></li>
+        <li class="breadcrumb-item active">Find Myself</li>
+      </ol>
+    </nav>
+    
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="card">
+          <div class="card-header bg-primary text-white">
+            <h4 class="mb-0"><i class="bi bi-person-lines-fill me-2"></i>Find Yourself in the Family Tree</h4>
+          </div>
+          <div class="card-body">
+            <p class="lead">
+              If your family tree was imported from a GEDCOM file, you might already exist in the tree!
+              Find your name below and verify your identity to link your account.
+            </p>
+            
+            {% if existing_claims %}
+            <div class="alert alert-info">
+              <h6><i class="bi bi-clock-history me-2"></i>Your Pending Claims</h6>
+              <ul class="mb-0">
+                {% for claim in existing_claims %}
+                <li>
+                  <strong>{{ claim.person }}</strong> - 
+                  <span class="badge bg-{% if claim.status == 'PENDING' %}warning{% elif claim.status == 'VERIFIED' %}success{% else %}secondary{% endif %}">
+                    {{ claim.get_status_display }}
+                  </span>
+                  {% if claim.status == 'PENDING' %}
+                  <a href="{% url 'families:verify_identity' family.id claim.id %}" class="btn btn-sm btn-primary ms-2">Continue Verification</a>
+                  {% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+            
+            {% if matches %}
+            <h5 class="mt-4"><i class="bi bi-search me-2"></i>Potential Matches for "{{ request.user.first_name }} {{ request.user.last_name }}"</h5>
+            <p class="text-muted">Based on your profile name, these people might be you:</p>
+            
+            <div class="list-group">
+              {% for person, score in matches %}
+              <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <div>
+                  <h6 class="mb-1">{{ person.first_name }} {{ person.last_name }}</h6>
+                  <small class="text-muted">
+                    {% if person.birth_date %}Born: {{ person.birth_date|date:"Y" }}{% endif %}
+                    {% if person.birth_place %}| {{ person.birth_place }}{% endif %}
+                  </small>
+                  <div class="mt-1">
+                    <span class="badge bg-{% if score >= 0.9 %}success{% elif score >= 0.8 %}primary{% else %}secondary{% endif %}">
+                      {{ score|floatformat:0 }}% match
+                    </span>
+                  </div>
+                </div>
+                <a href="{% url 'families:claim_identity' family.id person.id %}" class="btn btn-outline-primary">
+                  <i class="bi bi-hand-index me-1"></i>This is me
+                </a>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-warning mt-4">
+              <h6><i class="bi bi-exclamation-triangle me-2"></i>No Matches Found</h6>
+              <p class="mb-0">
+                We couldn't find anyone in the tree matching your name 
+                ({{ request.user.first_name }} {{ request.user.last_name }}).
+              </p>
+              <hr>
+              <p class="mb-0">
+                <strong>Tips:</strong>
+                <ul class="mb-0">
+                  <li>Make sure your profile name matches how you appear in the family tree</li>
+                  <li>Try <a href="{% url 'accounts:my_profile' %}">updating your profile</a> with your full legal name</li>
+                  <li>You can also <a href="{% url 'families:link_to_tree' family.id %}">manually search and link</a> from the tree view</li>
+                </ul>
+              </p>
+            </div>
+            {% endif %}
+            
+            <hr class="my-4">
+            
+            <div class="d-flex justify-content-between">
+              <a href="{% url 'families:family_tree_interactive' family.id %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back to Tree
+              </a>
+              <a href="{% url 'families:person_list' family.id %}" class="btn btn-outline-primary">
+                <i class="bi bi-list me-1"></i>Browse All People
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

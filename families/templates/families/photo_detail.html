@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ photo.caption|default:"Photo" }} – {{ album.title }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:album_list' family_id=family.id %}">Photo Albums</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:album_detail' family_id=family.id album_id=album.id %}">{{ album.title }}</a>
+      <span class="separator">/</span>
+      <span class="current">Photo</span>
+    </nav>
+    
+    <div class="photo-viewer">
+      <!-- Photo Navigation -->
+      <div class="photo-nav">
+        {% if prev_photo_id %}
+        <a href="{% url 'families:photo_detail' family_id=family.id album_id=album.id photo_id=prev_photo_id %}" 
+           class="btn btn-outline" title="Previous photo">
+          <i class="bi bi-chevron-left"></i> Prev
+        </a>
+        {% else %}
+        <span class="btn btn-outline" style="opacity: 0.5;"><i class="bi bi-chevron-left"></i> Prev</span>
+        {% endif %}
+        
+        <a href="{% url 'families:album_detail' family_id=family.id album_id=album.id %}" class="btn btn-outline">
+          <i class="bi bi-grid-3x3-gap"></i> Back to Album
+        </a>
+        
+        {% if next_photo_id %}
+        <a href="{% url 'families:photo_detail' family_id=family.id album_id=album.id photo_id=next_photo_id %}" 
+           class="btn btn-outline" title="Next photo">
+          Next <i class="bi bi-chevron-right"></i>
+        </a>
+        {% else %}
+        <span class="btn btn-outline" style="opacity: 0.5;">Next <i class="bi bi-chevron-right"></i></span>
+        {% endif %}
+      </div>
+      
+      <!-- Main Photo -->
+      <div class="photo-main">
+        <img src="{{ photo.image.url }}" alt="{{ photo.caption|default:'Photo' }}">
+      </div>
+      
+      <!-- Photo Info -->
+      <div class="card mt-3">
+        <div class="card-body">
+          <div class="grid-2" style="grid-template-columns: 2fr 1fr;">
+            <div>
+              {% if photo.caption %}
+              <h3 style="margin: 0 0 0.5rem;">{{ photo.caption }}</h3>
+              {% endif %}
+              
+              <div class="photo-meta">
+                {% if photo.taken_date %}
+                <span><i class="bi bi-calendar"></i> {{ photo.taken_date|date:"F j, Y" }}</span>
+                {% endif %}
+                {% if photo.taken_location %}
+                <span><i class="bi bi-geo-alt"></i> {{ photo.taken_location }}</span>
+                {% endif %}
+                <span class="muted"><i class="bi bi-person"></i> Uploaded by {{ photo.uploaded_by.email|default:"Unknown" }}</span>
+                <span class="muted"><i class="bi bi-clock"></i> {{ photo.uploaded_at|date:"M j, Y" }}</span>
+              </div>
+              
+              {% if photo.tagged_people.exists %}
+              <div class="photo-tags" style="margin-top: 1rem;">
+                <strong><i class="bi bi-people"></i> People in this photo:</strong>
+                <div style="margin-top: 0.5rem;">
+                  {% for person in photo.tagged_people.all %}
+                  <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" 
+                     class="badge badge-blue" style="margin-right: 0.25rem;">
+                    {{ person.full_name }}
+                  </a>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+            </div>
+            
+            <div class="photo-actions-panel">
+              {% if membership.role != 'VIEWER' %}
+              <a href="{% url 'families:photo_edit' family_id=family.id album_id=album.id photo_id=photo.id %}" 
+                 class="btn btn-outline w-full mb-2">
+                <i class="bi bi-pencil"></i> Edit Details
+              </a>
+              
+              <a href="{% url 'families:photo_set_cover' family_id=family.id album_id=album.id photo_id=photo.id %}" 
+                 class="btn btn-outline w-full mb-2">
+                <i class="bi bi-star"></i> Set as Cover
+              </a>
+              {% endif %}
+              
+              {% if membership.role == 'OWNER' or membership.role == 'ADMIN' or photo.uploaded_by == user %}
+              <a href="{% url 'families:photo_delete' family_id=family.id album_id=album.id photo_id=photo.id %}" 
+                 class="btn btn-outline danger w-full">
+                <i class="bi bi-trash"></i> Delete Photo
+              </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

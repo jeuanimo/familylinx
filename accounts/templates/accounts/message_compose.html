@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Compose Message | FamilyLinx{% endblock %}
+
+{% block content %}
+<div class="form-page" style="max-width: 600px; margin: 0 auto;">
+    <nav class="breadcrumb">
+        <a href="{% url 'home' %}">Home</a>
+        <span class="separator">/</span>
+        <a href="{% url 'accounts:message_inbox' %}">Messages</a>
+        <span class="separator">/</span>
+        <span class="current">Compose</span>
+    </nav>
+    
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="bi bi-pencil-square"></i> Compose Message</span>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                
+                {% if recipient %}
+                <input type="hidden" name="recipient_id" value="{{ recipient.id }}">
+                <div class="form-group">
+                    <label class="form-label">To</label>
+                    <div class="recipient-display">
+                        <div class="recipient-avatar">
+                            {% if recipient.profile.profile_picture %}
+                            <img src="{{ recipient.profile.profile_picture.url }}" alt="">
+                            {% else %}
+                            <i class="bi bi-person-fill"></i>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <strong>{{ recipient.profile.get_display_name }}</strong>
+                            <div class="muted" style="font-size: 0.8rem;">{{ recipient.email }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="form-group">
+                    <label class="form-label">To</label>
+                    <input type="text" id="recipient-search" class="form-control" placeholder="Search for a user..." autocomplete="off">
+                    <input type="hidden" name="recipient_id" id="recipient-id">
+                    <div id="recipient-results" class="search-results" style="display: none;"></div>
+                </div>
+                {% endif %}
+                
+                <div class="form-group">
+                    <label class="form-label">Subject (optional)</label>
+                    {{ form.subject }}
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label required">Message</label>
+                    {{ form.content }}
+                </div>
+                
+                <div class="form-actions">
+                    <a href="{% url 'accounts:message_inbox' %}" class="btn btn-outline">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send"></i> Send Message
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.recipient-display {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--fl-surface);
+    border-radius: var(--fl-radius);
+}
+
+.recipient-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--fl-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.recipient-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--fl-card);
+    border: 1px solid var(--fl-border);
+    border-radius: var(--fl-radius);
+    box-shadow: var(--fl-shadow-lg);
+    z-index: 100;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.search-result-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    cursor: pointer;
+}
+
+.search-result-item:hover {
+    background: var(--fl-surface);
+}
+</style>
+{% endblock %}

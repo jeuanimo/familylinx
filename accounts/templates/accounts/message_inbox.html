@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Messages | FamilyLinx{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+        <a href="{% url 'home' %}">Home</a>
+        <span class="separator">/</span>
+        <a href="{% url 'accounts:my_profile' %}">My Profile</a>
+        <span class="separator">/</span>
+        <span class="current">Messages</span>
+    </nav>
+    
+    <div class="card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="card-title"><i class="bi bi-inbox"></i> Inbox</span>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                {% if unread_count > 0 %}
+                <span class="badge badge-blue">{{ unread_count }} unread</span>
+                {% endif %}
+                <a href="{% url 'accounts:message_sent' %}" class="btn btn-outline btn-sm">Sent</a>
+                <a href="{% url 'accounts:message_compose' %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-pencil-square"></i> Compose
+                </a>
+            </div>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            {% if messages_list %}
+            <div class="message-list">
+                {% for msg in messages_list %}
+                <a href="{% url 'accounts:message_view' message_id=msg.id %}" class="message-item {% if not msg.is_read %}unread{% endif %}">
+                    <div class="message-avatar">
+                        {% if msg.sender.profile.profile_picture %}
+                        <img src="{{ msg.sender.profile.profile_picture.url }}" alt="">
+                        {% else %}
+                        <i class="bi bi-person-fill"></i>
+                        {% endif %}
+                    </div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-sender">{{ msg.sender.profile.get_display_name }}</span>
+                            <span class="message-time">{{ msg.created_at|timesince }} ago</span>
+                        </div>
+                        {% if msg.subject %}
+                        <div class="message-subject">{{ msg.subject }}</div>
+                        {% endif %}
+                        <div class="message-preview">{{ msg.content|truncatechars:100 }}</div>
+                    </div>
+                    {% if not msg.is_read %}
+                    <div class="message-indicator">
+                        <span class="unread-dot"></span>
+                    </div>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 3rem;">
+                <i class="bi bi-inbox" style="font-size: 3rem; color: var(--fl-muted);"></i>
+                <h3 style="margin: 1rem 0 0.5rem;">No messages</h3>
+                <p class="muted">Your inbox is empty.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.message-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.message-item {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--fl-border);
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.2s;
+}
+
+.message-item:hover {
+    background: var(--fl-surface);
+}
+
+.message-item.unread {
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.message-item:last-child {
+    border-bottom: none;
+}
+
+.message-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--fl-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.message-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.message-avatar i {
+    font-size: 1.5rem;
+    color: var(--fl-muted);
+}
+
+.message-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+}
+
+.message-sender {
+    font-weight: 600;
+}
+
+.message-item.unread .message-sender {
+    font-weight: 700;
+}
+
+.message-time {
+    font-size: 0.8rem;
+    color: var(--fl-muted);
+}
+
+.message-subject {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.message-preview {
+    color: var(--fl-muted);
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.message-indicator {
+    display: flex;
+    align-items: center;
+}
+
+.unread-dot {
+    width: 10px;
+    height: 10px;
+    background: var(--fl-blue);
+    border-radius: 50%;
+}
+</style>
+{% endblock %}

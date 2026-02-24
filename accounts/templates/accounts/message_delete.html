@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Message | FamilyLinx{% endblock %}
+
+{% block content %}
+<div class="form-page" style="max-width: 500px; margin: 0 auto;">
+    <nav class="breadcrumb">
+        <a href="{% url 'home' %}">Home</a>
+        <span class="separator">/</span>
+        <a href="{% url 'accounts:message_inbox' %}">Messages</a>
+        <span class="separator">/</span>
+        <span class="current">Delete</span>
+    </nav>
+    
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="bi bi-trash"></i> Delete Message</span>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <strong>Delete this message?</strong>
+                <p style="margin: 0.5rem 0 0;">This will remove the message from your {% if msg.sender == request.user %}sent{% else %}inbox{% endif %}.</p>
+            </div>
+            
+            <div class="card" style="margin: 1rem 0; background: var(--fl-surface);">
+                <div class="card-body">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <strong>
+                            {% if msg.sender == request.user %}
+                            To: {{ msg.recipient.profile.get_display_name }}
+                            {% else %}
+                            From: {{ msg.sender.profile.get_display_name }}
+                            {% endif %}
+                        </strong>
+                        <span class="muted">{{ msg.created_at|timesince }} ago</span>
+                    </div>
+                    {% if msg.subject %}
+                    <div style="font-weight: 500; margin-bottom: 0.5rem;">{{ msg.subject }}</div>
+                    {% endif %}
+                    <p style="margin: 0; color: var(--fl-muted);">{{ msg.content|truncatechars:150 }}</p>
+                </div>
+            </div>
+            
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-actions">
+                    <a href="{% url 'accounts:message_inbox' %}" class="btn btn-outline">Cancel</a>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

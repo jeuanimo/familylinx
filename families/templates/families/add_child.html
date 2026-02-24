@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Add Child – {{ person.full_name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}">{{ person.full_name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Add Child</span>
+    </nav>
+    
+    <div class="form-page">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-person-plus"></i> Add Child</span>
+        </div>
+        <div class="card-body">
+          <!-- Info Box -->
+          <div class="alert alert-info" style="margin-bottom: 1.5rem;">
+            <i class="bi bi-info-circle"></i>
+            <div>
+              <strong>Adding a child for {{ person.full_name }}</strong><br>
+              <span class="muted">This will create a new person and link them as a child of {{ person.full_name }}.</span>
+            </div>
+          </div>
+          
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <h4 style="margin-bottom: 1rem; color: var(--fl-blue);">
+              <i class="bi bi-person"></i> Child Information
+            </h4>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label required">{{ form.first_name.label }}</label>
+                {{ form.first_name }}
+                {% if form.first_name.errors %}
+                <div class="form-error">{{ form.first_name.errors.0 }}</div>
+                {% endif %}
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label required">{{ form.last_name.label }}</label>
+                {{ form.last_name }}
+                {% if form.last_name.errors %}
+                <div class="form-error">{{ form.last_name.errors.0 }}</div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">{{ form.maiden_name.label }}</label>
+                {{ form.maiden_name }}
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">{{ form.gender.label }}</label>
+                {{ form.gender }}
+              </div>
+            </div>
+            
+            <h4 style="margin: 1.5rem 0 1rem; color: var(--fl-blue);">
+              <i class="bi bi-calendar-event"></i> Vital Information
+            </h4>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">{{ form.birth_date.label }}</label>
+                {{ form.birth_date }}
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">{{ form.birth_place.label }}</label>
+                {{ form.birth_place }}
+              </div>
+            </div>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">{{ form.death_date.label }}</label>
+                {{ form.death_date }}
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">{{ form.death_place.label }}</label>
+                {{ form.death_place }}
+              </div>
+            </div>
+            
+            <h4 style="margin: 1.5rem 0 1rem; color: var(--fl-blue);">
+              <i class="bi bi-people"></i> Other Parent (Optional)
+            </h4>
+            <p class="muted" style="margin-bottom: 1rem; font-size: 0.9rem;">
+              If this child has another biological parent in the family tree, select them here.
+              This is useful when the biological parent differs from a spouse.
+            </p>
+            
+            <div class="form-group">
+              <label class="form-label">{{ form.other_parent.label }}</label>
+              {{ form.other_parent }}
+              <small class="form-text muted">Select the other biological parent of this child</small>
+            </div>
+            
+            <h4 style="margin: 1.5rem 0 1rem; color: var(--fl-blue);">
+              <i class="bi bi-image"></i> Photo (Optional)
+            </h4>
+            
+            <div class="form-group">
+              <label class="form-label">{{ form.photo.label }}</label>
+              {{ form.photo }}
+            </div>
+            
+            <div class="form-actions">
+              <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" class="btn btn-outline">Cancel</a>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Add Child
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

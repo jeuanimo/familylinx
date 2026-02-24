@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}DNA Matches | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:dna_kit_list' %}">DNA Dashboard</a>
+      <span class="separator">/</span>
+      <span class="current">All Matches</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-arrow-left-right"></i> DNA Matches</h1>
+        <p class="muted">All DNA matches across your kits, sorted by shared cM</p>
+      </div>
+    </div>
+    
+    {% if matches %}
+    <div class="card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Shared cM</th>
+            <th>Kits</th>
+            <th>Predicted Relationship</th>
+            <th>Segments</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for match in matches %}
+          <tr>
+            <td>
+              <span style="font-size: 1.2rem; font-weight: bold; 
+                          {% if match.shared_cm >= 900 %}color: var(--fl-green);
+                          {% elif match.shared_cm >= 200 %}color: var(--fl-blue);
+                          {% else %}color: var(--fl-muted);{% endif %}">
+                {{ match.shared_cm|floatformat:1 }}
+              </span>
+            </td>
+            <td>
+              <div>{{ match.kit1.display_name }}</div>
+              <small class="muted">↔ {{ match.kit2.display_name }}</small>
+            </td>
+            <td>{{ match.predicted_relationship }}</td>
+            <td>
+              {{ match.shared_segments }}
+              {% if match.largest_segment %}
+              <small class="muted">(max {{ match.largest_segment|floatformat:1 }})</small>
+              {% endif %}
+            </td>
+            <td>
+              {% if match.is_confirmed %}
+              <span class="badge badge-green">Confirmed</span>
+              {% elif match.confirmed_by_kit1 or match.confirmed_by_kit2 %}
+              <span class="badge badge-gold">Pending</span>
+              {% else %}
+              <span class="badge">Unconfirmed</span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="{% url 'families:dna_match_detail' match_id=match.id %}" class="btn btn-sm btn-outline">
+                View
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Legend -->
+    <div class="card" style="margin-top: 1.5rem;">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-info-circle"></i> cM Relationship Guide</span>
+      </div>
+      <div class="card-body">
+        <div class="grid-3" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; font-size: 0.9rem;">
+          <div>
+            <strong style="color: var(--fl-green);">900+ cM</strong>
+            <p class="muted mb-0">Close family: Parent, Child, Sibling, Grandparent</p>
+          </div>
+          <div>
+            <strong style="color: var(--fl-blue);">200-900 cM</strong>
+            <p class="muted mb-0">Extended family: 1st-2nd Cousins, Aunts/Uncles</p>
+          </div>
+          <div>
+            <strong style="color: var(--fl-muted);">Under 200 cM</strong>
+            <p class="muted mb-0">Distant relatives: 3rd+ Cousins</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    {% else %}
+    <div class="card">
+      <div class="card-body text-center" style="padding: 3rem;">
+        <i class="bi bi-arrow-left-right" style="font-size: 3rem; color: var(--fl-muted);"></i>
+        <h3 style="margin: 1rem 0 0.5rem;">No Matches Yet</h3>
+        <p class="muted">You haven't recorded any DNA matches yet.</p>
+        {% if kits %}
+        <p class="muted">Select one of your kits to add a match:</p>
+        <div class="stack-inline" style="justify-content: center; gap: 0.5rem; flex-wrap: wrap;">
+          {% for kit in kits %}
+          <a href="{% url 'families:dna_match_create' kit_id=kit.id %}" class="btn btn-outline">
+            {{ kit.display_name }}
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <a href="{% url 'families:dna_kit_create' %}" class="btn btn-primary">
+          <i class="bi bi-plus-lg"></i> Register a DNA Kit First
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

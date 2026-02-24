@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Message | FamilyLinx{% endblock %}
+
+{% block content %}
+<div style="max-width: 700px; margin: 0 auto;">
+    <nav class="breadcrumb">
+        <a href="{% url 'home' %}">Home</a>
+        <span class="separator">/</span>
+        <a href="{% url 'accounts:message_inbox' %}">Messages</a>
+        <span class="separator">/</span>
+        <span class="current">View Message</span>
+    </nav>
+    
+    <div class="card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="card-title">
+                {% if msg.subject %}{{ msg.subject }}{% else %}Message{% endif %}
+            </span>
+            <div style="display: flex; gap: 0.5rem;">
+                {% if msg.sender != request.user %}
+                <a href="{% url 'accounts:message_compose_to' recipient_id=msg.sender.id %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-reply"></i> Reply
+                </a>
+                {% endif %}
+                <a href="{% url 'accounts:message_delete' message_id=msg.id %}" class="btn btn-outline btn-sm">
+                    <i class="bi bi-trash"></i> Delete
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Message Header -->
+            <div class="message-view-header">
+                <div class="message-view-avatar">
+                    {% if msg.sender.profile.profile_picture %}
+                    <img src="{{ msg.sender.profile.profile_picture.url }}" alt="">
+                    {% else %}
+                    <i class="bi bi-person-fill" style="font-size: 2rem; color: var(--fl-muted);"></i>
+                    {% endif %}
+                </div>
+                <div class="message-view-info">
+                    <div class="message-view-from">
+                        <strong>From:</strong>
+                        <a href="{% url 'accounts:profile_view' user_id=msg.sender.id %}">{{ msg.sender.profile.get_display_name }}</a>
+                    </div>
+                    <div class="message-view-to">
+                        <strong>To:</strong>
+                        <a href="{% url 'accounts:profile_view' user_id=msg.recipient.id %}">{{ msg.recipient.profile.get_display_name }}</a>
+                    </div>
+                    <div class="message-view-time muted">
+                        {{ msg.created_at|date:"F j, Y \a\t g:i A" }}
+                        {% if msg.is_read and request.user == msg.sender %}
+                        <span style="margin-left: 0.5rem;">
+                            <i class="bi bi-check2-all" style="color: var(--fl-blue);"></i> Read {{ msg.read_at|timesince }} ago
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Message Body -->
+            <div class="message-view-body">
+                {{ msg.content|linebreaks }}
+            </div>
+        </div>
+    </div>
+    
+    <div style="margin-top: 1rem;">
+        <a href="{% url 'accounts:message_inbox' %}" class="btn btn-outline">
+            <i class="bi bi-arrow-left"></i> Back to Inbox
+        </a>
+    </div>
+</div>
+
+<style>
+.message-view-header {
+    display: flex;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--fl-border);
+    margin-bottom: 1.5rem;
+}
+
+.message-view-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--fl-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.message-view-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.message-view-info {
+    flex: 1;
+}
+
+.message-view-from,
+.message-view-to {
+    margin-bottom: 0.25rem;
+}
+
+.message-view-time {
+    font-size: 0.85rem;
+}
+
+.message-view-body {
+    line-height: 1.7;
+    font-size: 1rem;
+}
+</style>
+{% endblock %}

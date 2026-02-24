@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Delete Event – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:event_list' family_id=family.id %}">Events</a>
+      <span class="separator">/</span>
+      <span class="current">Delete</span>
+    </nav>
+    
+    <div class="form-page">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-exclamation-triangle"></i> Delete Event</span>
+        </div>
+        <div class="card-body text-center" style="padding: 2rem;">
+          <i class="bi bi-calendar-x" style="font-size: 3rem; color: var(--fl-danger); margin-bottom: 1rem;"></i>
+          
+          <h3>Delete "{{ event.title }}"?</h3>
+          <p class="muted">
+            This will permanently delete the event and all associated RSVPs.<br>
+            This action cannot be undone.
+          </p>
+          
+          <div class="event-summary" style="background: var(--fl-bg); border-radius: var(--fl-radius-sm); padding: 1rem; margin: 1.5rem 0; text-align: left;">
+            <p><strong><i class="bi bi-calendar3"></i></strong> {{ event.start_datetime|date:"l, F j, Y" }} at {{ event.start_datetime|time:"g:i A" }}</p>
+            {% if event.location %}
+            <p><strong><i class="bi bi-geo-alt"></i></strong> {{ event.location }}</p>
+            {% endif %}
+            <p class="mb-0"><strong><i class="bi bi-people"></i></strong> {{ event.rsvps.count }} response{{ event.rsvps.count|pluralize }}</p>
+          </div>
+          
+          <form method="post" style="margin-top: 1.5rem;">
+            {% csrf_token %}
+            <div class="form-actions" style="justify-content: center; border: none; padding: 0; margin: 0;">
+              <a href="{% url 'families:event_detail' family_id=family.id event_id=event.id %}" class="btn btn-outline">
+                Cancel
+              </a>
+              <button type="submit" class="btn btn-danger">
+                <i class="bi bi-trash"></i> Delete Event
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

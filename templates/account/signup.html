@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Create Account - FamilyLinx{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="auth-logo">
+                <span class="brand-badge" style="width: 56px; height: 56px; font-size: 1.5rem;">FL</span>
+            </div>
+            <h1>Create Your Account</h1>
+            <p class="muted">Join FamilyLinx and connect with your family</p>
+        </div>
+        
+        <form method="post" action="{% url 'account_signup' %}" class="auth-form">
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                {{ error }}
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <div class="form-group">
+                <label for="id_email" class="form-label">Email Address</label>
+                <input type="email" 
+                       name="email" 
+                       id="id_email"
+                       class="form-control {% if form.email.errors %}is-invalid{% endif %}"
+                       placeholder="you@example.com"
+                       value="{{ form.email.value|default:'' }}"
+                       autofocus
+                       required>
+                {% if form.email.errors %}
+                <div class="form-error">
+                    {% for error in form.email.errors %}{{ error }}{% endfor %}
+                </div>
+                {% endif %}
+                <div class="form-hint">We'll send a confirmation link to this address.</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="id_password1" class="form-label">Password</label>
+                <input type="password" 
+                       name="password1" 
+                       id="id_password1"
+                       class="form-control {% if form.password1.errors %}is-invalid{% endif %}"
+                       placeholder="Create a strong password"
+                       required>
+                {% if form.password1.errors %}
+                <div class="form-error">
+                    {% for error in form.password1.errors %}{{ error }}{% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group">
+                <label for="id_password2" class="form-label">Confirm Password</label>
+                <input type="password" 
+                       name="password2" 
+                       id="id_password2"
+                       class="form-control {% if form.password2.errors %}is-invalid{% endif %}"
+                       placeholder="Enter password again"
+                       required>
+                {% if form.password2.errors %}
+                <div class="form-error">
+                    {% for error in form.password2.errors %}{{ error }}{% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            
+            {% if redirect_field_value %}
+            <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+            {% endif %}
+            
+            <button type="submit" class="btn btn-primary btn-lg w-full">
+                <i class="bi bi-person-plus"></i> Create Account
+            </button>
+            
+            <p class="auth-terms">
+                By creating an account, you agree to our 
+                <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
+            </p>
+        </form>
+        
+        <div class="auth-footer">
+            <p>Already have an account? <a href="{% url 'account_login' %}">Sign in</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.auth-page {
+    min-height: calc(100vh - 200px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--fl-surface);
+    border-radius: var(--fl-radius);
+    box-shadow: var(--fl-shadow);
+    padding: 2.5rem;
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.auth-logo {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.25rem;
+}
+
+.auth-header h1 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--fl-blue);
+}
+
+.auth-header p {
+    margin: 0;
+}
+
+.auth-form .form-group {
+    margin-bottom: 1.25rem;
+}
+
+.auth-terms {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--fl-muted);
+    margin-top: 1rem;
+    margin-bottom: 0;
+}
+
+.auth-terms a {
+    color: var(--fl-blue);
+}
+
+.auth-footer {
+    text-align: center;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--fl-border);
+}
+
+.auth-footer p {
+    margin: 0;
+    color: var(--fl-muted);
+}
+
+.auth-footer a {
+    color: var(--fl-blue);
+    font-weight: 600;
+}
+</style>
+{% endblock %}

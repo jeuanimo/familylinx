@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ kit.display_name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:dna_kit_list' %}">DNA Dashboard</a>
+      <span class="separator">/</span>
+      <span class="current">{{ kit.display_name }}</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1>
+          <i class="bi bi-dna" style="color: var(--fl-blue);"></i>
+          {{ kit.display_name }}
+        </h1>
+        <p class="muted">
+          {{ kit.get_provider_display }}
+          {% if kit.kit_id %} · Kit ID: {{ kit.kit_id }}{% endif %}
+        </p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:dna_kit_edit' kit_id=kit.id %}" class="btn btn-outline">
+          <i class="bi bi-pencil"></i> Edit
+        </a>
+        <a href="{% url 'families:dna_match_create' kit_id=kit.id %}" class="btn btn-primary">
+          <i class="bi bi-plus-lg"></i> Add Match
+        </a>
+      </div>
+    </div>
+    
+    <div class="grid-2" style="grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+      <!-- Main Content -->
+      <div class="stack-lg">
+        <!-- DNA Matches -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-arrow-left-right"></i> DNA Matches ({{ matches|length }})</span>
+            <a href="{% url 'families:dna_match_create' kit_id=kit.id %}" class="btn btn-sm btn-outline">
+              <i class="bi bi-plus-lg"></i> Add Match
+            </a>
+          </div>
+          {% if matches %}
+          <ul class="list">
+            {% for match in matches %}
+            <li>
+              <a href="{% url 'families:dna_match_detail' match_id=match.id %}" 
+                 style="text-decoration: none; color: var(--fl-text); display: flex; align-items: center; padding: 1rem; gap: 1rem;">
+                <!-- cM Badge -->
+                <div style="width: 60px; height: 60px; border-radius: 50%; 
+                            {% if match.shared_cm >= 900 %}
+                            background: linear-gradient(135deg, var(--fl-green), #27ae60);
+                            {% elif match.shared_cm >= 200 %}
+                            background: linear-gradient(135deg, var(--fl-blue), #3498db);
+                            {% else %}
+                            background: var(--fl-surface);
+                            {% endif %}
+                            display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0;">
+                  <span style="font-weight: bold; font-size: 1.1rem; 
+                               color: {% if match.shared_cm >= 200 %}white{% else %}var(--fl-text){% endif %};">
+                    {{ match.shared_cm|floatformat:0 }}
+                  </span>
+                  <span style="font-size: 0.7rem; 
+                               color: {% if match.shared_cm >= 200 %}rgba(255,255,255,0.8){% else %}var(--fl-muted){% endif %};">
+                    cM
+                  </span>
+                </div>
+                
+                <!-- Match Info -->
+                <div style="flex: 1; min-width: 0;">
+                  <strong>
+                    {% if match.kit1 == kit %}
+                    {{ match.kit2.display_name }}
+                    {% else %}
+                    {{ match.kit1.display_name }}
+                    {% endif %}
+                  </strong>
+                  <div style="font-size: 0.9rem; color: var(--fl-muted); margin-top: 0.25rem;">
+                    {{ match.predicted_relationship }}
+                  </div>
+                  <small class="muted">
+                    {{ match.shared_segments }} segment{{ match.shared_segments|pluralize }}
+                    {% if match.largest_segment %} · Largest: {{ match.largest_segment|floatformat:1 }} cM{% endif %}
+                  </small>
+                </div>
+                
+                <!-- Status -->
+                <div style="text-align: right;">
+                  {% if match.is_confirmed %}
+                  <span class="badge badge-green"><i class="bi bi-check-lg"></i> Confirmed</span>
+                  {% elif match.confirmed_by_kit1 or match.confirmed_by_kit2 %}
+                  <span class="badge badge-gold"><i class="bi bi-clock"></i> Pending</span>
+                  {% else %}
+                  <span class="badge"><i class="bi bi-question"></i> Unconfirmed</span>
+                  {% endif %}
+                </div>
+              </a>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <div class="card-body text-center" style="padding: 3rem;">
+            <i class="bi bi-arrow-left-right" style="font-size: 3rem; color: var(--fl-muted);"></i>
+            <h3 style="margin: 1rem 0 0.5rem;">No Matches Yet</h3>
+            <p class="muted">Add DNA matches you've discovered on testing platforms.</p>
+            <a href="{% url 'families:dna_match_create' kit_id=kit.id %}" class="btn btn-primary">
+              <i class="bi bi-plus-lg"></i> Add Your First Match
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Sidebar -->
+      <div class="stack-lg">
+        <!-- Kit Details -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-info-circle"></i> Kit Details</span>
+          </div>
+          <div class="card-body">
+            <dl style="margin: 0; font-size: 0.9rem;">
+              <dt style="color: var(--fl-muted); margin-bottom: 0.25rem;">Provider</dt>
+              <dd style="margin: 0 0 1rem;">{{ kit.get_provider_display }}</dd>
+              
+              {% if kit.kit_id %}
+              <dt style="color: var(--fl-muted); margin-bottom: 0.25rem;">Kit ID</dt>
+              <dd style="margin: 0 0 1rem;">{{ kit.kit_id }}</dd>
+              {% endif %}
+              
+              <dt style="color: var(--fl-muted); margin-bottom: 0.25rem;">Registered</dt>
+              <dd style="margin: 0 0 1rem;">{{ kit.uploaded_at|date:"M d, Y" }}</dd>
+              
+              {% if kit.linked_person %}
+              <dt style="color: var(--fl-muted); margin-bottom: 0.25rem;">Linked To</dt>
+              <dd style="margin: 0 0 1rem;">
+                <a href="{% url 'families:person_detail' family_id=kit.linked_person.family.id person_id=kit.linked_person.id %}">
+                  {{ kit.linked_person.full_name }}
+                </a>
+              </dd>
+              {% endif %}
+            </dl>
+          </div>
+        </div>
+        
+        <!-- Privacy Settings -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-shield-lock"></i> Privacy</span>
+          </div>
+          <div class="card-body">
+            <div style="margin-bottom: 0.75rem;">
+              {% if kit.is_private %}
+              <span class="badge"><i class="bi bi-lock"></i> Private</span>
+              <small class="muted" style="display: block; margin-top: 0.25rem;">
+                Only you can see this kit
+              </small>
+              {% else %}
+              <span class="badge badge-green"><i class="bi bi-unlock"></i> Visible</span>
+              <small class="muted" style="display: block; margin-top: 0.25rem;">
+                Other users can see this kit
+              </small>
+              {% endif %}
+            </div>
+            <div>
+              {% if kit.allow_matching %}
+              <span class="badge badge-blue"><i class="bi bi-people"></i> Matching Enabled</span>
+              <small class="muted" style="display: block; margin-top: 0.25rem;">
+                Others can compare DNA with you
+              </small>
+              {% else %}
+              <span class="badge"><i class="bi bi-people-fill"></i> Matching Disabled</span>
+              <small class="muted" style="display: block; margin-top: 0.25rem;">
+                DNA matching is turned off
+              </small>
+              {% endif %}
+            </div>
+          </div>
+          <div class="card-footer">
+            <a href="{% url 'families:dna_kit_edit' kit_id=kit.id %}" class="btn btn-sm btn-outline">
+              <i class="bi bi-gear"></i> Edit Settings
+            </a>
+          </div>
+        </div>
+        
+        {% if kit.notes %}
+        <!-- Notes -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-sticky"></i> Notes</span>
+          </div>
+          <div class="card-body">
+            <p style="font-size: 0.9rem; margin: 0; white-space: pre-wrap;">{{ kit.notes }}</p>
+          </div>
+        </div>
+        {% endif %}
+        
+        <!-- Danger Zone -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-exclamation-triangle"></i> Danger Zone</span>
+          </div>
+          <div class="card-body">
+            <a href="{% url 'families:dna_kit_delete' kit_id=kit.id %}" class="btn btn-outline danger" style="width: 100%;">
+              <i class="bi bi-trash"></i> Delete Kit
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

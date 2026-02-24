@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Chat – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Chat</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-chat-dots"></i> Family Chat</h1>
+        <p class="muted">Group chat for {{ family.name }}</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-arrow-left"></i> Back to Family
+        </a>
+      </div>
+    </div>
+    
+    <div class="chat-container">
+      <!-- Chat Messages -->
+      <div class="chat-messages" id="chat-messages">
+        {% if chat_messages %}
+          {% for message in chat_messages %}
+          <div class="chat-message {% if message.author == request.user %}chat-message-own{% endif %}" data-message-id="{{ message.id }}">
+            <div class="chat-message-header">
+              <span class="chat-author">
+                {% if message.author == request.user %}
+                  You
+                {% else %}
+                  {{ message.author.email|default:"Deleted User" }}
+                {% endif %}
+              </span>
+              <span class="chat-time">{{ message.created_at|time:"g:i A" }}</span>
+            </div>
+            <div class="chat-message-body">
+              {{ message.content|linebreaks }}
+            </div>
+            {% if message.author == request.user or membership.role in 'OWNER,ADMIN' %}
+            <div class="chat-message-actions">
+              <form method="post" action="{% url 'families:chat_delete_message' family_id=family.id message_id=message.id %}" 
+                    onsubmit="return confirm('Delete this message?');" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-icon" title="Delete message">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="chat-empty">
+            <i class="bi bi-chat-dots"></i>
+            <p>No messages yet. Start the conversation!</p>
+          </div>
+        {% endif %}
+      </div>
+      
+      <!-- Chat Input -->
+      {% if membership.role != 'VIEWER' %}
+      <div class="chat-input-container">
+        <form method="post" class="chat-form" id="chat-form">
+          {% csrf_token %}
+          <div class="chat-input-wrapper">
+            {{ form.content }}
+            <button type="submit" class="btn btn-primary chat-send-btn">
+              <i class="bi bi-send"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+      {% else %}
+      <div class="chat-input-container chat-viewer-notice">
+        <p class="muted mb-0"><i class="bi bi-eye"></i> Viewers can read messages but cannot send them.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-scroll to bottom of chat
+  const chatMessages = document.getElementById('chat-messages');
+  if (chatMessages) {
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+  
+  // Auto-resize textarea
+  const textarea = document.querySelector('.chat-form textarea');
+  if (textarea) {
+    textarea.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+    
+    // Submit on Enter (Shift+Enter for new line)
+    textarea.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (this.value.trim()) {
+          this.closest('form').submit();
+        }
+      }
+    });
+  }
+  
+  // Optional: Poll for new messages (simple real-time without WebSockets)
+  let lastMessageId = 0;
+  const messages = document.querySelectorAll('.chat-message');
+  if (messages.length > 0) {
+    lastMessageId = messages[messages.length - 1].dataset.messageId || 0;
+  }
+  
+  function pollMessages() {
+    fetch('{% url "families:chat_messages_json" family_id=family.id %}?after=' + lastMessageId)
+      .then(response => response.json())
+      .then(data => {
+        if (data.messages && data.messages.length > 0) {
+          // New messages arrived - reload page for simplicity
+          // In production, you'd append messages dynamically
+          location.reload();
+        }
+      })
+      .catch(err => console.log('Poll error:', err));
+  }
+  
+  // Poll every 10 seconds (optional - comment out to disable)
+  // setInterval(pollMessages, 10000);
+});
+</script>
+{% endblock %}

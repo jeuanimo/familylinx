@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}DNA Dashboard | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-dna"></i> DNA Dashboard</h1>
+        <p class="muted">Manage your DNA kits, view matches, and discover relationships</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:dna_kit_create' %}{% if link_to_person %}?link_to={{ link_to_person.id }}{% if link_to_family %}&family={{ link_to_family.id }}{% endif %}{% endif %}" class="btn btn-primary">
+          <i class="bi bi-plus-lg"></i> Register DNA Kit
+        </a>
+      </div>
+    </div>
+    
+    {% if link_to_person %}
+    <div class="alert alert-info" style="margin-bottom: 1.5rem;">
+      <i class="bi bi-link-45deg"></i>
+      <strong>Link DNA Kit to {{ link_to_person.display_name }}</strong>
+      <p class="muted" style="margin: 0.5rem 0 0;">
+        Select an existing kit below to link it, or register a new kit.
+        {% if link_to_family %}
+        <a href="{% url 'families:person_detail' family_id=link_to_family.id person_id=link_to_person.id %}" class="btn btn-sm btn-outline" style="margin-left: 1rem;">
+          <i class="bi bi-arrow-left"></i> Back to Profile
+        </a>
+        {% endif %}
+      </p>
+    </div>
+    {% endif %}
+    
+    {% if pending_suggestions %}
+    <div class="alert alert-info" style="margin-bottom: 1.5rem;">
+      <i class="bi bi-lightbulb"></i>
+      You have <strong>{{ pending_suggestions }}</strong> pending relationship suggestion(s) to review.
+      <a href="{% url 'families:relationship_suggestion_list' %}" class="btn btn-sm btn-outline" style="margin-left: 1rem;">
+        Review Now
+      </a>
+    </div>
+    {% endif %}
+    
+    <div class="grid-2" style="grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+      <!-- Main Content -->
+      <div class="stack-lg">
+        <!-- My DNA Kits -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-box"></i> My DNA Kits</span>
+            <a href="{% url 'families:dna_kit_create' %}" class="btn btn-sm btn-outline">
+              <i class="bi bi-plus-lg"></i> Add Kit
+            </a>
+          </div>
+          {% if kits %}
+          <ul class="list">
+            {% for kit in kits %}
+            <li style="display: flex; align-items: center;">
+              <a href="{% url 'families:dna_kit_detail' kit_id=kit.id %}" 
+                 style="text-decoration: none; color: var(--fl-text); display: flex; align-items: center; padding: 1rem; gap: 1rem; flex: 1;">
+                <div style="width: 50px; height: 50px; border-radius: var(--fl-radius); 
+                            background: linear-gradient(135deg, var(--fl-blue), var(--fl-purple)); 
+                            display: flex; align-items: center; justify-content: center;">
+                  <i class="bi bi-dna" style="font-size: 1.5rem; color: white;"></i>
+                </div>
+                <div style="flex: 1;">
+                  <strong>{{ kit.display_name }}</strong>
+                  <small class="muted" style="display: block;">
+                    {{ kit.get_provider_display }}
+                    {% if kit.kit_id %} · {{ kit.kit_id }}{% endif %}
+                    {% if kit.linked_person %}
+                    · <i class="bi bi-person-check"></i> Linked to {{ kit.linked_person.display_name }}
+                    {% endif %}
+                  </small>
+                </div>
+                <div style="text-align: right;">
+                  {% if kit.is_private %}
+                  <span class="badge" title="Private"><i class="bi bi-lock"></i></span>
+                  {% else %}
+                  <span class="badge badge-green" title="Visible"><i class="bi bi-unlock"></i></span>
+                  {% endif %}
+                  {% if kit.allow_matching %}
+                  <span class="badge badge-blue" title="Matching enabled"><i class="bi bi-people"></i></span>
+                  {% endif %}
+                </div>
+              </a>
+              {% if link_to_person and link_to_family %}
+              <div style="padding-right: 1rem;">
+                {% if kit.linked_person == link_to_person %}
+                <span class="badge badge-green"><i class="bi bi-check-lg"></i> Already Linked</span>
+                {% elif kit.linked_person %}
+                <span class="badge" title="Linked to {{ kit.linked_person.display_name }}">
+                  <i class="bi bi-link-45deg"></i> Linked
+                </span>
+                {% else %}
+                <a href="{% url 'families:dna_link_to_person' kit_id=kit.id family_id=link_to_family.id %}?person={{ link_to_person.id }}" 
+                   class="btn btn-sm btn-primary">
+                  <i class="bi bi-link-45deg"></i> Link
+                </a>
+                {% endif %}
+              </div>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <div class="card-body text-center" style="padding: 3rem;">
+            <i class="bi bi-dna" style="font-size: 3rem; color: var(--fl-muted);"></i>
+            <h3 style="margin: 1rem 0 0.5rem;">No DNA Kits Yet</h3>
+            <p class="muted">Register your DNA test kits to discover matches and relationships.</p>
+            <a href="{% url 'families:dna_kit_create' %}" class="btn btn-primary">
+              <i class="bi bi-plus-lg"></i> Register Your First Kit
+            </a>
+          </div>
+          {% endif %}
+        </div>
+        
+        <!-- Recent Matches -->
+        {% if recent_matches %}
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-arrow-left-right"></i> Recent Matches</span>
+            <a href="{% url 'families:dna_match_list' %}" class="btn btn-sm btn-outline">
+              View All
+            </a>
+          </div>
+          <ul class="list">
+            {% for match in recent_matches %}
+            <li>
+              <a href="{% url 'families:dna_match_detail' match_id=match.id %}" 
+                 style="text-decoration: none; color: var(--fl-text); display: flex; align-items: center; padding: 0.75rem 1rem; gap: 1rem;">
+                <div style="width: 40px; height: 40px; border-radius: 50%; 
+                            {% if match.shared_cm >= 400 %}background: var(--fl-green);
+                            {% elif match.shared_cm >= 90 %}background: var(--fl-blue);
+                            {% else %}background: var(--fl-muted);{% endif %}
+                            display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                  <span style="font-size: 0.75rem; font-weight: bold; color: white;">
+                    {{ match.shared_cm|floatformat:0 }}
+                  </span>
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-size: 0.9rem;">
+                    {{ match.kit1.display_name }} ↔ {{ match.kit2.display_name }}
+                  </div>
+                  <small class="muted">{{ match.predicted_relationship }}</small>
+                </div>
+                {% if match.is_confirmed %}
+                <span class="badge badge-green" style="font-size: 0.7rem;">✓ Confirmed</span>
+                {% endif %}
+              </a>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+      
+      <!-- Sidebar -->
+      <div class="stack-lg">
+        <!-- Quick Stats -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-bar-chart"></i> Overview</span>
+          </div>
+          <div class="card-body">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; text-align: center;">
+              <div>
+                <div style="font-size: 2rem; font-weight: bold; color: var(--fl-blue);">
+                  {{ kits|length }}
+                </div>
+                <small class="muted">DNA Kits</small>
+              </div>
+              <div>
+                <div style="font-size: 2rem; font-weight: bold; color: var(--fl-green);">
+                  {{ recent_matches|length }}
+                </div>
+                <small class="muted">Matches</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Quick Links -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-lightning"></i> Quick Actions</span>
+          </div>
+          <div class="card-body stack">
+            <a href="{% url 'families:dna_kit_create' %}" class="btn btn-outline" style="width: 100%;">
+              <i class="bi bi-plus-lg"></i> Register DNA Kit
+            </a>
+            <a href="{% url 'families:dna_match_list' %}" class="btn btn-outline" style="width: 100%;">
+              <i class="bi bi-arrow-left-right"></i> View All Matches
+            </a>
+            <a href="{% url 'families:relationship_suggestion_list' %}" class="btn btn-outline" style="width: 100%;">
+              <i class="bi bi-lightbulb"></i> Suggestions
+              {% if pending_suggestions %}
+              <span class="badge badge-gold" style="margin-left: 0.5rem;">{{ pending_suggestions }}</span>
+              {% endif %}
+            </a>
+          </div>
+        </div>
+        
+        <!-- cM Guide -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-info-circle"></i> cM Guide</span>
+          </div>
+          <div class="card-body" style="font-size: 0.85rem;">
+            <p class="muted mb-2">Shared centiMorgans (cM) indicate relationship closeness:</p>
+            <ul style="margin: 0; padding-left: 1rem;">
+              <li><strong>3400+</strong> – Parent/Child</li>
+              <li><strong>1700-2300</strong> – Sibling</li>
+              <li><strong>575-1300</strong> – Grandparent/Aunt/Uncle</li>
+              <li><strong>200-575</strong> – 1st-2nd Cousin</li>
+              <li><strong>20-200</strong> – Distant Cousin</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

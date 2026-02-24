@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Review Duplicate – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_tree' family_id=family.id %}">Family Tree</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:duplicate_queue' family_id=family.id %}">Duplicates</a>
+      <span class="separator">/</span>
+      <span class="current">Review</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-people"></i> Review Potential Duplicate</h1>
+        <p class="muted">
+          Compare these two records and decide how to handle them
+        </p>
+      </div>
+    </div>
+    
+    <!-- Confidence Score -->
+    <div class="alert alert-warning" style="margin-bottom: 1.5rem;">
+      <i class="bi bi-lightning"></i>
+      <strong>{{ duplicate.confidence_score }}% Match Confidence</strong> – 
+      {% for reason in match_reasons %}
+      {{ reason }}{% if not forloop.last %}, {% endif %}
+      {% endfor %}
+    </div>
+    
+    <!-- Side by Side Comparison -->
+    <div class="grid-2" style="gap: 1.5rem; margin-bottom: 1.5rem;">
+      <!-- Existing Person -->
+      <div class="card" style="border-top: 4px solid var(--fl-blue);">
+        <div class="card-header" style="background: var(--fl-blue); color: white;">
+          <span class="card-title">
+            <i class="bi bi-person-check"></i> Existing Record
+          </span>
+          <span class="badge" style="background: white; color: var(--fl-blue);">In Tree</span>
+        </div>
+        <div class="card-body">
+          <div class="person-photo text-center mb-3">
+            {% if duplicate.existing_person.photo %}
+            <img src="{{ duplicate.existing_person.photo.url }}" 
+                 alt="{{ duplicate.existing_person.full_name }}"
+                 style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover;">
+            {% else %}
+            <div style="width: 100px; height: 100px; border-radius: 50%; background: var(--fl-surface); margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 2.5rem;">
+              <i class="bi bi-person"></i>
+            </div>
+            {% endif %}
+          </div>
+          
+          <h3 class="text-center mb-3">{{ duplicate.existing_person.full_name }}</h3>
+          
+          <dl style="margin: 0; font-size: 0.9rem;">
+            <dt style="color: var(--fl-muted); margin-top: 0.75rem;">Gender</dt>
+            <dd style="margin: 0;">{{ duplicate.existing_person.get_gender_display|default:"Unknown" }}</dd>
+            
+            <dt style="color: var(--fl-muted); margin-top: 0.75rem;">Birth Date</dt>
+            <dd style="margin: 0;">{{ duplicate.existing_person.birth_date|date:"M d, Y"|default:"Unknown" }}</dd>
+            
+            <dt style="color: var(--fl-muted); margin-top: 0.75rem;">Birth Place</dt>
+            <dd style="margin: 0;">{{ duplicate.existing_person.birth_place|default:"Unknown" }}</dd>
+            
+            <dt style="color: var(--fl-muted); margin-top: 0.75rem;">Death Date</dt>
+            <dd style="margin: 0;">{{ duplicate.existing_person.death_date|date:"M d, Y"|default:"Unknown" }}</dd>
+            
+            <dt style="color: var(--fl-muted); margin-top: 0.75rem;">Death Place</dt>
+            <dd style="margin: 0;">{{ duplicate.existing_person.death_place|default:"Unknown" }}</dd>
+          </dl>
+          
+          <div class="text-center mt-3">
+            <a href="{% url 'families:person_detail' family_id=family.id person_id=duplicate.existing_person.id %}" 
+               class="btn btn-outline btn-sm" target="_blank">
+              <i class="bi bi-box-arrow-up-right"></i> View Full Profile
+            </a>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Imported Person -->
+      <div class="card" style="border-top: 4px solid var(--fl-green);">
+        <div class="card-header" style="background: var(--fl-green); color: white;">
+          <span class="card-title">
+            <i class="bi bi-person-plus"></i> Imported Record
+          </span>
+          <span class="badge" style="background: white; color: var(--fl-green);">New</span>
+        </div>
+        <div class="card-body">
+          <div class="person-photo text-center mb-3">
+            {% if duplicate.imported_person.photo %}
+            <img src="{{ duplicate.imported_person.photo.url }}" 
+                 alt="{{ duplicate.imported_person.full_name }}"
+                 style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover;">
+            {% else %}
+            <div style="width: 100px; height: 100px; border-radius: 50%; background: var(--fl-surface); margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 2.5rem;">
+              <i class="bi bi-person"></i>
+            </div>
+            {% endif %}
+          </div>
+          
+          <h3 class="text-center mb-3">{{ duplicate.imported_person.full_name }}</h3>
+          
+          <dl style="margin: 0; font-size: 0.9rem;">
+            <dt style="color: var(--fl-muted); margin-top: 0.75rem;">Gender</dt>
+            <dd style="margin: 0;">{{ duplicate.imported_person.get_gender_display|default:"Unknown" }}</dd>
+            
+            <dt style="color: var(--fl-muted); margin-top: 0.75rem;">Birth Date</dt>
+            <dd style="margin: 0;">{{ duplicate.imported_person.birth_date|date:"M d, Y"|default:"Unknown" }}</dd>
+            
+            <dt style="color: var(--fl-muted); margin-top: 0.75rem;">Birth Place</dt>
+            <dd style="margin: 0;">{{ duplicate.imported_person.birth_place|default:"Unknown" }}</dd>
+            
+            <dt style="color: var(--fl-muted); margin-top: 0.75rem;">Death Date</dt>
+            <dd style="margin: 0;">{{ duplicate.imported_person.death_date|date:"M d, Y"|default:"Unknown" }}</dd>
+            
+            <dt style="color: var(--fl-muted); margin-top: 0.75rem;">Death Place</dt>
+            <dd style="margin: 0;">{{ duplicate.imported_person.death_place|default:"Unknown" }}</dd>
+          </dl>
+          
+          <div class="text-center mt-3">
+            <a href="{% url 'families:person_detail' family_id=family.id person_id=duplicate.imported_person.id %}" 
+               class="btn btn-outline btn-sm" target="_blank">
+              <i class="bi bi-box-arrow-up-right"></i> View Full Profile
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Action Form -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-hand-index"></i> Choose Action</span>
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          
+          <div class="action-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            <!-- Merge Keep Existing -->
+            <button type="submit" name="action" value="merge_keep_existing" 
+                    class="action-btn" 
+                    style="display: flex; flex-direction: column; align-items: center; padding: 1.5rem; border: 2px solid var(--fl-border); background: white; border-radius: var(--fl-radius); cursor: pointer; transition: all 0.2s;">
+              <i class="bi bi-arrow-left" style="font-size: 2rem; color: var(--fl-blue); margin-bottom: 0.5rem;"></i>
+              <strong style="color: var(--fl-text);">Merge → Existing</strong>
+              <small class="muted" style="text-align: center;">Keep the existing record and merge imported data into it</small>
+            </button>
+            
+            <!-- Merge Keep Imported -->
+            <button type="submit" name="action" value="merge_keep_imported" 
+                    class="action-btn"
+                    style="display: flex; flex-direction: column; align-items: center; padding: 1.5rem; border: 2px solid var(--fl-border); background: white; border-radius: var(--fl-radius); cursor: pointer; transition: all 0.2s;">
+              <i class="bi bi-arrow-right" style="font-size: 2rem; color: var(--fl-green); margin-bottom: 0.5rem;"></i>
+              <strong style="color: var(--fl-text);">Merge → Imported</strong>
+              <small class="muted" style="text-align: center;">Keep the imported record and merge existing data into it</small>
+            </button>
+            
+            <!-- Keep Both -->
+            <button type="submit" name="action" value="keep_both" 
+                    class="action-btn"
+                    style="display: flex; flex-direction: column; align-items: center; padding: 1.5rem; border: 2px solid var(--fl-border); background: white; border-radius: var(--fl-radius); cursor: pointer; transition: all 0.2s;">
+              <i class="bi bi-people" style="font-size: 2rem; color: var(--fl-purple); margin-bottom: 0.5rem;"></i>
+              <strong style="color: var(--fl-text);">Keep Both</strong>
+              <small class="muted" style="text-align: center;">These are different people, keep both records</small>
+            </button>
+            
+            <!-- Dismiss -->
+            <button type="submit" name="action" value="dismiss" 
+                    class="action-btn"
+                    style="display: flex; flex-direction: column; align-items: center; padding: 1.5rem; border: 2px solid var(--fl-border); background: white; border-radius: var(--fl-radius); cursor: pointer; transition: all 0.2s;">
+              <i class="bi bi-x-lg" style="font-size: 2rem; color: var(--fl-muted); margin-bottom: 0.5rem;"></i>
+              <strong style="color: var(--fl-text);">Dismiss</strong>
+              <small class="muted" style="text-align: center;">Skip this for now without any changes</small>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <!-- Back Link -->
+    <div class="text-center mt-3">
+      <a href="{% url 'families:gedcom_import_report' family_id=family.id import_id=duplicate.gedcom_import.id %}" class="btn btn-outline">
+        <i class="bi bi-arrow-left"></i> Back to Import Report
+      </a>
+    </div>
+  </div>
+</main>
+
+<style>
+.action-btn:hover {
+  border-color: var(--fl-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}

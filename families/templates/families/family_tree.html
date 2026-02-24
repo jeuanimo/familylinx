@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% load static %}
+{% load family_tags %}
+
+{% block title %}Family Tree – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block extra_css %}
+<style>
+  .tree-node.linked-me {
+    border: 2px solid var(--fl-gold);
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.1), transparent);
+  }
+  .tree-person-card.linked-me {
+    border: 2px solid var(--fl-gold);
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.3);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Family Tree</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-diagram-3"></i> Family Tree</h1>
+        <p class="muted">{{ persons|length }} people in {{ family.name }}</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:family_tree_interactive' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-bezier2"></i> Interactive View
+        </a>
+        <a href="{% url 'families:person_list' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-list-ul"></i> List View
+        </a>
+        {% if membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+        <a href="{% url 'families:gedcom_import' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-cloud-upload"></i> Import GEDCOM
+        </a>
+        {% endif %}
+        {% if membership.role != 'VIEWER' %}
+        <a href="{% url 'families:person_create' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-plus-lg"></i> Add Person
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    
+    {% if persons %}
+    <div class="card">
+      <div class="card-body">
+        <div class="family-tree-chart">
+          {% for gen in tree_generations %}
+          <div class="tree-generation">
+            <span class="generation-label">
+              {% if gen.generation == 0 %}
+                Ancestors
+              {% elif gen.generation == 1 %}
+                Generation 1
+              {% elif gen.generation == 2 %}
+                Generation 2
+              {% elif gen.generation == 3 %}
+                Generation 3
+              {% else %}
+                Generation {{ gen.generation }}
+              {% endif %}
+            </span>
+            
+            {% for unit in gen.units %}
+            <div class="tree-unit">
+              <div class="tree-couple">
+                {% for person in unit.persons %}
+                {% if not forloop.first %}
+                <div class="spouse-connector"><i class="bi bi-heart-fill"></i></div>
+                {% endif %}
+                <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" 
+                   class="tree-person-card {% if person.gender == 'M' %}male{% elif person.gender == 'F' %}female{% else %}other-gender{% endif %}{% if person.id == linked_person_id %} linked-me{% endif %}">
+                  <div class="tree-person-photo">
+                    {% if person.photo %}
+                    <img src="{{ person.photo.url }}" alt="{{ person.full_name }}">
+                    {% else %}
+                    <i class="bi bi-person"></i>
+                    {% endif %}
+                  </div>
+                  <div class="tree-person-name" title="{{ person.full_name }}">{{ person.full_name }}{% if person.id == linked_person_id %} <i class="bi bi-person-check" title="This is you"></i>{% endif %}</div>
+                  <div class="tree-person-dates">
+                    {{ person|lifespan_display }}
+                  </div>
+                  <div class="tree-person-badges">
+                    {% if person.is_private %}
+                    <span class="badge" style="background: var(--fl-muted);" title="Private">
+                      <i class="bi bi-lock-fill"></i>
+                    </span>
+                    {% endif %}
+                    {% if person.is_living %}
+                    <span class="badge badge-blue" title="Living">
+                      <i class="bi bi-heart-pulse"></i>
+                    </span>
+                    {% endif %}
+                    {% if person.children %}
+                    <span class="badge badge-green" title="{{ person.children|length }} children">
+                      <i class="bi bi-people-fill"></i> {{ person.children|length }}
+                    </span>
+                    {% endif %}
+                  </div>
+                </a>
+                {% endfor %}
+              </div>
+            </div>
+            {% empty %}
+            <div class="tree-empty-gen">No persons in this generation</div>
+            {% endfor %}
+          </div>
+          {% empty %}
+          <div class="empty-state">
+            <div class="empty-state-icon">
+              <i class="bi bi-diagram-3"></i>
+            </div>
+            <h3>No generations to display</h3>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- View Toggle -->
+    <div class="card mt-3">
+      <div class="card-body">
+        <h4 style="margin-bottom: 0.75rem;"><i class="bi bi-grid-3x3-gap"></i> All Family Members ({{ persons|length }})</h4>
+        <div class="tree-view">
+          {% for person in persons %}
+          <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" 
+             class="tree-node{% if person.id == linked_person_id %} linked-me{% endif %}">
+            <div class="tree-node-photo">
+              {% if person.photo %}
+              <img src="{{ person.photo.url }}" alt="{{ person.full_name }}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">
+              {% else %}
+              <div class="person-photo-placeholder-sm">
+                <i class="bi bi-person"></i>
+              </div>
+              {% endif %}
+            </div>
+            <div class="tree-node-info">
+              <strong>{{ person.full_name }}{% if person.id == linked_person_id %} <span class="badge badge-blue" title="This is you"><i class="bi bi-person-check"></i></span>{% endif %}</strong>
+              <span class="muted">
+                {% if person.birth_date %}b. {{ person.birth_date|date:"Y" }}{% endif %}
+                {% if person.death_date %} - d. {{ person.death_date|date:"Y" }}{% endif %}
+              </span>
+              <span class="tree-node-badges">
+                {% if person.spouses %}
+                <span class="badge badge-gold" title="Has spouse"><i class="bi bi-heart"></i></span>
+                {% endif %}
+                {% if person.children %}
+                <span class="badge badge-green" title="Has children"><i class="bi bi-people"></i> {{ person.children|length }}</span>
+                {% endif %}
+              </span>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Legend -->
+    <div class="card mt-3">
+      <div class="card-body">
+        <h4 style="margin-bottom: 0.75rem;"><i class="bi bi-info-circle"></i> Legend</h4>
+        <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; margin-bottom: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 20px; height: 20px; border: 2px solid var(--fl-blue); border-radius: 4px;"></span>
+            <span class="muted">Male</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 20px; height: 20px; border: 2px solid #e879a9; border-radius: 4px;"></span>
+            <span class="muted">Female</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 20px; height: 20px; border: 2px solid var(--fl-gold); border-radius: 4px;"></span>
+            <span class="muted">Other/Unknown</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <i class="bi bi-heart-fill" style="color: var(--fl-green);"></i>
+            <span class="muted">Spouse connection</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="badge badge-green"><i class="bi bi-people-fill"></i></span>
+            <span class="muted">Number of children</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="badge badge-blue"><i class="bi bi-heart-pulse"></i></span>
+            <span class="muted">Living person</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="badge" style="background: var(--fl-muted);"><i class="bi bi-lock-fill"></i></span>
+            <span class="muted">Private</span>
+          </div>
+        </div>
+        <h5 style="margin-bottom: 0.5rem; font-size: 0.9rem;">Date Qualifiers</h5>
+        <div style="display: flex; flex-wrap: wrap; gap: 1.5rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-family: monospace; font-weight: bold;">~1850</span>
+            <span class="muted">About/Approximately</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-family: monospace; font-weight: bold;">&lt;1850</span>
+            <span class="muted">Before</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-family: monospace; font-weight: bold;">&gt;1850</span>
+            <span class="muted">After</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-family: monospace; font-weight: bold;">≈1850</span>
+            <span class="muted">Estimated</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon">
+            <i class="bi bi-diagram-3"></i>
+          </div>
+          <h3>Your family tree is empty</h3>
+          <p class="muted">Start building your family tree by adding your first family member.</p>
+          {% if membership.role != 'VIEWER' %}
+          <a href="{% url 'families:person_create' family_id=family.id %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Add First Person
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    
+    <div style="margin-top: 1.5rem;">
+      <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline">
+        <i class="bi bi-arrow-left"></i> Back to Family
+      </a>
+    </div>
+  </div>
+</main>
+{% endblock %}

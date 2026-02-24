@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Photo Albums – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Photo Albums</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-images"></i> Photo Albums</h1>
+        <p class="muted">{{ albums|length }} album{{ albums|length|pluralize }} in {{ family.name }}</p>
+      </div>
+      <div class="page-actions">
+        {% if membership.role != 'VIEWER' %}
+        <a href="{% url 'families:album_create' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-plus-lg"></i> New Album
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    
+    {% if albums %}
+    <div class="album-grid">
+      {% for album in albums %}
+      <a href="{% url 'families:album_detail' family_id=family.id album_id=album.id %}" class="album-card">
+        <div class="album-cover">
+          {% if album.cover_photo %}
+          <img src="{{ album.cover_photo.image.url }}" alt="{{ album.title }}">
+          {% elif album.photos.first %}
+          <img src="{{ album.photos.first.image.url }}" alt="{{ album.title }}">
+          {% else %}
+          <div class="album-cover-placeholder">
+            <i class="bi bi-images"></i>
+          </div>
+          {% endif %}
+        </div>
+        <div class="album-info">
+          <h3>{{ album.title }}</h3>
+          <span class="muted">{{ album.photo_count }} photo{{ album.photo_count|pluralize }}</span>
+          {% if album.description %}
+          <p class="album-desc">{{ album.description|truncatewords:15 }}</p>
+          {% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon"><i class="bi bi-images"></i></div>
+          <h3>No Photo Albums Yet</h3>
+          <p class="muted">Create your first album to start sharing family photos!</p>
+          {% if membership.role != 'VIEWER' %}
+          <a href="{% url 'families:album_create' family_id=family.id %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Create First Album
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

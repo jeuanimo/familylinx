@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Events – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Events</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-calendar-event"></i> Family Events</h1>
+        <p class="muted">Plan reunions, birthdays, and special gatherings</p>
+      </div>
+      {% if membership.role != 'VIEWER' %}
+      <div class="page-actions">
+        <a href="{% url 'families:event_create' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-plus-lg"></i> New Event
+        </a>
+      </div>
+      {% endif %}
+    </div>
+    
+    <!-- Filter Tabs -->
+    <div class="event-tabs" style="margin-bottom: 1.5rem;">
+      <a href="?show=upcoming" class="btn {% if show == 'upcoming' %}btn-primary{% else %}btn-outline{% endif %}">
+        <i class="bi bi-calendar-check"></i> Upcoming
+      </a>
+      <a href="?show=past" class="btn {% if show == 'past' %}btn-primary{% else %}btn-outline{% endif %}">
+        <i class="bi bi-clock-history"></i> Past Events
+      </a>
+    </div>
+    
+    {% if events %}
+    <div class="stack">
+      {% for event in events %}
+      <div class="card event-card">
+        <div class="card-body">
+          <div class="event-card-content">
+            {% if event.image %}
+            <div class="event-image-thumb">
+              <img src="{{ event.image.url }}" alt="{{ event.title }}">
+            </div>
+            {% else %}
+            <div class="event-date-badge">
+              <span class="event-date-month">{{ event.start_datetime|date:"M" }}</span>
+              <span class="event-date-day">{{ event.start_datetime|date:"j" }}</span>
+            </div>
+            {% endif %}
+            <div class="event-info">
+              <div class="event-meta">
+                <span class="badge badge-{% if event.event_type == 'BIRTHDAY' %}gold{% elif event.event_type == 'REUNION' %}green{% else %}blue{% endif %}" style="font-size: 0.75rem;">
+                  {{ event.get_event_type_display }}
+                </span>
+                <span class="muted">{{ event.start_datetime|time:"g:i A" }}</span>
+              </div>
+              <h3 style="margin: 0.25rem 0;">
+                <a href="{% url 'families:event_detail' family_id=family.id event_id=event.id %}">
+                  {{ event.title }}
+                </a>
+              </h3>
+              {% if event.location %}
+              <p class="muted mb-0"><i class="bi bi-geo-alt"></i> {{ event.location }}</p>
+              {% endif %}
+            </div>
+            <div class="event-rsvp-summary">
+              <span class="badge badge-green"><i class="bi bi-check-lg"></i> {{ event.rsvp_counts.GOING }}</span>
+              <span class="badge badge-gold"><i class="bi bi-question-lg"></i> {{ event.rsvp_counts.MAYBE }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon">
+            <i class="bi bi-calendar3"></i>
+          </div>
+          <h3>No {% if show == 'past' %}past{% else %}upcoming{% endif %} events</h3>
+          <p class="muted">
+            {% if show == 'past' %}
+            Past events will appear here after they've occurred.
+            {% else %}
+            Create an event to start planning your next family gathering!
+            {% endif %}
+          </p>
+          {% if show == 'upcoming' and membership.role != 'VIEWER' %}
+          <a href="{% url 'families:event_create' family_id=family.id %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Create Event
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    
+    <div style="margin-top: 1.5rem;">
+      <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline">
+        <i class="bi bi-arrow-left"></i> Back to Family
+      </a>
+    </div>
+  </div>
+</main>
+{% endblock %}

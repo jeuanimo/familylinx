@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Add Relationship – {{ person.full_name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_tree' family_id=family.id %}">Family Tree</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}">{{ person.full_name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Add Relationship</span>
+    </nav>
+    
+    <div class="form-page">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-diagram-3"></i> Add Relationship for {{ person.full_name }}</span>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-info" style="margin-bottom: 1.5rem;">
+            <strong>Relationship Direction:</strong>
+            <ul style="margin: 0.5rem 0 0 1.5rem;">
+              <li><strong>Parent-Child:</strong> {{ person.first_name }} will be the <strong>parent</strong> of the selected person</li>
+              <li><strong>Grandparent:</strong> {{ person.first_name }} will be the <strong>grandparent</strong> of the selected person</li>
+              <li><strong>Great-Grandparent (1x-6x):</strong> {{ person.first_name }} will be the <strong>ancestor</strong> of the selected person</li>
+              <li><strong>Spouse:</strong> {{ person.first_name }} will be married to the selected person</li>
+            </ul>
+            <small class="muted">To add {{ person.first_name }} as a child/descendant, go to the ancestor's profile and add the relationship there.</small>
+          </div>
+          
+          <form method="post">
+            {% csrf_token %}
+            
+            <div class="form-group">
+              <label class="form-label required">{{ form.relationship_type.label }}</label>
+              {{ form.relationship_type }}
+              <small class="form-text muted">Choose the type of relationship</small>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label required">{{ form.person2.label }}</label>
+              {{ form.person2 }}
+              {% if form.person2.errors %}
+              <div class="form-error">{{ form.person2.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">{{ form.start_date.label }}</label>
+                {{ form.start_date }}
+                <small class="form-text muted">For spouse relationships (wedding date)</small>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">{{ form.end_date.label }}</label>
+                {{ form.end_date }}
+                <small class="form-text muted">If the relationship ended (e.g., divorce)</small>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">{{ form.notes.label }}</label>
+              {{ form.notes }}
+            </div>
+            
+            <div class="form-actions">
+              <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" class="btn btn-outline">Cancel</a>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-link"></i> Add Relationship
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Update Profile Picture | FamilyLinx{% endblock %}
+
+{% block content %}
+<div class="form-page" style="max-width: 500px; margin: 0 auto;">
+    <nav class="breadcrumb">
+        <a href="{% url 'home' %}">Home</a>
+        <span class="separator">/</span>
+        <a href="{% url 'accounts:my_profile' %}">My Profile</a>
+        <span class="separator">/</span>
+        <span class="current">Update Picture</span>
+    </nav>
+    
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="bi bi-camera"></i> Update Profile Picture</span>
+        </div>
+        <div class="card-body">
+            {% if profile.profile_picture %}
+            <div style="text-align: center; margin-bottom: 1.5rem;">
+                <img src="{{ profile.profile_picture.url }}" alt="Current profile picture" style="width: 150px; height: 150px; border-radius: 50%; object-fit: cover;">
+                <p class="muted" style="margin-top: 0.5rem;">Current profile picture</p>
+            </div>
+            {% endif %}
+            
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label class="form-label">Choose New Picture</label>
+                    {{ form.profile_picture }}
+                    <small class="form-hint">Recommended: 180x180 pixels, square image works best</small>
+                </div>
+                
+                <div class="form-actions">
+                    <a href="{% url 'accounts:my_profile' %}" class="btn btn-outline">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload"></i> Upload
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

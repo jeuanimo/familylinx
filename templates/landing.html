@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}FamilyLinx - Connect with Your Family{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero" style="margin: -1rem -1rem 0; padding: 4rem 0; background: var(--fl-surface);">
+    <div class="container">
+        <div class="hero-content">
+            <div>
+                <h1>Connect with Your Family,<br>Preserve Your Heritage</h1>
+                <p class="hero-lead">
+                    FamilyLinx brings your family together in one private space. 
+                    Share updates, plan events, and build your family tree together.
+                </p>
+                <div class="hero-actions">
+                    <a href="{% url 'account_signup' %}" class="btn btn-primary btn-lg">
+                        <i class="bi bi-person-plus"></i> Get Started Free
+                    </a>
+                    <a href="{% url 'account_login' %}" class="btn btn-outline btn-lg">
+                        <i class="bi bi-box-arrow-in-right"></i> Sign In
+                    </a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <i class="bi bi-diagram-3 hero-icon"></i>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="features">
+    <h2>Everything Your Family Needs</h2>
+    <div class="features-grid">
+        <div class="card feature-card">
+            <div class="card-body">
+                <div class="feature-icon"><i class="bi bi-people"></i></div>
+                <h3>Private Family Spaces</h3>
+                <p>Create invite-only spaces for different branches of your family. 
+                   Control who sees what with role-based permissions.</p>
+            </div>
+        </div>
+        <div class="card feature-card">
+            <div class="card-body">
+                <div class="feature-icon"><i class="bi bi-chat-dots"></i></div>
+                <h3>Share Updates & Photos</h3>
+                <p>Post family news, share photos, and keep everyone connected 
+                   no matter the distance.</p>
+            </div>
+        </div>
+        <div class="card feature-card">
+            <div class="card-body">
+                <div class="feature-icon"><i class="bi bi-calendar-event"></i></div>
+                <h3>Plan Events Together</h3>
+                <p>Organize reunions, birthdays, and holidays. 
+                   Track RSVPs and keep everyone on the same page.</p>
+            </div>
+        </div>
+        <div class="card feature-card">
+            <div class="card-body">
+                <div class="feature-icon"><i class="bi bi-diagram-3"></i></div>
+                <h3>Build Your Family Tree</h3>
+                <p>Collaboratively build and explore your family tree. 
+                   New members are automatically placed in the right branch.</p>
+            </div>
+        </div>
+        <div class="card feature-card">
+            <div class="card-body">
+                <div class="feature-icon"><i class="bi bi-shield-check"></i></div>
+                <h3>Private & Secure</h3>
+                <p>Your family data stays private. Built with security 
+                   best practices following OWASP guidelines.</p>
+            </div>
+        </div>
+        <div class="card feature-card">
+            <div class="card-body">
+                <div class="feature-icon"><i class="bi bi-envelope-paper"></i></div>
+                <h3>Easy Invitations</h3>
+                <p>Invite relatives via email with secure links. 
+                   They join with just a few clicks.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="cta" style="margin: 0 -1rem -2rem; padding: 4rem 0; background: var(--fl-surface);">
+    <div class="container">
+        <h2>Ready to Connect Your Family?</h2>
+        <p>Join FamilyLinx today and start building your family's digital home.</p>
+        <a href="{% url 'account_signup' %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-person-plus"></i> Create Your Free Account
+        </a>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,1000 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ profile.get_display_name }} | FamilyLinx{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Facebook-style Profile Layout */
+.profile-header {
+    position: relative;
+    margin-bottom: 1rem;
+}
+
+.cover-photo {
+    width: 100%;
+    height: 312px;
+    background: linear-gradient(135deg, var(--fl-primary) 0%, var(--fl-blue) 100%);
+    border-radius: var(--fl-radius) var(--fl-radius) 0 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.cover-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cover-photo-edit {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    background: rgba(0, 0, 0, 0.6) !important;
+    color: #fff !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.cover-photo-edit:hover {
+    background: rgba(0, 0, 0, 0.8) !important;
+}
+
+.profile-info-bar {
+    background: var(--fl-card);
+    padding: 0 1.5rem 1rem;
+    border-radius: 0 0 var(--fl-radius) var(--fl-radius);
+    display: flex;
+    align-items: flex-end;
+    gap: 1.5rem;
+    box-shadow: var(--fl-shadow);
+    position: relative;
+}
+
+.profile-avatar {
+    width: 168px;
+    height: 168px;
+    border-radius: 50%;
+    border: 4px solid var(--fl-card);
+    background: var(--fl-surface);
+    overflow: hidden;
+    margin-top: -84px;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--fl-primary);
+    color: white;
+    font-size: 4rem;
+    font-weight: 700;
+}
+
+.profile-avatar-edit {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background: var(--fl-surface);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--fl-shadow);
+    cursor: pointer;
+    color: var(--fl-text);
+    text-decoration: none;
+}
+
+.profile-avatar-edit:hover {
+    background: var(--fl-background);
+    color: var(--fl-primary);
+}
+
+.profile-name-section {
+    flex: 1;
+    padding-bottom: 1rem;
+}
+
+.profile-name {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--fl-text);
+}
+
+.profile-bio {
+    color: var(--fl-muted);
+    margin: 0.25rem 0 0;
+    line-height: 1.4;
+}
+
+.profile-meta {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--fl-muted);
+}
+
+.profile-meta i {
+    margin-right: 0.25rem;
+}
+
+.profile-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding-bottom: 1rem;
+}
+
+/* Profile Content Grid */
+.profile-content {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+@media (max-width: 900px) {
+    .profile-content {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Intro Card */
+.intro-card {
+    background: var(--fl-card);
+    border-radius: var(--fl-radius);
+    padding: 1rem;
+    box-shadow: var(--fl-shadow);
+}
+
+.intro-card h3 {
+    font-size: 1.25rem;
+    margin: 0 0 1rem;
+}
+
+.intro-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    color: var(--fl-text);
+}
+
+.intro-item i {
+    font-size: 1.25rem;
+    color: var(--fl-muted);
+    width: 24px;
+    text-align: center;
+}
+
+/* Wall Posts */
+.wall-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.post-composer {
+    background: var(--fl-card);
+    border-radius: var(--fl-radius);
+    padding: 1rem;
+    box-shadow: var(--fl-shadow);
+}
+
+.post-composer-header {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.post-composer-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--fl-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.post-composer-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.post-composer-input {
+    flex: 1;
+    background: var(--fl-surface);
+    border: none;
+    border-radius: 20px;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    color: var(--fl-muted);
+    text-align: left;
+}
+
+.post-form {
+    margin-top: 1rem;
+    display: none;
+}
+
+.post-form.active {
+    display: block;
+}
+
+.post-image-preview {
+    position: relative;
+    margin-bottom: 1rem;
+    border-radius: var(--fl-radius);
+    overflow: hidden;
+    background: var(--fl-surface);
+}
+
+.post-image-preview img {
+    width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    display: block;
+}
+
+.post-image-preview .preview-remove {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.post-image-preview .preview-remove:hover {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.post-composer-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--fl-border);
+}
+
+.post-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--fl-radius);
+    color: var(--fl-green);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+}
+
+.post-action-btn:hover {
+    background: var(--fl-surface);
+}
+
+.post-action-btn i {
+    font-size: 1.25rem;
+}
+
+.post-visibility-select {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--fl-radius);
+    background: var(--fl-surface);
+    color: var(--fl-muted);
+    font-size: 0.85rem;
+}
+
+.post-visibility-select select {
+    border: none;
+    background: transparent;
+    color: var(--fl-text);
+    font-size: 0.85rem;
+    cursor: pointer;
+    outline: none;
+}
+
+.post-composer-actions .btn-primary {
+    margin-left: auto;
+}
+
+.wall-post {
+    background: var(--fl-card);
+    border-radius: var(--fl-radius);
+    box-shadow: var(--fl-shadow);
+    overflow: hidden;
+}
+
+.wall-post-header {
+    display: flex;
+    gap: 0.75rem;
+    padding: 1rem;
+}
+
+.wall-post-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--fl-surface);
+    overflow: hidden;
+}
+
+.wall-post-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.wall-post-info {
+    flex: 1;
+}
+
+.wall-post-author {
+    font-weight: 600;
+    color: var(--fl-text);
+}
+
+.wall-post-author:hover {
+    text-decoration: underline;
+}
+
+.wall-post-time {
+    font-size: 0.8rem;
+    color: var(--fl-muted);
+}
+
+.wall-post-menu {
+    position: relative;
+}
+
+.wall-post-content {
+    padding: 0 1rem 1rem;
+    line-height: 1.5;
+}
+
+.wall-post-image {
+    width: 100%;
+}
+
+.wall-post-image img {
+    width: 100%;
+    max-height: 500px;
+    object-fit: cover;
+}
+
+.wall-post-video {
+    width: 100%;
+    background: #000;
+}
+
+.wall-post-video video {
+    width: 100%;
+    max-height: 500px;
+}
+
+.post-video-preview {
+    position: relative;
+    margin-bottom: 1rem;
+    border-radius: var(--fl-radius);
+    overflow: hidden;
+    background: #000;
+}
+
+.post-video-preview video {
+    width: 100%;
+    max-height: 300px;
+    display: block;
+}
+
+.post-video-preview .preview-remove {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.post-video-preview .preview-remove:hover {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.post-action-video {
+    color: var(--fl-red) !important;
+}
+
+.wall-post-actions {
+    display: flex;
+    border-top: 1px solid var(--fl-border);
+    padding: 0.5rem;
+}
+
+.wall-post-action {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-radius: var(--fl-radius);
+    color: var(--fl-muted);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 0.9rem;
+}
+
+.wall-post-action:hover {
+    background: var(--fl-surface);
+}
+
+/* Comments */
+.wall-post-comments {
+    border-top: 1px solid var(--fl-border);
+    padding: 1rem;
+    background: var(--fl-surface);
+}
+
+.comment {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.comment-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--fl-card);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.comment-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.comment-body {
+    background: var(--fl-card);
+    border-radius: 18px;
+    padding: 0.5rem 0.75rem;
+    flex: 1;
+}
+
+.comment-author {
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.comment-text {
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.comment-time {
+    font-size: 0.75rem;
+    color: var(--fl-muted);
+    margin-left: 0.5rem;
+}
+
+.comment-form {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.comment-form input {
+    flex: 1;
+    border-radius: 20px;
+    padding: 0.5rem 1rem;
+}
+
+/* Tree link card */
+.tree-link-card {
+    background: var(--fl-card);
+    border-radius: var(--fl-radius);
+    padding: 1rem;
+    box-shadow: var(--fl-shadow);
+    margin-top: 1rem;
+}
+
+.tree-link-card h3 {
+    font-size: 1.1rem;
+    margin: 0 0 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tree-person-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--fl-surface);
+    border-radius: var(--fl-radius);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Profile Header -->
+<div class="profile-header">
+    <!-- Cover Photo -->
+    <div class="cover-photo">
+        {% if profile.cover_photo %}
+        <img src="{{ profile.cover_photo.url }}" alt="Cover photo">
+        {% endif %}
+        {% if is_own_profile %}
+        <a href="{% url 'accounts:cover_photo_update' %}" class="btn btn-sm btn-secondary cover-photo-edit">
+            <i class="bi bi-camera"></i> Edit Cover
+        </a>
+        {% endif %}
+    </div>
+    
+    <!-- Profile Info Bar -->
+    <div class="profile-info-bar">
+        <div class="profile-avatar">
+            {% if profile.profile_picture %}
+            <img src="{{ profile.profile_picture.url }}" alt="{{ profile.get_display_name }}">
+            {% else %}
+            <div class="profile-avatar-placeholder">
+                {{ profile.get_display_name|slice:":1"|upper }}
+            </div>
+            {% endif %}
+            {% if is_own_profile %}
+            <a href="{% url 'accounts:profile_picture_update' %}" class="profile-avatar-edit" title="Change profile picture">
+                <i class="bi bi-camera"></i>
+            </a>
+            {% endif %}
+        </div>
+        
+        <div class="profile-name-section">
+            <h1 class="profile-name">{{ profile.get_display_name }}</h1>
+            {% if profile.bio %}
+            <p class="profile-bio">{{ profile.bio }}</p>
+            {% endif %}
+            <div class="profile-meta">
+                {% if profile.location %}
+                <span><i class="bi bi-geo-alt"></i> {{ profile.location }}</span>
+                {% endif %}
+                {% if profile.website %}
+                <span><i class="bi bi-link-45deg"></i> <a href="{{ profile.website }}" target="_blank">{{ profile.website|truncatechars:30 }}</a></span>
+                {% endif %}
+                {% if profile.show_birthday and profile.date_of_birth %}
+                <span><i class="bi bi-cake2"></i> {{ profile.date_of_birth|date:"F j" }}</span>
+                {% endif %}
+                {% if profile.show_email %}
+                <span><i class="bi bi-envelope"></i> {{ profile_user.email }}</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="profile-actions">
+            {% if is_own_profile %}
+            <a href="{% url 'accounts:profile_edit' %}" class="btn btn-secondary">
+                <i class="bi bi-pencil"></i> Edit Profile
+            </a>
+            {% else %}
+            <a href="{% url 'accounts:message_compose_to' recipient_id=profile_user.id %}" class="btn btn-primary">
+                <i class="bi bi-chat-dots"></i> Message
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Profile Content -->
+<div class="profile-content">
+    <!-- Left Column - Intro -->
+    <div class="profile-sidebar">
+        <!-- Intro Card -->
+        <div class="intro-card">
+            <h3>Intro</h3>
+            
+            {% if profile.bio %}
+            <div class="intro-item">
+                <i class="bi bi-info-circle"></i>
+                <span>{{ profile.bio|truncatechars:100 }}</span>
+            </div>
+            {% endif %}
+            
+            {% if profile.location %}
+            <div class="intro-item">
+                <i class="bi bi-house"></i>
+                <span>Lives in <strong>{{ profile.location }}</strong></span>
+            </div>
+            {% endif %}
+            
+            {% if profile.website %}
+            <div class="intro-item">
+                <i class="bi bi-link-45deg"></i>
+                <a href="{{ profile.website }}" target="_blank">{{ profile.website|truncatechars:40 }}</a>
+            </div>
+            {% endif %}
+            
+            <div class="intro-item">
+                <i class="bi bi-calendar3"></i>
+                <span>Joined {{ profile.created_at|date:"F Y" }}</span>
+            </div>
+            
+            {% if is_own_profile %}
+            <a href="{% url 'accounts:profile_edit' %}" class="btn btn-outline w-full mt-1">
+                Edit Details
+            </a>
+            {% endif %}
+        </div>
+        
+        <!-- Family Tree Link -->
+        <div class="tree-link-card">
+            <h3><i class="bi bi-diagram-3"></i> Family Tree</h3>
+            {% if profile.linked_person %}
+            <div class="tree-person-link">
+                <i class="bi bi-person-badge" style="font-size: 1.5rem; color: var(--fl-primary);"></i>
+                <div>
+                    <strong>{{ profile.linked_person.full_name }}</strong>
+                    <div class="muted" style="font-size: 0.8rem;">
+                        {% if profile.linked_person.birth_date %}b. {{ profile.linked_person.birth_date|date:"Y" }}{% endif %}
+                    </div>
+                </div>
+                <a href="{% url 'families:person_detail' family_id=profile.linked_person.family.id person_id=profile.linked_person.id %}" class="btn btn-sm btn-outline ms-auto">
+                    View
+                </a>
+            </div>
+            {% if is_own_profile %}
+            <form method="post" action="{% url 'accounts:unlink_from_tree' %}" style="margin-top: 0.5rem;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline w-full">Unlink</button>
+            </form>
+            {% endif %}
+            {% else %}
+            <p class="muted" style="font-size: 0.9rem;">
+                {% if is_own_profile %}
+                Connect your profile to your entry in a family tree.
+                {% else %}
+                Not linked to a family tree.
+                {% endif %}
+            </p>
+            {% if is_own_profile %}
+            <a href="{% url 'accounts:link_to_tree' %}" class="btn btn-outline w-full">
+                <i class="bi bi-link"></i> Link to Tree
+            </a>
+            {% endif %}
+            {% endif %}
+        </div>
+        
+        <!-- Shared Families -->
+        {% if shared_families %}
+        <div class="intro-card" style="margin-top: 1rem;">
+            <h3><i class="bi bi-people"></i> Shared Families</h3>
+            <p class="muted" style="font-size: 0.9rem;">
+                You share {{ shared_families|length }} famil{{ shared_families|length|pluralize:"y,ies" }} with {{ profile.get_display_name }}.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Right Column - Wall -->
+    <div class="wall-section">
+        <!-- Post Composer (own profile only) -->
+        {% if is_own_profile %}
+        <div class="post-composer">
+            <div class="post-composer-header">
+                <div class="post-composer-avatar">
+                    {% if profile.profile_picture %}
+                    <img src="{{ profile.profile_picture.url }}" alt="">
+                    {% else %}
+                    <i class="bi bi-person-fill"></i>
+                    {% endif %}
+                </div>
+                <button class="post-composer-input" onclick="document.getElementById('post-form').classList.toggle('active')">
+                    What's on your mind, {{ profile.get_display_name|truncatechars:20 }}?
+                </button>
+            </div>
+            
+            <form method="post" action="{% url 'accounts:wall_post_create' user_id=profile_user.id %}" enctype="multipart/form-data" id="post-form" class="post-form">
+                {% csrf_token %}
+                <div class="form-group">
+                    <textarea name="content" id="post-content" class="form-control" rows="3" placeholder="What's on your mind?" required></textarea>
+                </div>
+                
+                <!-- Image Preview -->
+                <div id="post-image-preview" class="post-image-preview" style="display: none;">
+                    <img src="" alt="Preview" id="preview-img">
+                    <button type="button" class="preview-remove" onclick="removePostImage()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                
+                <!-- Video Preview -->
+                <div id="post-video-preview" class="post-video-preview" style="display: none;">
+                    <video id="preview-video" controls></video>
+                    <button type="button" class="preview-remove" onclick="removePostVideo()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="post-composer-actions">
+                    <label class="post-action-btn" title="Add Photo">
+                        <i class="bi bi-image"></i>
+                        <span>Photo</span>
+                        <input type="file" name="image" id="post-image-input" accept="image/*" style="display: none;" onchange="previewPostImage(this)">
+                    </label>
+                    <label class="post-action-btn post-action-video" title="Add Video">
+                        <i class="bi bi-camera-video"></i>
+                        <span>Video</span>
+                        <input type="file" name="video" id="post-video-input" accept="video/*" style="display: none;" onchange="previewPostVideo(this)">
+                    </label>
+                    <div class="post-visibility-select">
+                        <i class="bi bi-people"></i>
+                        <select name="visibility" id="post-visibility">
+                            <option value="MEMBERS">Family</option>
+                            <option value="PUBLIC">Public</option>
+                            <option value="PRIVATE">Only Me</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send"></i> Post
+                    </button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+        
+        <!-- Wall Posts -->
+        {% for post in posts %}
+        <div class="wall-post">
+            <div class="wall-post-header">
+                <a href="{% url 'accounts:profile_view' user_id=post.author.id %}" class="wall-post-avatar">
+                    {% if post.author.profile.profile_picture %}
+                    <img src="{{ post.author.profile.profile_picture.url }}" alt="">
+                    {% else %}
+                    <i class="bi bi-person-fill" style="font-size: 1.5rem; color: var(--fl-muted);"></i>
+                    {% endif %}
+                </a>
+                <div class="wall-post-info">
+                    <a href="{% url 'accounts:profile_view' user_id=post.author.id %}" class="wall-post-author">
+                        {{ post.author.profile.get_display_name }}
+                    </a>
+                    <div class="wall-post-time">
+                        {{ post.created_at|timesince }} ago
+                        {% if post.visibility == 'PUBLIC' %}
+                        <i class="bi bi-globe2" title="Public"></i>
+                        {% elif post.visibility == 'MEMBERS' %}
+                        <i class="bi bi-people" title="Family Members"></i>
+                        {% else %}
+                        <i class="bi bi-lock" title="Only me"></i>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if post.author == request.user %}
+                <div class="wall-post-menu dropdown">
+                    <button type="button" class="btn btn-ghost btn-sm dropdown-toggle" data-post-id="{{ post.id }}">
+                        <i class="bi bi-three-dots"></i>
+                    </button>
+                    <div class="dropdown-menu" id="dropdown-{{ post.id }}">
+                        <a href="{% url 'accounts:wall_post_edit' post_id=post.id %}" class="dropdown-item">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                        <a href="{% url 'accounts:wall_post_delete' post_id=post.id %}" class="dropdown-item danger">
+                            <i class="bi bi-trash"></i> Delete
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="wall-post-content">
+                {{ post.content|linebreaks }}
+            </div>
+            
+            {% if post.image %}
+            <div class="wall-post-image">
+                <img src="{{ post.image.url }}" alt="Post attachment">
+            </div>
+            {% endif %}
+            
+            {% if post.video %}
+            <div class="wall-post-video">
+                <video controls preload="metadata">
+                    <source src="{{ post.video.url }}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+            {% endif %}
+            
+            <div class="wall-post-actions">
+                <button class="wall-post-action" onclick="toggleComments({{ post.id }})">
+                    <i class="bi bi-chat"></i> Comment ({{ post.comments.count }})
+                </button>
+            </div>
+            
+            <!-- Comments Section -->
+            <div class="wall-post-comments" id="comments-{{ post.id }}" style="{% if not post.comments.exists %}display: none;{% endif %}">
+                {% for comment in post.comments.all %}
+                <div class="comment">
+                    <a href="{% url 'accounts:profile_view' user_id=comment.author.id %}" class="comment-avatar">
+                        {% if comment.author.profile.profile_picture %}
+                        <img src="{{ comment.author.profile.profile_picture.url }}" alt="">
+                        {% else %}
+                        <i class="bi bi-person-fill"></i>
+                        {% endif %}
+                    </a>
+                    <div class="comment-body">
+                        <span class="comment-author">{{ comment.author.profile.get_display_name }}</span>
+                        <span class="comment-text">{{ comment.content }}</span>
+                    </div>
+                    <span class="comment-time">{{ comment.created_at|timesince }}</span>
+                    {% if comment.author == request.user %}
+                    <form method="post" action="{% url 'accounts:wall_comment_delete' comment_id=comment.id %}" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-ghost btn-sm" style="padding: 0;" title="Delete">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                
+                <!-- Comment Form -->
+                <form method="post" action="{% url 'accounts:wall_post_comment' post_id=post.id %}" class="comment-form">
+                    {% csrf_token %}
+                    <input type="text" name="content" class="form-control" placeholder="Write a comment..." required>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-send"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% empty %}
+        <div class="card">
+            <div class="card-body text-center" style="padding: 3rem;">
+                <i class="bi bi-chat-square-text" style="font-size: 3rem; color: var(--fl-muted);"></i>
+                <h3 style="margin: 1rem 0 0.5rem;">No posts yet</h3>
+                <p class="muted">
+                    {% if is_own_profile %}
+                    Share what's on your mind!
+                    {% else %}
+                    {{ profile.get_display_name }} hasn't posted anything yet.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function toggleComments(postId) {
+    const el = document.getElementById('comments-' + postId);
+    if (el.style.display === 'none') {
+        el.style.display = 'block';
+    } else {
+        el.style.display = 'none';
+    }
+}
+
+// Toggle dropdown menus
+document.querySelectorAll('.dropdown-toggle').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Close all other dropdowns first
+        document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+            if (m !== this.nextElementSibling) {
+                m.classList.remove('show');
+            }
+        });
+        
+        // Toggle this dropdown
+        const menu = this.nextElementSibling;
+        if (menu) {
+            menu.classList.toggle('show');
+        }
+    });
+});
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.dropdown')) {
+        document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
+    }
+});
+
+// Post image preview
+function previewPostImage(input) {
+    const preview = document.getElementById('post-image-preview');
+    const previewImg = document.getElementById('preview-img');
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImg.src = e.target.result;
+            preview.style.display = 'block';
+        };
+        reader.readAsDataURL(input.files[0]);
+        
+        // Auto-expand the form if not already open
+        document.getElementById('post-form').classList.add('active');
+    }
+}
+
+function removePostImage() {
+    const input = document.getElementById('post-image-input');
+    const preview = document.getElementById('post-image-preview');
+    
+    input.value = '';
+    preview.style.display = 'none';
+}
+
+// Post video preview
+function previewPostVideo(input) {
+    const preview = document.getElementById('post-video-preview');
+    const previewVideo = document.getElementById('preview-video');
+    
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const url = URL.createObjectURL(file);
+        previewVideo.src = url;
+        preview.style.display = 'block';
+        
+        // Auto-expand the form if not already open
+        document.getElementById('post-form').classList.add('active');
+        
+        // Clear image if selected (can only have one media type)
+        const imageInput = document.getElementById('post-image-input');
+        const imagePreview = document.getElementById('post-image-preview');
+        imageInput.value = '';
+        imagePreview.style.display = 'none';
+    }
+}
+
+function removePostVideo() {
+    const input = document.getElementById('post-video-input');
+    const preview = document.getElementById('post-video-preview');
+    const previewVideo = document.getElementById('preview-video');
+    
+    input.value = '';
+    preview.style.display = 'none';
+    previewVideo.src = '';
+}
+</script>
+{% endblock %}

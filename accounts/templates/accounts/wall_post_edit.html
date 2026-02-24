@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Post | FamilyLinx{% endblock %}
+
+{% block extra_css %}
+<style>
+.post-image-preview {
+    position: relative;
+    margin-bottom: 1rem;
+    border-radius: var(--fl-radius);
+    overflow: hidden;
+    background: var(--fl-surface);
+}
+
+.post-image-preview img {
+    width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    display: block;
+}
+
+.post-image-preview .preview-remove,
+.post-video-preview .preview-remove {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.post-image-preview .preview-remove:hover,
+.post-video-preview .preview-remove:hover {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.post-video-preview {
+    position: relative;
+    margin-bottom: 1rem;
+    border-radius: var(--fl-radius);
+    overflow: hidden;
+    background: #000;
+}
+
+.post-video-preview video {
+    width: 100%;
+    max-height: 300px;
+    display: block;
+}
+
+.media-upload-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.image-upload-area {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    border: 2px dashed var(--fl-border);
+    border-radius: var(--fl-radius);
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.image-upload-area:hover {
+    border-color: var(--fl-primary);
+}
+
+.image-upload-area i {
+    font-size: 2rem;
+    color: var(--fl-green);
+}
+
+.video-upload-area i {
+    color: var(--fl-red);
+}
+
+.image-upload-area input[type="file"] {
+    display: none;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-page" style="max-width: 600px; margin: 0 auto;">
+    <nav class="breadcrumb">
+        <a href="{% url 'home' %}">Home</a>
+        <span class="separator">/</span>
+        <a href="{% url 'accounts:profile_view' user_id=post.profile.user.id %}">{{ post.profile.get_display_name }}</a>
+        <span class="separator">/</span>
+        <span class="current">Edit Post</span>
+    </nav>
+    
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="bi bi-pencil"></i> Edit Post</span>
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label class="form-label">Content</label>
+                    {{ form.content }}
+                </div>
+                
+                <!-- Image Preview -->
+                <div id="post-image-preview" class="post-image-preview" {% if not post.image %}style="display: none;"{% endif %}>
+                    <img src="{% if post.image %}{{ post.image.url }}{% endif %}" alt="Preview" id="preview-img">
+                    <button type="button" class="preview-remove" onclick="removePostImage()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                
+                <!-- Video Preview -->
+                <div id="post-video-preview" class="post-video-preview" {% if not post.video %}style="display: none;"{% endif %}>
+                    <video id="preview-video" controls {% if post.video %}src="{{ post.video.url }}"{% endif %}></video>
+                    <button type="button" class="preview-remove" onclick="removePostVideo()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                
+                <div class="media-upload-row">
+                    <div class="form-group">
+                        <label class="image-upload-area" for="image-input">
+                            <i class="bi bi-image"></i>
+                            <div>
+                                <strong>{% if post.image %}Change{% else %}Add{% endif %} Photo</strong>
+                                <small class="muted d-block">Click to select</small>
+                            </div>
+                            <input type="file" name="image" id="image-input" accept="image/*" onchange="previewImage(this)">
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="image-upload-area video-upload-area" for="video-input">
+                            <i class="bi bi-camera-video"></i>
+                            <div>
+                                <strong>{% if post.video %}Change{% else %}Add{% endif %} Video</strong>
+                                <small class="muted d-block">Click to select</small>
+                            </div>
+                            <input type="file" name="video" id="video-input" accept="video/*" onchange="previewVideo(this)">
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Visibility</label>
+                    {{ form.visibility }}
+                </div>
+                
+                <div class="form-actions">
+                    <a href="{% url 'accounts:profile_view' user_id=post.profile.user.id %}" class="btn btn-outline">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function previewImage(input) {
+    const preview = document.getElementById('post-image-preview');
+    const previewImg = document.getElementById('preview-img');
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImg.src = e.target.result;
+            preview.style.display = 'block';
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function removePostImage() {
+    const input = document.getElementById('image-input');
+    const preview = document.getElementById('post-image-preview');
+    
+    input.value = '';
+    preview.style.display = 'none';
+}
+
+function previewVideo(input) {
+    const preview = document.getElementById('post-video-preview');
+    const previewVideo = document.getElementById('preview-video');
+    
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const url = URL.createObjectURL(file);
+        previewVideo.src = url;
+        preview.style.display = 'block';
+    }
+}
+
+function removePostVideo() {
+    const input = document.getElementById('video-input');
+    const preview = document.getElementById('post-video-preview');
+    const previewVideo = document.getElementById('preview-video');
+    
+    input.value = '';
+    preview.style.display = 'none';
+    previewVideo.src = '';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Deletion Requests - {{ family.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1><i class="bi bi-inbox"></i> Deletion Requests</h1>
+            <p class="text-muted mb-0">Review and approve/reject deletion requests from members</p>
+        </div>
+    </div>
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- Pending Requests -->
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="bi bi-hourglass-split"></i> Pending Requests ({{ pending_requests|length }})</h5>
+        </div>
+        <div class="card-body">
+            {% if pending_requests %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Type</th>
+                            <th>Requested By</th>
+                            <th>When</th>
+                            <th>Reason</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in pending_requests %}
+                        <tr>
+                            <td><strong>{{ req.object_repr }}</strong></td>
+                            <td>
+                                <span class="badge bg-secondary">{{ req.get_object_type_display }}</span>
+                            </td>
+                            <td>{{ req.requester.get_full_name|default:req.requester.username }}</td>
+                            <td>
+                                <small title="{{ req.created_at }}">
+                                    {{ req.created_at|timesince }} ago
+                                </small>
+                            </td>
+                            <td>
+                                {% if req.reason %}
+                                <small>{{ req.reason|truncatechars:50 }}</small>
+                                {% else %}
+                                <em class="text-muted">No reason provided</em>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'families:deletion_request_review' family.id req.id %}" 
+                                   class="btn btn-sm btn-primary">
+                                    <i class="bi bi-eye"></i> Review
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0"><i class="bi bi-check-circle"></i> No pending requests</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Recently Reviewed -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recently Reviewed</h5>
+        </div>
+        <div class="card-body">
+            {% if reviewed_requests %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Status</th>
+                            <th>Requested By</th>
+                            <th>Reviewed By</th>
+                            <th>Reviewed</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in reviewed_requests %}
+                        <tr>
+                            <td>{{ req.object_repr }}</td>
+                            <td>
+                                <span class="badge bg-{% if req.status == 'APPROVED' %}success{% elif req.status == 'REJECTED' %}danger{% else %}secondary{% endif %}">
+                                    {{ req.get_status_display }}
+                                </span>
+                            </td>
+                            <td>{{ req.requester.get_full_name|default:req.requester.username }}</td>
+                            <td>
+                                {% if req.reviewer %}
+                                {{ req.reviewer.get_full_name|default:req.reviewer.username }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if req.reviewed_at %}
+                                <small>{{ req.reviewed_at|timesince }} ago</small>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">No reviewed requests yet</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="mt-4">
+        <a href="{% url 'families:family_detail' family.id %}" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-left"></i> Back to Family
+        </a>
+    </div>
+</div>
+{% endblock %}

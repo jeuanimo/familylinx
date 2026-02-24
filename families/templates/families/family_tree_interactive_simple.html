@@ -1,0 +1,591 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Family Tree – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block extra_css %}
+<style>
+  .tree-container {
+    width: 100%;
+    height: calc(100vh - 200px);
+    min-height: 600px;
+    background: #f8f9fa;
+    border-radius: var(--fl-radius-lg);
+    overflow: hidden;
+    position: relative;
+  }
+  
+  .tree-svg { width: 100%; height: 100%; }
+  
+  .person-card { cursor: pointer; }
+  .person-card rect {
+    fill: white;
+    stroke: #ccc;
+    stroke-width: 2px;
+    rx: 6;
+  }
+  .person-card:hover rect {
+    stroke: #2196f3;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.15));
+  }
+  .person-card.male rect { fill: #e3f2fd; stroke: #1976d2; }
+  .person-card.female rect { fill: #fce4ec; stroke: #c2185b; }
+  .person-card.focal rect { stroke-width: 3px; stroke: #ff9800; }
+  
+  .person-name { font-size: 11px; font-weight: 600; text-anchor: middle; }
+  .person-dates { font-size: 9px; fill: #666; text-anchor: middle; }
+  .person-relation { font-size: 8px; fill: #999; text-anchor: middle; font-style: italic; }
+  
+  .spouse-line { stroke: #e91e63; stroke-width: 3px; }
+  .child-line { stroke: #666; stroke-width: 2px; fill: none; }
+  
+  .tree-controls {
+    position: absolute; top: 1rem; right: 1rem;
+    display: flex; flex-direction: column; gap: 0.5rem; z-index: 100;
+  }
+  .tree-controls button {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: none; background: white; color: #333;
+    cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  }
+  .tree-controls button:hover { background: #2196f3; color: white; }
+  
+  .person-selector {
+    position: absolute; top: 1rem; left: 1rem; z-index: 100;
+    background: white; padding: 0.75rem; border-radius: var(--fl-radius);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .person-selector select {
+    padding: 0.5rem; border: 1px solid #ddd;
+    border-radius: 4px; font-size: 14px; min-width: 200px;
+  }
+  .person-selector label { display: block; font-size: 12px; color: #666; margin-bottom: 0.25rem; }
+  
+  .tree-stats {
+    padding: 0.5rem 1rem; background: white; border-bottom: 1px solid #eee;
+    display: flex; gap: 1.5rem; font-size: 0.85rem;
+  }
+  .tree-stat { color: #666; }
+  .tree-stat strong { color: #333; }
+  
+  .info-panel {
+    position: absolute; bottom: 1rem; left: 1rem; width: 280px;
+    background: white; border-radius: var(--fl-radius-lg);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 100; display: none;
+  }
+  .info-panel.active { display: block; }
+  .info-panel-header {
+    padding: 0.75rem 1rem; border-bottom: 1px solid #eee;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .info-panel-header h4 { margin: 0; font-size: 14px; }
+  .info-panel-close { background: none; border: none; cursor: pointer; color: #999; font-size: 18px; padding: 0; }
+  .info-panel-body { padding: 1rem; }
+  .info-panel-actions {
+    padding: 0.75rem 1rem; border-top: 1px solid #eee;
+    display: flex; gap: 0.5rem;
+  }
+  .info-panel-actions .btn { flex: 1; font-size: 12px; padding: 0.5rem; }
+  
+  .tree-loading {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%); text-align: center; color: #666;
+  }
+  .tree-loading i { font-size: 2rem; animation: spin 1s linear infinite; }
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Family Tree</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-diagram-3"></i> Family Tree</h1>
+        <p class="muted">Select a person to center the tree. Double-click to navigate.</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-grid-3x3"></i> Classic View
+        </a>
+        {% if can_edit %}
+        <a href="{% url 'families:person_create' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-plus-lg"></i> Add Person
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    
+    <div class="card" style="padding: 0; overflow: hidden;">
+      <div class="tree-stats">
+        <span class="tree-stat"><strong id="personCount">0</strong> people</span>
+        <span class="tree-stat"><strong id="generationCount">0</strong> generations</span>
+      </div>
+      
+      <div class="tree-container" id="treeContainer">
+        <div class="tree-loading" id="treeLoading">
+          <i class="bi bi-arrow-repeat"></i>
+          <p>Loading family tree...</p>
+        </div>
+        
+        <div class="person-selector">
+          <label>Center tree on:</label>
+          <select id="focalPersonSelect" onchange="changeFocalPerson()">
+            <option value="">Loading...</option>
+          </select>
+        </div>
+        
+        <div class="tree-controls">
+          <button onclick="zoomIn()" title="Zoom In"><i class="bi bi-zoom-in"></i></button>
+          <button onclick="zoomOut()" title="Zoom Out"><i class="bi bi-zoom-out"></i></button>
+          <button onclick="fitToScreen()" title="Fit to Screen"><i class="bi bi-fullscreen"></i></button>
+        </div>
+        
+        <div class="info-panel" id="infoPanel">
+          <div class="info-panel-header">
+            <h4 id="infoPanelName">Person</h4>
+            <button class="info-panel-close" onclick="closeInfoPanel()"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="info-panel-body" id="infoPanelBody"></div>
+          <div class="info-panel-actions">
+            <a id="infoPanelViewLink" href="#" class="btn btn-outline">View Profile</a>
+            <button class="btn btn-primary" onclick="setAsFocal()">Center Here</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+const familyId = {{ family.id }};
+const apiUrl = '/api/families/' + familyId + '/tree/';
+
+const CARD_W = 120, CARD_H = 55;
+const SPOUSE_GAP = 40, SIBLING_GAP = 80, GEN_GAP = 120;
+
+let allData = null, focalPersonId = null, selectedPerson = null;
+let svg, g, zoom;
+let personById = {}, childToParents = {}, parentToChildren = {}, spouseOf = {};
+
+document.addEventListener('DOMContentLoaded', init);
+
+function init() {
+  const container = document.getElementById('treeContainer');
+  svg = d3.select('#treeContainer').append('svg')
+    .attr('class', 'tree-svg')
+    .attr('width', container.clientWidth)
+    .attr('height', container.clientHeight);
+  
+  zoom = d3.zoom().scaleExtent([0.1, 3]).on('zoom', e => g.attr('transform', e.transform));
+  svg.call(zoom);
+  
+  g = svg.append('g');
+  g.append('g').attr('class', 'lines-group');
+  g.append('g').attr('class', 'cards-group');
+  
+  loadData();
+}
+
+async function loadData() {
+  try {
+    const resp = await fetch(apiUrl, { credentials: 'include' });
+    if (!resp.ok) throw new Error('Failed to load');
+    allData = await resp.json();
+    
+    personById = {};
+    allData.nodes.forEach(n => personById[n.id] = n);
+    
+    childToParents = {}; parentToChildren = {};
+    allData.parentChildLinks.forEach(link => {
+      if (!childToParents[link.target]) childToParents[link.target] = [];
+      childToParents[link.target].push(link.source);
+      if (!parentToChildren[link.source]) parentToChildren[link.source] = [];
+      parentToChildren[link.source].push(link.target);
+    });
+    
+    spouseOf = {};
+    allData.spouseLinks.forEach(link => {
+      if (!spouseOf[link.source]) spouseOf[link.source] = [];
+      if (!spouseOf[link.source].includes(link.target)) spouseOf[link.source].push(link.target);
+      if (!spouseOf[link.target]) spouseOf[link.target] = [];
+      if (!spouseOf[link.target].includes(link.source)) spouseOf[link.target].push(link.source);
+    });
+    
+    document.getElementById('personCount').textContent = allData.nodes.length;
+    populateSelector();
+    focalPersonId = findBestFocalPerson();
+    document.getElementById('treeLoading').style.display = 'none';
+    renderTree();
+    setTimeout(fitToScreen, 100);
+  } catch (err) {
+    console.error('Error:', err);
+    document.getElementById('treeLoading').innerHTML = '<p style="color:red">Error loading tree</p>';
+  }
+}
+
+function populateSelector() {
+  const select = document.getElementById('focalPersonSelect');
+  select.innerHTML = '';
+  const sorted = [...allData.nodes].sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  sorted.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = (p.name || 'Unknown') + (p.birthYear ? ' (' + p.birthYear + ')' : '');
+    select.appendChild(opt);
+  });
+}
+
+function findBestFocalPerson() {
+  for (const p of allData.nodes) {
+    if ((childToParents[p.id]||[]).length > 0 && (parentToChildren[p.id]||[]).length > 0) return p.id;
+  }
+  for (const p of allData.nodes) {
+    if ((parentToChildren[p.id]||[]).length > 0) return p.id;
+  }
+  return allData.nodes[0]?.id;
+}
+
+function changeFocalPerson() {
+  focalPersonId = parseInt(document.getElementById('focalPersonSelect').value);
+  renderTree();
+  fitToScreen();
+}
+
+function setAsFocal() {
+  if (selectedPerson) {
+    focalPersonId = selectedPerson.id;
+    document.getElementById('focalPersonSelect').value = focalPersonId;
+    closeInfoPanel();
+    renderTree();
+    fitToScreen();
+  }
+}
+
+function renderTree() {
+  g.select('.lines-group').selectAll('*').remove();
+  g.select('.cards-group').selectAll('*').remove();
+  
+  if (!focalPersonId || !personById[focalPersonId]) return;
+  
+  const focal = personById[focalPersonId];
+  const container = document.getElementById('treeContainer');
+  const centerX = container.clientWidth / 2;
+  const centerY = container.clientHeight / 2;
+  
+  // displayed: id -> {x, y, person, relation}
+  const displayed = new Map();
+  
+  // Helper: get all spouses for a person
+  function getSpouses(pid) {
+    return (spouseOf[pid] || []).map(id => personById[id]).filter(Boolean);
+  }
+  
+  // Helper: get children of a person (with any of their spouses)
+  function getChildren(pid) {
+    const kids = new Set();
+    [pid, ...(spouseOf[pid] || [])].forEach(parentId => {
+      (parentToChildren[parentId] || []).forEach(cid => kids.add(cid));
+    });
+    return [...kids].map(id => personById[id]).filter(Boolean)
+      .sort((a,b) => (a.birthYear||9999) - (b.birthYear||9999));
+  }
+  
+  // Helper: get parents
+  function getParents(pid) {
+    return (childToParents[pid] || []).map(id => personById[id]).filter(Boolean);
+  }
+  
+  // Helper: get siblings (share at least one parent, exclude self)
+  function getSiblings(pid) {
+    const sibs = new Set();
+    getParents(pid).forEach(parent => {
+      (parentToChildren[parent.id] || []).forEach(sibId => {
+        if (sibId !== pid) sibs.add(sibId);
+      });
+    });
+    return [...sibs].map(id => personById[id]).filter(Boolean)
+      .sort((a,b) => (a.birthYear||9999) - (b.birthYear||9999));
+  }
+  
+  // ===== ROW 0: FOCAL + SPOUSE(S) =====
+  const focalSpouses = getSpouses(focalPersonId);
+  let focalUnitWidth = CARD_W + focalSpouses.length * (CARD_W + SPOUSE_GAP);
+  let focalX = centerX - focalUnitWidth / 2 + CARD_W / 2;
+  
+  displayed.set(focal.id, { x: focalX, y: centerY, person: focal, relation: 'YOU', isFocal: true });
+  focalX += CARD_W + SPOUSE_GAP;
+  focalSpouses.forEach(sp => {
+    displayed.set(sp.id, { x: focalX, y: centerY, person: sp, relation: 'Spouse' });
+    focalX += CARD_W + SPOUSE_GAP;
+  });
+  
+  // ===== ROW -1: PARENTS =====
+  const parents = getParents(focalPersonId);
+  if (parents.length > 0) {
+    const py = centerY - GEN_GAP;
+    let parentWidth = parents.length * CARD_W + (parents.length - 1) * SPOUSE_GAP;
+    let px = centerX - parentWidth / 2 + CARD_W / 2;
+    parents.forEach((p, i) => {
+      displayed.set(p.id, { x: px, y: py, person: p, relation: p.gender === 'M' ? 'Father' : 'Mother' });
+      px += CARD_W + SPOUSE_GAP;
+    });
+  }
+  
+  // ===== ROW -2: GRANDPARENTS (spouse pairs together) =====
+  const gpSet = new Set();
+  parents.forEach(parent => {
+    getParents(parent.id).forEach(gp => gpSet.add(gp.id));
+  });
+  
+  // Group grandparents into spouse pairs
+  const gpPairs = [];
+  const gpProcessed = new Set();
+  gpSet.forEach(gpId => {
+    if (gpProcessed.has(gpId)) return;
+    gpProcessed.add(gpId);
+    const gp = personById[gpId];
+    const pair = [gp];
+    // Find spouse who is also a grandparent
+    (spouseOf[gpId] || []).forEach(spId => {
+      if (gpSet.has(spId) && !gpProcessed.has(spId)) {
+        gpProcessed.add(spId);
+        pair.push(personById[spId]);
+      }
+    });
+    // Sort: male first
+    pair.sort((a,b) => (a.gender === 'M' ? -1 : 1));
+    gpPairs.push(pair);
+  });
+  
+  if (gpPairs.length > 0) {
+    const gpy = centerY - GEN_GAP * 2;
+    let totalWidth = 0;
+    gpPairs.forEach((pair, i) => {
+      totalWidth += pair.length * CARD_W + (pair.length - 1) * SPOUSE_GAP;
+      if (i < gpPairs.length - 1) totalWidth += SIBLING_GAP;
+    });
+    let gpX = centerX - totalWidth / 2 + CARD_W / 2;
+    gpPairs.forEach((pair, pairIdx) => {
+      pair.forEach((gp, idx) => {
+        if (!displayed.has(gp.id)) {
+          const rel = gp.gender === 'M' ? 'Grandfather' : 'Grandmother';
+          displayed.set(gp.id, { x: gpX, y: gpy, person: gp, relation: rel });
+        }
+        gpX += CARD_W + SPOUSE_GAP;
+      });
+      if (pairIdx < gpPairs.length - 1) gpX += SIBLING_GAP - SPOUSE_GAP;
+    });
+  }
+
+  // ===== ROW 0 (right side): SIBLINGS =====
+  const siblings = getSiblings(focalPersonId);
+  if (siblings.length > 0) {
+    const focalRight = Math.max(...[...displayed.values()].filter(d => d.y === centerY).map(d => d.x));
+    let sibX = focalRight + SIBLING_GAP * 2;
+    siblings.forEach(sib => {
+      if (!displayed.has(sib.id)) {
+        displayed.set(sib.id, { x: sibX, y: centerY, person: sib, relation: 'Sibling' });
+        sibX += CARD_W + SIBLING_GAP;
+      }
+    });
+  }
+  
+  // ===== ROW -1 (right): AUNTS/UNCLES =====
+  const auntsUncles = [];
+  parents.forEach(parent => {
+    getSiblings(parent.id).forEach(au => {
+      if (!auntsUncles.find(a => a.id === au.id)) {
+        auntsUncles.push(au);
+      }
+    });
+  });
+  
+  if (auntsUncles.length > 0) {
+    const py = centerY - GEN_GAP;
+    const parentsRight = Math.max(...[...displayed.values()].filter(d => d.y === py).map(d => d.x), centerX);
+    let auX = parentsRight + SIBLING_GAP * 2;
+    auntsUncles.forEach(au => {
+      if (!displayed.has(au.id)) {
+        const rel = au.gender === 'M' ? 'Uncle' : 'Aunt';
+        displayed.set(au.id, { x: auX, y: py, person: au, relation: rel });
+        auX += CARD_W + SIBLING_GAP;
+      }
+    });
+  }
+  
+  // ===== ROW +1: CHILDREN =====
+  const children = getChildren(focalPersonId);
+  if (children.length > 0) {
+    const cy = centerY + GEN_GAP;
+    let childWidth = children.length * CARD_W + (children.length - 1) * SIBLING_GAP;
+    let cx = centerX - childWidth / 2 + CARD_W / 2;
+    children.forEach(child => {
+      if (!displayed.has(child.id)) {
+        const rel = child.gender === 'M' ? 'Son' : 'Daughter';
+        displayed.set(child.id, { x: cx, y: cy, person: child, relation: rel });
+        cx += CARD_W + SIBLING_GAP;
+      }
+    });
+  }
+  
+  // ===== ROW +2: GRANDCHILDREN =====
+  const grandchildren = [];
+  children.forEach(child => {
+    getChildren(child.id).forEach(gc => {
+      if (!grandchildren.find(g => g.id === gc.id)) {
+        grandchildren.push(gc);
+      }
+    });
+  });
+  
+  if (grandchildren.length > 0) {
+    const gcy = centerY + GEN_GAP * 2;
+    let gcWidth = grandchildren.length * CARD_W + (grandchildren.length - 1) * SIBLING_GAP;
+    let gcX = centerX - gcWidth / 2 + CARD_W / 2;
+    grandchildren.forEach(gc => {
+      if (!displayed.has(gc.id)) {
+        const rel = gc.gender === 'M' ? 'Grandson' : 'Granddaughter';
+        displayed.set(gc.id, { x: gcX, y: gcy, person: gc, relation: rel });
+        gcX += CARD_W + SIBLING_GAP;
+      }
+    });
+  }
+  
+  // Count generations displayed
+  const ys = new Set([...displayed.values()].map(d => d.y));
+  document.getElementById('generationCount').textContent = ys.size;
+  
+  // ===== DRAW LINES =====
+  const linesGroup = g.select('.lines-group');
+  
+  // Spouse lines
+  allData.spouseLinks.forEach(link => {
+    const s = displayed.get(link.source);
+    const t = displayed.get(link.target);
+    if (s && t && Math.abs(s.y - t.y) < 10) {
+      const x1 = Math.min(s.x, t.x) + CARD_W / 2 - 5;
+      const x2 = Math.max(s.x, t.x) - CARD_W / 2 + 5;
+      linesGroup.append('line')
+        .attr('class', 'spouse-line')
+        .attr('x1', x1).attr('y1', s.y)
+        .attr('x2', x2).attr('y2', s.y);
+    }
+  });
+  
+  // Parent-child lines
+  allData.parentChildLinks.forEach(link => {
+    const parent = displayed.get(link.source);
+    const child = displayed.get(link.target);
+    if (parent && child) {
+      const py = parent.y + CARD_H / 2;
+      const cy = child.y - CARD_H / 2;
+      const midY = (py + cy) / 2;
+      linesGroup.append('path')
+        .attr('class', 'child-line')
+        .attr('d', 'M ' + parent.x + ' ' + py + ' L ' + parent.x + ' ' + midY + ' L ' + child.x + ' ' + midY + ' L ' + child.x + ' ' + cy);
+    }
+  });
+  
+  // ===== DRAW CARDS =====
+  const cardsGroup = g.select('.cards-group');
+  
+  displayed.forEach((d, id) => {
+    const card = cardsGroup.append('g')
+      .attr('class', 'person-card ' + (d.person.gender === 'M' ? 'male' : d.person.gender === 'F' ? 'female' : '') + (d.isFocal ? ' focal' : ''))
+      .attr('transform', 'translate(' + (d.x - CARD_W/2) + ', ' + (d.y - CARD_H/2) + ')')
+      .on('click', () => selectPerson(d.person))
+      .on('dblclick', () => { focalPersonId = d.person.id; document.getElementById('focalPersonSelect').value = focalPersonId; renderTree(); fitToScreen(); });
+    
+    card.append('rect').attr('width', CARD_W).attr('height', CARD_H);
+    
+    // Gender indicator
+    card.append('circle')
+      .attr('cx', 12).attr('cy', CARD_H / 2).attr('r', 5)
+      .attr('fill', d.person.gender === 'M' ? '#1976d2' : d.person.gender === 'F' ? '#c2185b' : '#999');
+    
+    // Name
+    const name = d.person.name || 'Unknown';
+    card.append('text')
+      .attr('class', 'person-name')
+      .attr('x', CARD_W / 2 + 5).attr('y', CARD_H / 2 - 10)
+      .text(name.length > 16 ? name.substring(0, 14) + '..' : name);
+    
+    // Dates
+    let dates = '';
+    if (d.person.birthYear && d.person.deathYear) dates = d.person.birthYear + '-' + d.person.deathYear;
+    else if (d.person.birthYear) dates = 'b.' + d.person.birthYear;
+    if (dates) {
+      card.append('text')
+        .attr('class', 'person-dates')
+        .attr('x', CARD_W / 2 + 5).attr('y', CARD_H / 2 + 3)
+        .text(dates);
+    }
+    
+    // Relation label
+    if (d.relation) {
+      card.append('text')
+        .attr('class', 'person-relation')
+        .attr('x', CARD_W / 2 + 5).attr('y', CARD_H / 2 + 15)
+        .text(d.relation);
+    }
+  });
+  
+  document.getElementById('focalPersonSelect').value = focalPersonId;
+}
+
+function selectPerson(person) {
+  selectedPerson = person;
+  document.getElementById('infoPanelName').textContent = person.name || 'Unknown';
+  
+  let html = '';
+  if (person.birthYear) html += '<p><strong>Born:</strong> ' + person.birthYear + '</p>';
+  if (person.deathYear) html += '<p><strong>Died:</strong> ' + person.deathYear + '</p>';
+  if (person.birthPlace) html += '<p><strong>Birthplace:</strong> ' + person.birthPlace + '</p>';
+  
+  const numParents = (childToParents[person.id] || []).length;
+  const numChildren = (parentToChildren[person.id] || []).length;
+  const numSpouses = (spouseOf[person.id] || []).length;
+  html += '<p><strong>Parents:</strong> ' + numParents + ' | <strong>Children:</strong> ' + numChildren + ' | <strong>Spouses:</strong> ' + numSpouses + '</p>';
+  
+  document.getElementById('infoPanelBody').innerHTML = html;
+  document.getElementById('infoPanelViewLink').href = '/families/' + familyId + '/persons/' + person.id + '/';
+  document.getElementById('infoPanel').classList.add('active');
+}
+
+function closeInfoPanel() {
+  document.getElementById('infoPanel').classList.remove('active');
+  selectedPerson = null;
+}
+
+function zoomIn() { svg.transition().call(zoom.scaleBy, 1.3); }
+function zoomOut() { svg.transition().call(zoom.scaleBy, 0.7); }
+
+function fitToScreen() {
+  const container = document.getElementById('treeContainer');
+  const bounds = g.node().getBBox();
+  if (bounds.width === 0) return;
+  
+  const scale = Math.min(
+    (container.clientWidth - 100) / bounds.width,
+    (container.clientHeight - 100) / bounds.height,
+    1.5
+  );
+  const tx = container.clientWidth / 2 - (bounds.x + bounds.width / 2) * scale;
+  const ty = container.clientHeight / 2 - (bounds.y + bounds.height / 2) * scale;
+  
+  svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+}
+</script>
+{% endblock %}

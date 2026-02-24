@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Your Identity – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'families:family_detail' family.id %}">{{ family.name }}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'families:family_tree_interactive' family.id %}">Family Tree</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'families:find_my_match' family.id %}">Find Myself</a></li>
+        <li class="breadcrumb-item active">Verify Identity</li>
+      </ol>
+    </nav>
+    
+    <div class="row justify-content-center">
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-header bg-warning text-dark">
+            <h4 class="mb-0"><i class="bi bi-shield-check me-2"></i>Verify Your Identity</h4>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info">
+              <h6 class="alert-heading"><i class="bi bi-person-badge me-2"></i>Claiming Identity</h6>
+              <p class="mb-0">
+                You're claiming to be <strong>{{ person.first_name }} {{ person.last_name }}</strong>
+                {% if person_birth_year %}(born {{ person_birth_year }}){% endif %}.
+              </p>
+            </div>
+            
+            <p>
+              To verify this is really you, please provide some personal information that matches
+              our records. This helps protect everyone's privacy and ensures accurate family connections.
+            </p>
+            
+            <form method="post">
+              {% csrf_token %}
+              
+              {% if has_birth_date %}
+              <div class="mb-3">
+                <label for="birth_date" class="form-label">
+                  <i class="bi bi-calendar-event me-1"></i>Your Date of Birth <span class="text-danger">*</span>
+                </label>
+                <input type="date" class="form-control" id="birth_date" name="birth_date" 
+                       value="{{ claim.provided_birth_date|date:'Y-m-d' }}" required>
+                <div class="form-text">This must match exactly to verify your identity.</div>
+              </div>
+              {% endif %}
+              
+              <div class="mb-3">
+                <label for="birth_place" class="form-label">
+                  <i class="bi bi-geo-alt me-1"></i>Place of Birth
+                </label>
+                <input type="text" class="form-control" id="birth_place" name="birth_place"
+                       value="{{ claim.provided_birth_place }}" placeholder="City, State/Province, Country">
+              </div>
+              
+              {% if has_parents %}
+              <hr>
+              <h6><i class="bi bi-people me-2"></i>Parent Information</h6>
+              <p class="text-muted small">Providing your parents' names helps verify your identity.</p>
+              
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label for="father_name" class="form-label">Father's Full Name</label>
+                    <input type="text" class="form-control" id="father_name" name="father_name"
+                           value="{{ claim.provided_father_name }}" placeholder="First and Last name">
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label for="mother_name" class="form-label">Mother's Full Name</label>
+                    <input type="text" class="form-control" id="mother_name" name="mother_name"
+                           value="{{ claim.provided_mother_name }}" placeholder="First and Last name (maiden)">
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+              
+              <div class="alert alert-secondary mt-4">
+                <small>
+                  <i class="bi bi-lock me-1"></i>
+                  This information is only used for verification and won't be shared.
+                  If you can't verify automatically, an admin may review your claim.
+                </small>
+              </div>
+              
+              <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary btn-lg">
+                  <i class="bi bi-check-circle me-2"></i>Verify My Identity
+                </button>
+              </div>
+            </form>
+            
+            <hr class="my-4">
+            
+            <div class="text-center">
+              <a href="{% url 'families:find_my_match' family.id %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back to Matches
+              </a>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Security Notice -->
+        <div class="card mt-3 border-secondary">
+          <div class="card-body text-center">
+            <small class="text-muted">
+              <i class="bi bi-shield-lock me-1"></i>
+              Your verification data is protected and only accessible to family admins
+              for identity confirmation purposes.
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

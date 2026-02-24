@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Audit Log - {{ family.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1><i class="bi bi-clock-history"></i> Audit Log</h1>
+            <p class="text-muted mb-0">Track all changes made to family data</p>
+        </div>
+        <a href="{% url 'families:trash_bin' family.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-trash3"></i> View Trash
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label">Action</label>
+                    <select name="action" class="form-select">
+                        <option value="">All Actions</option>
+                        {% for value, label in actions %}
+                        <option value="{{ value }}" {% if current_action == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label">Object Type</label>
+                    <select name="type" class="form-select">
+                        <option value="">All Types</option>
+                        {% for value, label in object_types %}
+                        <option value="{{ value }}" {% if current_type == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-funnel"></i> Filter
+                    </button>
+                    {% if current_action or current_type %}
+                    <a href="{% url 'families:audit_log' family.id %}" class="btn btn-outline-secondary">
+                        Clear
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Audit Log Entries -->
+    <div class="card">
+        <div class="card-body">
+            {% if logs %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>Object</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td>
+                                <small title="{{ log.timestamp }}">
+                                    {{ log.timestamp|date:"M d, Y H:i" }}
+                                </small>
+                            </td>
+                            <td>
+                                {% if log.user %}
+                                {{ log.user.get_full_name|default:log.user.username }}
+                                {% else %}
+                                <em class="text-muted">System</em>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-{% if log.action == 'CREATE' %}success{% elif log.action == 'DELETE' %}danger{% elif log.action == 'RESTORE' %}info{% elif log.action == 'UPDATE' %}warning text-dark{% else %}secondary{% endif %}">
+                                    {{ log.get_action_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark">{{ log.get_object_type_display }}</span>
+                                <br>
+                                <small>{{ log.object_repr|truncatechars:50 }}</small>
+                            </td>
+                            <td>
+                                {% if log.changes %}
+                                <button type="button" class="btn btn-sm btn-outline-info" 
+                                        data-bs-toggle="modal" data-bs-target="#detailModal{{ log.id }}">
+                                    <i class="bi bi-eye"></i> View
+                                </button>
+                                
+                                <!-- Modal -->
+                                <div class="modal fade" id="detailModal{{ log.id }}" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Change Details</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <pre class="bg-light p-2 rounded">{{ log.changes|default:log.previous_data }}</pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% elif log.previous_data %}
+                                <button type="button" class="btn btn-sm btn-outline-warning" 
+                                        data-bs-toggle="modal" data-bs-target="#detailModal{{ log.id }}">
+                                    <i class="bi bi-archive"></i> Data
+                                </button>
+                                
+                                <!-- Modal -->
+                                <div class="modal fade" id="detailModal{{ log.id }}" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Deleted Data</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <pre class="bg-light p-2 rounded">{{ log.previous_data }}</pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if logs|length >= 100 %}
+            <div class="alert alert-info mt-3">
+                <i class="bi bi-info-circle"></i> Showing most recent 100 entries. Use filters to narrow down results.
+            </div>
+            {% endif %}
+            
+            {% else %}
+            <p class="text-muted"><i class="bi bi-check-circle"></i> No audit log entries found.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="mt-4">
+        <a href="{% url 'families:family_detail' family.id %}" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-left"></i> Back to Family
+        </a>
+    </div>
+</div>
+{% endblock %}

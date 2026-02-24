@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Update Cover Photo | FamilyLinx{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+<style>
+  .cropper-container {
+    max-width: 100%;
+    margin: 0 auto 1rem;
+  }
+  .crop-preview-container {
+    width: 100%;
+    max-width: 600px;
+    height: 230px;
+    margin: 0 auto;
+    overflow: hidden;
+    background: #f8f9fa;
+    border-radius: var(--fl-radius);
+    display: none;
+  }
+  .crop-preview-container img {
+    display: block;
+    max-width: 100%;
+  }
+  .crop-controls {
+    display: none;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    margin: 1rem 0;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: var(--fl-radius);
+  }
+  .crop-controls button {
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--fl-border);
+    background: white;
+    border-radius: var(--fl-radius);
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .crop-controls button:hover {
+    background: var(--fl-blue);
+    color: white;
+    border-color: var(--fl-blue);
+  }
+  .file-input-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+  }
+  .file-input-wrapper input[type="file"] {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+  .file-input-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 2rem;
+    border: 2px dashed var(--fl-border);
+    border-radius: var(--fl-radius);
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .file-input-btn:hover {
+    border-color: var(--fl-blue);
+    background: #e3f2fd;
+  }
+  .current-cover {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: var(--fl-radius);
+  }
+  .current-cover img {
+    width: 100%;
+    max-width: 500px;
+    height: auto;
+    border-radius: var(--fl-radius);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-page" style="max-width: 700px; margin: 0 auto;">
+    <nav class="breadcrumb">
+        <a href="{% url 'home' %}">Home</a>
+        <span class="separator">/</span>
+        <a href="{% url 'accounts:my_profile' %}">My Profile</a>
+        <span class="separator">/</span>
+        <span class="current">Update Cover</span>
+    </nav>
+    
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="bi bi-crop"></i> Update Cover Photo</span>
+        </div>
+        <div class="card-body">
+            {% if profile.cover_photo %}
+            <div class="current-cover" id="currentCover">
+                <img src="{{ profile.cover_photo.url }}" alt="Current cover photo">
+                <p class="muted" style="margin-top: 0.5rem;">Current cover photo</p>
+            </div>
+            {% endif %}
+            
+            <form method="post" enctype="multipart/form-data" id="coverForm">
+                {% csrf_token %}
+                
+                <!-- File Selection -->
+                <div class="form-group" id="fileSelectArea">
+                    <label class="form-label">Choose New Cover Photo</label>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="imageInput" accept="image/*">
+                        <div class="file-input-btn">
+                            <i class="bi bi-cloud-upload" style="font-size: 1.5rem;"></i>
+                            <span>Click or drag image here</span>
+                        </div>
+                    </div>
+                    <small class="form-hint">Select an image to crop (820x312px recommended)</small>
+                </div>
+                
+                <!-- Crop Preview -->
+                <div class="crop-preview-container" id="cropPreview">
+                    <img id="cropImage" src="" alt="Crop preview">
+                </div>
+                
+                <!-- Crop Controls -->
+                <div class="crop-controls" id="cropControls">
+                    <button type="button" onclick="cropper.zoom(0.1)" title="Zoom In">
+                        <i class="bi bi-zoom-in"></i> Zoom In
+                    </button>
+                    <button type="button" onclick="cropper.zoom(-0.1)" title="Zoom Out">
+                        <i class="bi bi-zoom-out"></i> Zoom Out
+                    </button>
+                    <button type="button" onclick="cropper.rotate(-90)" title="Rotate Left">
+                        <i class="bi bi-arrow-counterclockwise"></i> Rotate
+                    </button>
+                    <button type="button" onclick="cropper.rotate(90)" title="Rotate Right">
+                        <i class="bi bi-arrow-clockwise"></i> Rotate
+                    </button>
+                    <button type="button" onclick="cropper.reset()" title="Reset">
+                        <i class="bi bi-arrow-repeat"></i> Reset
+                    </button>
+                    <button type="button" onclick="changeImage()" title="Change Image">
+                        <i class="bi bi-image"></i> Change
+                    </button>
+                </div>
+                
+                <!-- Hidden input for cropped image data -->
+                <input type="hidden" name="cropped_image" id="croppedImageData">
+                <input type="hidden" name="original_filename" id="originalFilename">
+                
+                <div class="form-actions">
+                    <a href="{% url 'accounts:my_profile' %}" class="btn btn-outline">Cancel</a>
+                    <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                        <i class="bi bi-crop"></i> Crop & Upload
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+<script>
+let cropper = null;
+const imageInput = document.getElementById('imageInput');
+const cropImage = document.getElementById('cropImage');
+const cropPreview = document.getElementById('cropPreview');
+const cropControls = document.getElementById('cropControls');
+const fileSelectArea = document.getElementById('fileSelectArea');
+const submitBtn = document.getElementById('submitBtn');
+const currentCover = document.getElementById('currentCover');
+const croppedImageData = document.getElementById('croppedImageData');
+const originalFilename = document.getElementById('originalFilename');
+
+imageInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+        alert('Please select an image file.');
+        return;
+    }
+    
+    originalFilename.value = file.name;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        cropImage.src = e.target.result;
+        
+        // Hide file select, show crop preview
+        fileSelectArea.style.display = 'none';
+        cropPreview.style.display = 'block';
+        cropControls.style.display = 'flex';
+        if (currentCover) currentCover.style.display = 'none';
+        
+        // Destroy existing cropper
+        if (cropper) {
+            cropper.destroy();
+        }
+        
+        // Initialize cropper with cover photo aspect ratio (820:312 ≈ 2.63:1)
+        cropper = new Cropper(cropImage, {
+            aspectRatio: 820 / 312,
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 1,
+            restore: false,
+            guides: true,
+            center: true,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+            minContainerWidth: 300,
+            minContainerHeight: 150,
+        });
+        
+        submitBtn.disabled = false;
+    };
+    reader.readAsDataURL(file);
+});
+
+function changeImage() {
+    if (cropper) {
+        cropper.destroy();
+        cropper = null;
+    }
+    cropImage.src = '';
+    cropPreview.style.display = 'none';
+    cropControls.style.display = 'none';
+    fileSelectArea.style.display = 'block';
+    if (currentCover) currentCover.style.display = 'block';
+    imageInput.value = '';
+    submitBtn.disabled = true;
+}
+
+document.getElementById('coverForm').addEventListener('submit', function(e) {
+    if (!cropper) {
+        e.preventDefault();
+        alert('Please select and crop an image first.');
+        return;
+    }
+    
+    // Get cropped canvas
+    const canvas = cropper.getCroppedCanvas({
+        width: 820,
+        height: 312,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high',
+    });
+    
+    // Convert to base64
+    croppedImageData.value = canvas.toDataURL('image/jpeg', 0.9);
+    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Uploading...';
+    submitBtn.disabled = true;
+});
+</script>
+{% endblock %}

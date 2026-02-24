@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Delete Import Record – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:gedcom_import' family_id=family.id %}">Import GEDCOM</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:gedcom_import_history' family_id=family.id %}">History</a>
+      <span class="separator">/</span>
+      <span class="current">Delete Record</span>
+    </nav>
+    
+    <div class="form-page" style="max-width: 600px; margin: 0 auto;">
+      <div class="card" style="border: 2px solid var(--fl-red);">
+        <div class="card-header" style="background: var(--fl-red); color: white;">
+          <span class="card-title"><i class="bi bi-trash"></i> Delete Import Record</span>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-warning" style="margin-bottom: 1.5rem;">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>Permanently delete this import record?</strong>
+          </div>
+          
+          <div style="background: var(--fl-bg); padding: 1rem; border-radius: var(--fl-radius); margin-bottom: 1.5rem;">
+            <h4 style="margin: 0 0 0.5rem;">{{ gedcom_import.file_name }}</h4>
+            <p class="muted" style="margin: 0; font-size: 0.9rem;">
+              Imported {{ gedcom_import.created_at|timesince }} ago by {{ gedcom_import.uploaded_by.get_full_name|default:gedcom_import.uploaded_by.email }}
+            </p>
+            <p class="muted" style="margin: 0.5rem 0 0; font-size: 0.9rem;">
+              Originally created {{ gedcom_import.persons_created }} people and {{ gedcom_import.relationships_created }} relationships.
+            </p>
+          </div>
+          
+          <p style="margin-bottom: 1.5rem;">
+            This will permanently remove the import record from the history. 
+            This action cannot be undone.
+          </p>
+          
+          <form method="post">
+            {% csrf_token %}
+            <div class="form-actions" style="justify-content: space-between;">
+              <a href="{% url 'families:gedcom_import_history' family_id=family.id %}" class="btn btn-outline">
+                <i class="bi bi-x"></i> Cancel
+              </a>
+              <button type="submit" class="btn" style="background: var(--fl-red); color: white;">
+                <i class="bi bi-trash"></i> Delete Permanently
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

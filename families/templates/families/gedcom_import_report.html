@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Import Report – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_tree' family_id=family.id %}">Family Tree</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:gedcom_import' family_id=family.id %}">Import GEDCOM</a>
+      <span class="separator">/</span>
+      <span class="current">Report</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1>
+          {% if gedcom_import.status == 'COMPLETED' %}
+          <i class="bi bi-check-circle" style="color: var(--fl-green);"></i>
+          {% elif gedcom_import.status == 'FAILED' %}
+          <i class="bi bi-x-circle" style="color: var(--fl-red);"></i>
+          {% else %}
+          <i class="bi bi-hourglass-split" style="color: var(--fl-gold);"></i>
+          {% endif %}
+          Import Report
+        </h1>
+        <p class="muted">{{ gedcom_import.file_name }} · Imported {{ gedcom_import.created_at|timesince }} ago</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-diagram-3"></i> View Tree
+        </a>
+        <a href="{% url 'families:gedcom_import' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-cloud-upload"></i> Import Another
+        </a>
+        {% if membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+        {% if gedcom_import.status != 'CANCELLED' %}
+        <a href="{% url 'families:gedcom_import_rollback' family_id=family.id import_id=gedcom_import.id %}" class="btn btn-outline" style="color: var(--fl-red); border-color: var(--fl-red);">
+          <i class="bi bi-arrow-counterclockwise"></i> Rollback Import
+        </a>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+    
+    {% if gedcom_import.status == 'COMPLETED' %}
+    <div class="alert alert-success" style="margin-bottom: 1.5rem;">
+      <i class="bi bi-check-circle"></i>
+      <strong>Import completed successfully!</strong>
+      {% if duplicate_stats.pending > 0 %}
+       Review the potential duplicates below to clean up your tree.
+      {% endif %}
+    </div>
+    {% elif gedcom_import.status == 'FAILED' %}
+    <div class="alert alert-error" style="margin-bottom: 1.5rem;">
+      <i class="bi bi-x-circle"></i>
+      <strong>Import failed.</strong> See errors below for details.
+    </div>
+    {% elif gedcom_import.status == 'PROCESSING' %}
+    <div class="alert alert-warning" style="margin-bottom: 1.5rem;">
+      <i class="bi bi-hourglass-split"></i>
+      <strong>Import in progress...</strong> This page will update when complete.
+    </div>
+    {% endif %}
+    
+    <!-- Statistics Cards -->
+    <div class="stat-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+      <div class="card text-center">
+        <div class="card-body">
+          <div style="font-size: 2rem; font-weight: bold; color: var(--fl-blue);">
+            {{ gedcom_import.persons_created }}
+          </div>
+          <small class="muted">People Added</small>
+        </div>
+      </div>
+      <div class="card text-center">
+        <div class="card-body">
+          <div style="font-size: 2rem; font-weight: bold; color: var(--fl-green);">
+            {{ gedcom_import.persons_updated }}
+          </div>
+          <small class="muted">People Updated</small>
+        </div>
+      </div>
+      <div class="card text-center">
+        <div class="card-body">
+          <div style="font-size: 2rem; font-weight: bold; color: var(--fl-purple);">
+            {{ gedcom_import.relationships_created }}
+          </div>
+          <small class="muted">Relationships</small>
+        </div>
+      </div>
+      <div class="card text-center">
+        <div class="card-body">
+          <div style="font-size: 2rem; font-weight: bold; color: var(--fl-gold);">
+            {{ gedcom_import.duplicates_found }}
+          </div>
+          <small class="muted">Duplicates Found</small>
+        </div>
+      </div>
+    </div>
+    
+    <div class="grid-2" style="grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+      <!-- Main Content -->
+      <div class="stack-lg">
+        <!-- Pending Duplicates -->
+        {% if duplicate_stats.pending > 0 %}
+        <div class="card" style="border: 2px solid var(--fl-gold);">
+          <div class="card-header" style="background: var(--fl-gold); color: white;">
+            <span class="card-title">
+              <i class="bi bi-people"></i> Potential Duplicates to Review ({{ duplicate_stats.pending }})
+            </span>
+            <a href="{% url 'families:duplicate_queue' family_id=family.id %}" class="btn btn-sm" style="background: white; color: var(--fl-gold);">
+              View All
+            </a>
+          </div>
+          <ul class="list">
+            {% for dup in pending_duplicates %}
+            <li>
+              <a href="{% url 'families:duplicate_review' family_id=family.id duplicate_id=dup.id %}" 
+                 style="text-decoration: none; color: var(--fl-text); display: flex; align-items: center; padding: 0.75rem; gap: 1rem;">
+                <div style="width: 50px; height: 50px; border-radius: 50%; background: var(--fl-surface); display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+                  <i class="bi bi-person"></i>
+                </div>
+                <div style="flex: 1;">
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <strong>{{ dup.existing_person.full_name }}</strong>
+                    <span class="muted">↔</span>
+                    <strong>{{ dup.imported_person.full_name }}</strong>
+                  </div>
+                  <small class="muted">
+                    {{ dup.confidence_score }}% confidence · 
+                    {% for reason in dup.match_reasons_list %}
+                    {{ reason }}{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                  </small>
+                </div>
+                <div class="badge badge-gold">{{ dup.confidence_score }}%</div>
+              </a>
+            </li>
+            {% endfor %}
+          </ul>
+          {% if duplicate_stats.pending > 20 %}
+          <div class="card-footer text-center">
+            <a href="{% url 'families:duplicate_queue' family_id=family.id %}" class="btn btn-outline">
+              View All {{ duplicate_stats.pending }} Duplicates
+            </a>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+        
+        <!-- Errors/Warnings -->
+        {% if errors %}
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">
+              <i class="bi bi-exclamation-triangle" style="color: var(--fl-gold);"></i>
+              Warnings & Errors ({{ errors|length }})
+            </span>
+          </div>
+          <div class="card-body">
+            <ul style="font-size: 0.9rem; margin: 0;">
+              {% for error in errors %}
+              <li style="margin-bottom: 0.5rem;">{{ error }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+        {% endif %}
+        
+        <!-- No Issues -->
+        {% if not errors and duplicate_stats.pending == 0 %}
+        <div class="card">
+          <div class="card-body text-center" style="padding: 3rem;">
+            <i class="bi bi-check-circle" style="font-size: 3rem; color: var(--fl-green);"></i>
+            <h3 style="margin: 1rem 0 0.5rem;">All Clean!</h3>
+            <p class="muted">No duplicates or warnings detected in this import.</p>
+            <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-primary">
+              <i class="bi bi-diagram-3"></i> View Your Family Tree
+            </a>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      
+      <!-- Sidebar -->
+      <div class="stack-lg">
+        <!-- Import Details -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-info-circle"></i> Import Details</span>
+          </div>
+          <div class="card-body">
+            <dl style="margin: 0; font-size: 0.9rem;">
+              <dt style="color: var(--fl-muted); margin-bottom: 0.25rem;">File Name</dt>
+              <dd style="margin: 0 0 1rem;">{{ gedcom_import.file_name }}</dd>
+              
+              <dt style="color: var(--fl-muted); margin-bottom: 0.25rem;">File Size</dt>
+              <dd style="margin: 0 0 1rem;">{{ gedcom_import.file_size|filesizeformat }}</dd>
+              
+              <dt style="color: var(--fl-muted); margin-bottom: 0.25rem;">Imported By</dt>
+              <dd style="margin: 0 0 1rem;">{{ gedcom_import.uploaded_by.get_full_name|default:gedcom_import.uploaded_by.email }}</dd>
+              
+              <dt style="color: var(--fl-muted); margin-bottom: 0.25rem;">Started</dt>
+              <dd style="margin: 0 0 1rem;">{{ gedcom_import.created_at|date:"M d, Y g:i A" }}</dd>
+              
+              {% if gedcom_import.completed_at %}
+              <dt style="color: var(--fl-muted); margin-bottom: 0.25rem;">Completed</dt>
+              <dd style="margin: 0;">{{ gedcom_import.completed_at|date:"M d, Y g:i A" }}</dd>
+              {% endif %}
+            </dl>
+          </div>
+        </div>
+        
+        <!-- Duplicate Summary -->
+        {% if gedcom_import.duplicates_found > 0 %}
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-pie-chart"></i> Duplicate Review Status</span>
+          </div>
+          <div class="card-body">
+            <div style="margin-bottom: 0.75rem; display: flex; justify-content: space-between;">
+              <span><i class="bi bi-clock" style="color: var(--fl-gold);"></i> Pending</span>
+              <strong>{{ duplicate_stats.pending }}</strong>
+            </div>
+            <div style="margin-bottom: 0.75rem; display: flex; justify-content: space-between;">
+              <span><i class="bi bi-arrow-left-right" style="color: var(--fl-green);"></i> Merged</span>
+              <strong>{{ duplicate_stats.merged }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span><i class="bi bi-people" style="color: var(--fl-blue);"></i> Kept Both</span>
+              <strong>{{ duplicate_stats.kept_both }}</strong>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+        
+        <!-- Quick Actions -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-lightning"></i> Quick Actions</span>
+          </div>
+          <div class="card-body stack">
+            <a href="{% url 'families:person_list' family_id=family.id %}" class="btn btn-outline" style="width: 100%;">
+              <i class="bi bi-people"></i> View All People
+            </a>
+            <a href="{% url 'families:gedcom_import_history' family_id=family.id %}" class="btn btn-outline" style="width: 100%;">
+              <i class="bi bi-clock-history"></i> Import History
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

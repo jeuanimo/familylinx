@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Delete Photo – {{ album.title }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:album_list' family_id=family.id %}">Photo Albums</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:album_detail' family_id=family.id album_id=album.id %}">{{ album.title }}</a>
+      <span class="separator">/</span>
+      <span class="current">Delete Photo</span>
+    </nav>
+    
+    <div class="grid-2" style="grid-template-columns: 1fr 2fr;">
+      <!-- Photo Preview -->
+      <div>
+        <div class="card">
+          <div class="card-body">
+            <img src="{{ photo.image.url }}" alt="{{ photo.caption|default:'Photo' }}" 
+                 style="width: 100%; border-radius: var(--fl-radius);">
+          </div>
+        </div>
+      </div>
+      
+      <!-- Delete Confirmation -->
+      <div class="form-page">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title danger"><i class="bi bi-exclamation-triangle"></i> Delete Photo</span>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-error">
+              <p><strong>Are you sure you want to delete this photo?</strong></p>
+              {% if photo.caption %}
+              <p>"{{ photo.caption }}"</p>
+              {% endif %}
+              <p class="mb-0">This action cannot be undone.</p>
+            </div>
+            
+            <form method="post">
+              {% csrf_token %}
+              <div class="form-actions">
+                <a href="{% url 'families:photo_detail' family_id=family.id album_id=album.id photo_id=photo.id %}" 
+                   class="btn btn-outline">Cancel</a>
+                <button type="submit" class="btn btn-danger">
+                  <i class="bi bi-trash"></i> Delete Photo
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

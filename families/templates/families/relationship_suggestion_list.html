@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Relationship Suggestions | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:dna_kit_list' %}">DNA Dashboard</a>
+      <span class="separator">/</span>
+      <span class="current">Suggestions</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-lightbulb"></i> Relationship Suggestions</h1>
+        <p class="muted">Review DNA-based suggestions to add matches to your family tree</p>
+      </div>
+    </div>
+    
+    <!-- Pending Suggestions -->
+    {% if pending_suggestions %}
+    <div class="card" style="margin-bottom: 1.5rem; border: 2px solid var(--fl-gold);">
+      <div class="card-header" style="background: var(--fl-gold); color: white;">
+        <span class="card-title"><i class="bi bi-clock"></i> Pending Review ({{ pending_suggestions|length }})</span>
+      </div>
+      <ul class="list">
+        {% for suggestion in pending_suggestions %}
+        <li>
+          <div style="display: flex; align-items: center; padding: 1rem; gap: 1rem;">
+            <!-- cM Badge -->
+            <div style="width: 60px; height: 60px; border-radius: 50%; 
+                        background: linear-gradient(135deg, var(--fl-gold), #f5a623);
+                        display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0;">
+              <span style="font-weight: bold; color: white;">
+                {{ suggestion.dna_match.shared_cm|floatformat:0 }}
+              </span>
+              <span style="font-size: 0.7rem; color: rgba(255,255,255,0.8);">cM</span>
+            </div>
+            
+            <!-- Suggestion Info -->
+            <div style="flex: 1; min-width: 0;">
+              <strong>{{ suggestion.suggested_relationship }}</strong>
+              <p class="muted mb-0" style="font-size: 0.9rem;">
+                Match: {{ suggestion.suggested_for_kit.display_name }} ↔ 
+                {% if suggestion.dna_match.kit1 == suggestion.suggested_for_kit %}
+                {{ suggestion.dna_match.kit2.display_name }}
+                {% else %}
+                {{ suggestion.dna_match.kit1.display_name }}
+                {% endif %}
+              </p>
+              <small class="muted">Family: {{ suggestion.family.name }}</small>
+            </div>
+            
+            <!-- Action -->
+            <a href="{% url 'families:relationship_suggestion_review' suggestion_id=suggestion.id %}" class="btn btn-primary">
+              <i class="bi bi-eye"></i> Review
+            </a>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% else %}
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card-body text-center" style="padding: 3rem;">
+        <i class="bi bi-check-circle" style="font-size: 3rem; color: var(--fl-green);"></i>
+        <h3 style="margin: 1rem 0 0.5rem;">All Caught Up!</h3>
+        <p class="muted">No pending relationship suggestions to review.</p>
+        <a href="{% url 'families:dna_kit_list' %}" class="btn btn-primary">
+          <i class="bi bi-dna"></i> Back to DNA Dashboard
+        </a>
+      </div>
+    </div>
+    {% endif %}
+    
+    <!-- Resolved Suggestions -->
+    {% if resolved_suggestions %}
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-check-lg"></i> Previously Reviewed</span>
+      </div>
+      <ul class="list">
+        {% for suggestion in resolved_suggestions %}
+        <li style="opacity: 0.7;">
+          <div style="display: flex; align-items: center; padding: 0.75rem 1rem; gap: 1rem;">
+            <div style="flex: 1; min-width: 0;">
+              <span>{{ suggestion.suggested_relationship }}</span>
+              <small class="muted" style="display: block;">
+                {{ suggestion.family.name }} · Reviewed {{ suggestion.reviewed_at|timesince }} ago
+              </small>
+            </div>
+            
+            <span class="badge {% if suggestion.status == 'ACCEPTED' %}badge-green{% elif suggestion.status == 'REJECTED' %}badge-red{% else %}badge{% endif %}">
+              {{ suggestion.get_status_display }}
+            </span>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

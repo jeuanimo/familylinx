@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Remove Identical Duplicates – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_tree' family_id=family.id %}">Family Tree</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:duplicate_queue' family_id=family.id %}">Duplicates</a>
+      <span class="separator">/</span>
+      <span class="current">Auto-Remove Identical</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-trash" style="color: var(--fl-green);"></i> Auto-Remove Identical Duplicates</h1>
+        <p class="muted">{{ total_count }} duplicate(s) with 100% confidence match</p>
+      </div>
+    </div>
+    
+    <div class="alert alert-info" style="margin-bottom: 1.5rem;">
+      <i class="bi bi-info-circle"></i>
+      <strong>What will happen:</strong> The newly imported duplicate records will be deleted, keeping the existing records intact.
+      Records with 100% confidence score have identical names and birth information.
+    </div>
+    
+    {% if total_count > 0 %}
+    <div class="card" style="border: 2px solid var(--fl-green);">
+      <div class="card-header" style="background: var(--fl-green); color: white;">
+        <span class="card-title">
+          <i class="bi bi-check-circle"></i> Preview: {{ total_count }} Records to Remove
+        </span>
+      </div>
+      <ul class="list">
+        {% for dup in perfect_duplicates %}
+        <li>
+          <div style="display: flex; align-items: center; padding: 0.75rem; gap: 1rem;">
+            <div style="width: 45px; height: 45px; border-radius: 50%; background: linear-gradient(135deg, var(--fl-green), #22c55e); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <span style="font-weight: bold; color: white;">100%</span>
+            </div>
+            <div style="flex: 1;">
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <strong style="color: var(--fl-green);">Keep:</strong> {{ dup.existing_person.full_name }}
+                <span class="muted">←</span>
+                <strong style="color: var(--fl-red); text-decoration: line-through;">Remove:</strong> 
+                <span style="text-decoration: line-through; color: var(--fl-muted);">{{ dup.imported_person.full_name }}</span>
+              </div>
+              <small class="muted">
+                {% if dup.existing_person.birth_date %}Born {{ dup.existing_person.birth_date|date:"M d, Y" }}{% endif %}
+                {% if dup.existing_person.birth_place %}· {{ dup.existing_person.birth_place|truncatechars:30 }}{% endif %}
+              </small>
+            </div>
+          </div>
+        </li>
+        {% endfor %}
+        {% if total_count > 20 %}
+        <li style="background: var(--fl-muted-bg); text-align: center; padding: 1rem;">
+          <span class="muted">... and {{ total_count|add:"-20" }} more identical duplicates</span>
+        </li>
+        {% endif %}
+      </ul>
+      <div class="card-footer">
+        <form method="post" style="display: flex; gap: 1rem; justify-content: flex-end; align-items: center;">
+          {% csrf_token %}
+          <a href="{% url 'families:duplicate_queue' family_id=family.id %}" class="btn btn-outline">
+            <i class="bi bi-arrow-left"></i> Cancel
+          </a>
+          <button type="submit" class="btn btn-primary" style="background: var(--fl-green);">
+            <i class="bi bi-trash"></i> Remove {{ total_count }} Duplicates
+          </button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body text-center" style="padding: 3rem;">
+        <i class="bi bi-check-circle" style="font-size: 3rem; color: var(--fl-green);"></i>
+        <h3 style="margin: 1rem 0 0.5rem;">No Identical Duplicates</h3>
+        <p class="muted">There are no 100% confidence duplicates to remove.</p>
+        <a href="{% url 'families:duplicate_queue' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-arrow-left"></i> Back to Queue
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Add DNA Match | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:dna_kit_list' %}">DNA Dashboard</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:dna_kit_detail' kit_id=kit.id %}">{{ kit.display_name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Add Match</span>
+    </nav>
+    
+    <div class="form-page">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-plus-lg"></i> Add DNA Match</span>
+        </div>
+        <div class="card-body">
+          <div class="info-box" style="margin-bottom: 1.5rem; padding: 1rem; background: var(--fl-surface); border-radius: var(--fl-radius); border-left: 4px solid var(--fl-blue);">
+            <p style="margin: 0; font-size: 0.9rem;">
+              <strong>Adding match for:</strong> {{ kit.display_name }} ({{ kit.get_provider_display }})
+            </p>
+          </div>
+          
+          <form method="post">
+            {% csrf_token %}
+            
+            {% if other_kits %}
+            <div class="form-group">
+              <label class="form-label required">Match With</label>
+              <select name="other_kit_id" class="form-control" required>
+                <option value="">-- Select a kit --</option>
+                {% for other_kit in other_kits %}
+                <option value="{{ other_kit.id }}">
+                  {{ other_kit.display_name }} ({{ other_kit.get_provider_display }}) - {{ other_kit.user.email }}
+                </option>
+                {% endfor %}
+              </select>
+              <small class="form-text muted">Select another user's kit to record a match</small>
+            </div>
+            {% else %}
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle"></i>
+              No other users have enabled DNA matching. You can still record match details for future reference.
+            </div>
+            {% endif %}
+            
+            <hr style="margin: 1.5rem 0;">
+            
+            <h4 style="margin-bottom: 1rem;"><i class="bi bi-graph-up"></i> Match Details</h4>
+            
+            <div class="grid-2" style="gap: 1rem;">
+              <div class="form-group">
+                <label class="form-label required">Shared cM</label>
+                {{ form.shared_cm }}
+                {% if form.shared_cm.errors %}
+                <div class="form-error">{{ form.shared_cm.errors.0 }}</div>
+                {% endif %}
+                <small class="form-text muted">Total shared DNA in centiMorgans</small>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Shared Segments</label>
+                {{ form.shared_segments }}
+                {% if form.shared_segments.errors %}
+                <div class="form-error">{{ form.shared_segments.errors.0 }}</div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Largest Segment (cM)</label>
+              {{ form.largest_segment }}
+              {% if form.largest_segment.errors %}
+              <div class="form-error">{{ form.largest_segment.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Notes</label>
+              {{ form.notes }}
+              {% if form.notes.errors %}
+              <div class="form-error">{{ form.notes.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="form-actions">
+              <a href="{% url 'families:dna_kit_detail' kit_id=kit.id %}" class="btn btn-outline">Cancel</a>
+              <button type="submit" class="btn btn-primary" {% if not other_kits %}disabled{% endif %}>
+                <i class="bi bi-plus-lg"></i> Add Match
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      
+      <!-- cM Guide -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-info-circle"></i> cM Reference</span>
+        </div>
+        <div class="card-body" style="font-size: 0.9rem;">
+          <table style="width: 100%;">
+            <thead>
+              <tr>
+                <th style="text-align: left; padding: 0.25rem 0;">cM Range</th>
+                <th style="text-align: left; padding: 0.25rem 0;">Possible Relationships</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding: 0.25rem 0;"><strong>3400+</strong></td>
+                <td style="padding: 0.25rem 0;">Parent/Child, Full Sibling</td>
+              </tr>
+              <tr>
+                <td style="padding: 0.25rem 0;"><strong>1700-2300</strong></td>
+                <td style="padding: 0.25rem 0;">Full Sibling, Grandparent</td>
+              </tr>
+              <tr>
+                <td style="padding: 0.25rem 0;"><strong>900-1700</strong></td>
+                <td style="padding: 0.25rem 0;">Half Sibling, Grandparent, Aunt/Uncle</td>
+              </tr>
+              <tr>
+                <td style="padding: 0.25rem 0;"><strong>575-900</strong></td>
+                <td style="padding: 0.25rem 0;">1st Cousin, Great-Grandparent</td>
+              </tr>
+              <tr>
+                <td style="padding: 0.25rem 0;"><strong>200-575</strong></td>
+                <td style="padding: 0.25rem 0;">1st-2nd Cousin</td>
+              </tr>
+              <tr>
+                <td style="padding: 0.25rem 0;"><strong>20-200</strong></td>
+                <td style="padding: 0.25rem 0;">2nd-4th Cousin</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

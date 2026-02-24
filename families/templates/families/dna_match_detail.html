@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}DNA Match: {{ match.shared_cm }} cM | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:dna_kit_list' %}">DNA Dashboard</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:dna_match_list' %}">Matches</a>
+      <span class="separator">/</span>
+      <span class="current">Match Detail</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1>
+          <i class="bi bi-arrow-left-right" style="color: var(--fl-blue);"></i>
+          DNA Match
+        </h1>
+        <p class="muted">{{ user_kit.display_name }} ↔ {{ other_kit.display_name }}</p>
+      </div>
+      {% if not match.is_confirmed and user_kit.user == request.user %}
+      <div class="page-actions">
+        <form method="post" action="{% url 'families:dna_match_confirm' match_id=match.id %}" style="display: inline;">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg"></i> Confirm Match
+          </button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+    
+    {% if match.is_confirmed %}
+    <div class="alert alert-success" style="margin-bottom: 1.5rem;">
+      <i class="bi bi-check-circle"></i>
+      <strong>Match confirmed by both parties!</strong>
+    </div>
+    {% elif match.confirmed_by_kit1 or match.confirmed_by_kit2 %}
+    <div class="alert alert-info" style="margin-bottom: 1.5rem;">
+      <i class="bi bi-clock"></i>
+      <strong>Awaiting confirmation from the other party.</strong>
+    </div>
+    {% endif %}
+    
+    <div class="grid-2" style="grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+      <!-- Main Content -->
+      <div class="stack-lg">
+        <!-- Match Overview -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-graph-up"></i> Match Overview</span>
+          </div>
+          <div class="card-body">
+            <!-- Visual cM Display -->
+            <div style="text-align: center; padding: 2rem; background: var(--fl-surface); border-radius: var(--fl-radius); margin-bottom: 1.5rem;">
+              <div style="font-size: 4rem; font-weight: bold; 
+                          {% if match.shared_cm >= 900 %}color: var(--fl-green);
+                          {% elif match.shared_cm >= 200 %}color: var(--fl-blue);
+                          {% else %}color: var(--fl-muted);{% endif %}">
+                {{ match.shared_cm|floatformat:1 }}
+              </div>
+              <div style="font-size: 1.2rem; color: var(--fl-muted);">centiMorgans shared</div>
+              <div style="margin-top: 1rem; font-size: 1.1rem;">
+                <strong>{{ match.predicted_relationship }}</strong>
+              </div>
+            </div>
+            
+            <!-- Match Stats -->
+            <div class="grid-3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center;">
+              <div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: var(--fl-blue);">
+                  {{ match.shared_segments }}
+                </div>
+                <small class="muted">Shared Segments</small>
+              </div>
+              <div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: var(--fl-purple);">
+                  {{ match.largest_segment|floatformat:1|default:"—" }}
+                </div>
+                <small class="muted">Largest Segment (cM)</small>
+              </div>
+              <div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: var(--fl-gold);">
+                  {{ match.confidence }}
+                </div>
+                <small class="muted">Confidence</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Relationship Suggestions -->
+        {% if suggestions %}
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-lightbulb"></i> Relationship Suggestions</span>
+          </div>
+          <ul class="list">
+            {% for suggestion in suggestions %}
+            <li>
+              <div style="display: flex; align-items: center; padding: 1rem; gap: 1rem;">
+                <div style="flex: 1;">
+                  <strong>{{ suggestion.family.name }}</strong>
+                  <p class="muted mb-0" style="font-size: 0.9rem;">
+                    Suggested: {{ suggestion.suggested_relationship }}
+                    {% if suggestion.suggested_person %}
+                    <br>Linked to: {{ suggestion.suggested_person.full_name }}
+                    {% endif %}
+                  </p>
+                </div>
+                {% if suggestion.status == 'PENDING' %}
+                <a href="{% url 'families:relationship_suggestion_review' suggestion_id=suggestion.id %}" class="btn btn-primary btn-sm">
+                  Review
+                </a>
+                {% else %}
+                <span class="badge {% if suggestion.status == 'ACCEPTED' %}badge-green{% elif suggestion.status == 'REJECTED' %}badge-red{% else %}badge{% endif %}">
+                  {{ suggestion.get_status_display }}
+                </span>
+                {% endif %}
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+        
+        {% if match.notes %}
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-sticky"></i> Notes</span>
+          </div>
+          <div class="card-body">
+            <p style="margin: 0; white-space: pre-wrap;">{{ match.notes }}</p>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      
+      <!-- Sidebar -->
+      <div class="stack-lg">
+        <!-- Kit 1 -->
+        <div class="card">
+          <div class="card-header" style="{% if user_kit == match.kit1 %}background: var(--fl-blue); color: white;{% endif %}">
+            <span class="card-title">
+              {% if user_kit == match.kit1 %}<i class="bi bi-person-fill"></i> Your Kit{% else %}<i class="bi bi-person"></i> Other Kit{% endif %}
+            </span>
+          </div>
+          <div class="card-body">
+            <strong>{{ match.kit1.display_name }}</strong>
+            <p class="muted mb-0" style="font-size: 0.9rem;">
+              {{ match.kit1.get_provider_display }}<br>
+              Owner: {{ match.kit1.user.email }}
+            </p>
+            {% if match.confirmed_by_kit1 %}
+            <span class="badge badge-green" style="margin-top: 0.5rem;"><i class="bi bi-check"></i> Confirmed</span>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- Kit 2 -->
+        <div class="card">
+          <div class="card-header" style="{% if user_kit == match.kit2 %}background: var(--fl-blue); color: white;{% endif %}">
+            <span class="card-title">
+              {% if user_kit == match.kit2 %}<i class="bi bi-person-fill"></i> Your Kit{% else %}<i class="bi bi-person"></i> Other Kit{% endif %}
+            </span>
+          </div>
+          <div class="card-body">
+            <strong>{{ match.kit2.display_name }}</strong>
+            <p class="muted mb-0" style="font-size: 0.9rem;">
+              {{ match.kit2.get_provider_display }}<br>
+              Owner: {{ match.kit2.user.email }}
+            </p>
+            {% if match.confirmed_by_kit2 %}
+            <span class="badge badge-green" style="margin-top: 0.5rem;"><i class="bi bi-check"></i> Confirmed</span>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- Match Info -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-info-circle"></i> Match Info</span>
+          </div>
+          <div class="card-body" style="font-size: 0.9rem;">
+            <dl style="margin: 0;">
+              <dt style="color: var(--fl-muted);">Discovered</dt>
+              <dd style="margin: 0 0 0.75rem;">{{ match.discovered_at|date:"M d, Y g:i A" }}</dd>
+              
+              <dt style="color: var(--fl-muted);">Status</dt>
+              <dd style="margin: 0;">
+                {% if match.is_confirmed %}
+                <span class="badge badge-green">Both Confirmed</span>
+                {% elif match.confirmed_by_kit1 and not match.confirmed_by_kit2 %}
+                <span class="badge badge-gold">Kit 1 Confirmed</span>
+                {% elif match.confirmed_by_kit2 and not match.confirmed_by_kit1 %}
+                <span class="badge badge-gold">Kit 2 Confirmed</span>
+                {% else %}
+                <span class="badge">Unconfirmed</span>
+                {% endif %}
+              </dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

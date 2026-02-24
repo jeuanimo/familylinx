@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Review Deletion Request - {{ family.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0"><i class="bi bi-shield-check"></i> Review Deletion Request</h4>
+                </div>
+                <div class="card-body">
+                    <!-- Request Details -->
+                    <div class="mb-4">
+                        <h5>Request Details</h5>
+                        <table class="table table-bordered">
+                            <tr>
+                                <th style="width: 150px;">Requested By</th>
+                                <td>{{ del_request.requester.get_full_name|default:del_request.requester.username }}</td>
+                            </tr>
+                            <tr>
+                                <th>Submitted</th>
+                                <td>{{ del_request.created_at|date:"M d, Y H:i" }} ({{ del_request.created_at|timesince }} ago)</td>
+                            </tr>
+                            <tr>
+                                <th>Object Type</th>
+                                <td>{{ del_request.get_object_type_display }}</td>
+                            </tr>
+                            <tr>
+                                <th>Item</th>
+                                <td><strong>{{ del_request.object_repr }}</strong></td>
+                            </tr>
+                            <tr>
+                                <th>Reason</th>
+                                <td>
+                                    {% if del_request.reason %}
+                                    {{ del_request.reason }}
+                                    {% else %}
+                                    <em class="text-muted">No reason provided</em>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- Object Data Preview -->
+                    {% if del_request.object_data %}
+                    <div class="mb-4">
+                        <h5>Data Preview</h5>
+                        <div class="bg-light p-3 rounded">
+                            <pre class="mb-0">{{ del_request.object_data }}</pre>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Action Form -->
+                    <h5>Your Decision</h5>
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea name="notes" class="form-control" rows="2" 
+                                      placeholder="Add notes for the requester..."></textarea>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Note:</strong> If approved, the item will be moved to trash (soft deleted). 
+                            It can still be restored from the trash if needed.
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" name="action" value="approve" class="btn btn-success">
+                                <i class="bi bi-check-lg"></i> Approve
+                            </button>
+                            <button type="submit" name="action" value="reject" class="btn btn-danger">
+                                <i class="bi bi-x-lg"></i> Reject
+                            </button>
+                            <a href="{% url 'families:deletion_request_list' family.id %}" class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
