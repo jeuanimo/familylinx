@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Milestone – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:milestone_list' family_id=family.id %}">Milestones</a>
+      <span class="separator">/</span>
+      <span class="current">Delete</span>
+    </nav>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Delete Milestone</span>
+      </div>
+      <div class="card-body">
+        <p>Are you sure you want to delete "<strong>{{ milestone.title }}</strong>"?</p>
+        <form method="post">
+          {% csrf_token %}
+          <a href="{% url 'families:milestone_list' family_id=family.id %}" class="btn btn-outline">Cancel</a>
+          <button type="submit" class="btn btn-danger">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}{{ mode|title }} Milestone – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:milestone_list' family_id=family.id %}">Milestones</a>
+      <span class="separator">/</span>
+      <span class="current">{{ mode|title }}</span>
+    </nav>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-stars"></i> {{ mode|title }} Milestone</span>
+      </div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="form-group">
+            <label class="form-label">{{ form.title.label }}</label>
+            {{ form.title }}
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ form.description.label }}</label>
+            {{ form.description }}
+          </div>
+          <div class="grid-2" style="gap: 1rem;">
+            <div class="form-group">
+              <label class="form-label">{{ form.date.label }}</label>
+              {{ form.date }}
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ form.image.label }}</label>
+              {{ form.image }}
+            </div>
+          </div>
+          <div class="grid-2" style="gap: 1rem;">
+            <div class="form-group">
+              <label class="form-label">{{ form.person.label }}</label>
+              {{ form.person }}
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ form.event.label }}</label>
+              {{ form.event }}
+            </div>
+          </div>
+          <div class="form-actions">
+            <a href="{% url 'families:milestone_list' family_id=family.id %}" class="btn btn-outline">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-save"></i> Save
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

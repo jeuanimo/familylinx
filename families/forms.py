@@ -19,7 +19,7 @@ from django import forms
 from .models import (
     FamilySpace, Invite, Membership, Post, Comment, Event, Person, Relationship,
     Album, Photo, ChatMessage, ChatConversationMessage, DNAKit, DNAMatch,
-    LifeStorySection, TimeCapsule
+    LifeStorySection, TimeCapsule, FamilyMilestone
 )
 
 
@@ -872,6 +872,29 @@ class TimeCapsuleForm(forms.ModelForm):
             "attachment": forms.FileInput(attrs={"class": "form-control"}),
             "audio": forms.FileInput(attrs={"class": "form-control", "accept": "audio/*"}),
         }
+
+
+class FamilyMilestoneForm(forms.ModelForm):
+    class Meta:
+        model = FamilyMilestone
+        fields = ["title", "description", "date", "image", "person", "event"]
+        widgets = {
+            "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "Milestone title"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "Describe the milestone"}),
+            "date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+            "image": forms.FileInput(attrs={"class": "form-control", "accept": "image/*"}),
+            "person": forms.Select(attrs={"class": "form-control"}),
+            "event": forms.Select(attrs={"class": "form-control"}),
+        }
+
+    def __init__(self, *args, family=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if family:
+            self.fields["person"].queryset = Person.objects.filter(family=family, is_deleted=False).order_by("last_name", "first_name")
+            self.fields["event"].queryset = Event.objects.filter(family=family).order_by("-start_datetime")
+        else:
+            self.fields["person"].queryset = Person.objects.none()
+            self.fields["event"].queryset = Event.objects.none()
 
 
 class ConversationMessageForm(forms.ModelForm):

@@ -495,7 +495,7 @@ def _next_annual_date(month, day, today):
 
 
 def _build_family_milestones(family, days_ahead=45):
-    """Return upcoming birthdays, anniversaries, and memorials."""
+    """Return upcoming birthdays, anniversaries, memorials, plus custom milestones."""
     today = timezone.localdate()
     cutoff = today + timedelta(days=days_ahead)
     milestones = []
@@ -541,7 +541,20 @@ def _build_family_milestones(family, days_ahead=45):
                 "relationship": rel,
             })
 
-    return sorted(milestones, key=lambda item: item["date"])[:8]
+    # Custom milestones
+    for m in family.milestones.filter(date__gte=today, date__lte=cutoff).order_by("date"):
+        milestones.append({
+            "kind": "custom",
+            "icon": "bi-stars",
+            "title": m.title,
+            "subtitle": m.description[:80],
+            "date": m.date,
+            "person": m.person,
+            "event": m.event,
+            "image": m.image.url if m.image else None,
+        })
+
+    return sorted(milestones, key=lambda item: item["date"])[:12]
 
 
 def _display_name_for_user(user):
@@ -4227,6 +4240,92 @@ def conversation_room(request, family_id, conversation_id):
         "participants": participants,
         "form": ConversationMessageForm(),
         "ws_path": f"/ws/families/{family.id}/conversations/{conversation.id}/",
+    })
+
+
+# ===========================
+# Family Milestone CRUD
+# ===========================
+
+@login_required
+def milestone_list(request, family_id):
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+
+    milestones = FamilyMilestone.objects.filter(family=family).select_related("person", "event", "created_by")
+    return render(request, "families/milestone_list.html", {
+        "family": family,
+        "membership": membership,
+        "milestones": milestones.order_by("-date"),
+    })
+
+
+@login_required
+def milestone_create(request, family_id):
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership or membership.role == Membership.Role.VIEWER:
+        return render(request, "families/no_access.html", {"family": None})
+
+    if request.method == "POST":
+        form = FamilyMilestoneForm(request.POST, request.FILES, family=family)
+        if form.is_valid():
+            milestone = form.save(commit=False)
+            milestone.family = family
+            milestone.created_by = request.user
+            milestone.save()
+            form.save_m2m()
+            return redirect("families:milestone_list", family_id=family.id)
+    else:
+        form = FamilyMilestoneForm(family=family)
+
+    return render(request, "families/milestone_form.html", {
+        "family": family,
+        "membership": membership,
+        "form": form,
+        "mode": "create",
+    })
+
+
+@login_required
+def milestone_edit(request, family_id, milestone_id):
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership or membership.role == Membership.Role.VIEWER:
+        return render(request, "families/no_access.html", {"family": None})
+
+    milestone = get_object_or_404(FamilyMilestone, id=milestone_id, family=family)
+    if request.method == "POST":
+        form = FamilyMilestoneForm(request.POST, request.FILES, instance=milestone, family=family)
+        if form.is_valid():
+            form.save()
+            return redirect("families:milestone_list", family_id=family.id)
+    else:
+        form = FamilyMilestoneForm(instance=milestone, family=family)
+
+    return render(request, "families/milestone_form.html", {
+        "family": family,
+        "membership": membership,
+        "form": form,
+        "mode": "edit",
+        "milestone": milestone,
+    })
+
+
+@login_required
+def milestone_delete(request, family_id, milestone_id):
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership or membership.role == Membership.Role.VIEWER:
+        return render(request, "families/no_access.html", {"family": None})
+
+    milestone = get_object_or_404(FamilyMilestone, id=milestone_id, family=family)
+    if request.method == "POST":
+        milestone.delete()
+        return redirect("families:milestone_list", family_id=family.id)
+
+    return render(request, "families/milestone_delete.html", {
+        "family": family,
+        "membership": membership,
+        "milestone": milestone,
     })
 
 

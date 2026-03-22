@@ -1760,6 +1760,60 @@ class TimeCapsule(models.Model):
         return self.is_opened or timezone.now() >= self.open_at
 
 
+class FamilyMilestone(models.Model):
+    """
+    Custom family milestones (e.g., achievements, reunions, stories) with optional photo.
+    """
+    family = models.ForeignKey(
+        FamilySpace,
+        on_delete=models.CASCADE,
+        related_name="milestones",
+        help_text="Family this milestone belongs to"
+    )
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    date = models.DateField()
+    image = models.ImageField(
+        upload_to="milestones/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Optional milestone photo"
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="milestones",
+        help_text="Linked person (optional)"
+    )
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="milestones",
+        help_text="Linked event (optional)"
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_milestones",
+        help_text="User who added this milestone"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-date", "-created_at"]
+        verbose_name = "Family Milestone"
+        verbose_name_plural = "Family Milestones"
+
+    def __str__(self):
+        return f"{self.title} ({self.date})"
+
+
 class MuseumShare(models.Model):
     """
     Share the Living Museum or specific memories with others.

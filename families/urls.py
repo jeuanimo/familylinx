@@ -254,6 +254,12 @@ urlpatterns = [
     path("<int:family_id>/time-capsules/new/", views.time_capsule_create, name="time_capsule_create"),
     path("<int:family_id>/time-capsules/<int:capsule_id>/", views.time_capsule_detail, name="time_capsule_detail"),
     path("<int:family_id>/person/<int:person_id>/chatbot/", views.person_chatbot, name="person_chatbot"),
+
+    # Milestones
+    path("<int:family_id>/milestones/", views.milestone_list, name="milestone_list"),
+    path("<int:family_id>/milestones/new/", views.milestone_create, name="milestone_create"),
+    path("<int:family_id>/milestones/<int:milestone_id>/edit/", views.milestone_edit, name="milestone_edit"),
+    path("<int:family_id>/milestones/<int:milestone_id>/delete/", views.milestone_delete, name="milestone_delete"),
     
     # ==========================================================================
     # Museum Sharing URLs
