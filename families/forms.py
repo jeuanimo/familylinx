@@ -744,7 +744,10 @@ class PhotoUploadForm(forms.ModelForm):
         if family:
             # Filter tagged_people to only show people in this family
             self.fields['tagged_people'].queryset = Person.objects.filter(
-                family=family
+                family=family,
+                is_deleted=False,
+                linked_user__isnull=False,
+                death_date__isnull=True,
             ).order_by('last_name', 'first_name')
             self.fields['event'].queryset = Event.objects.filter(family=family).order_by('-start_datetime')
             self.fields['primary_person'].queryset = Person.objects.filter(family=family, is_deleted=False).order_by('last_name', 'first_name')

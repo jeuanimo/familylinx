@@ -2951,7 +2951,12 @@ def photo_tag_suggestions(request, family_id, album_id, photo_id):
     # People tagged in this album's photos, ordered by frequency
     from django.db.models import Count
     counts = (
-        Person.objects.filter(tagged_photos__album=album, is_deleted=False)
+        Person.objects.filter(
+            tagged_photos__album=album,
+            is_deleted=False,
+            linked_user__isnull=False,
+            death_date__isnull=True,
+        )
         .exclude(tagged_photos=photo)
         .annotate(freq=Count("tagged_photos"))
         .order_by("-freq", "last_name", "first_name")[:5]
@@ -2997,6 +3002,8 @@ def photo_edit(request, family_id, album_id, photo_id):
                 matches = Person.objects.filter(
                     family=family,
                     is_deleted=False,
+                    linked_user__isnull=False,
+                    death_date__isnull=True,
                     first_name__icontains=manual_tag_name.split()[0]
                 )
                 if matches:
