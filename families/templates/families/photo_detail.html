@@ -110,6 +110,10 @@
                  class="btn btn-outline w-full mb-2">
                 <i class="bi bi-pencil"></i> Edit Details
               </a>
+              <a href="{% url 'families:photo_tag_suggestions' family_id=family.id album_id=album.id photo_id=photo.id %}" 
+                 class="btn btn-outline w-full mb-2">
+                <i class="bi bi-stars"></i> Suggest Tags
+              </a>
               
               {% if photo.media_type == 'PHOTO' %}
               <a href="{% url 'families:photo_set_cover' family_id=family.id album_id=album.id photo_id=photo.id %}" 

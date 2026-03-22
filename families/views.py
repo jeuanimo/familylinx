@@ -2936,6 +2936,33 @@ def photo_detail(request, family_id, album_id, photo_id):
 
 
 @login_required
+def photo_tag_suggestions(request, family_id, album_id, photo_id):
+    """
+    Provide simple tag suggestions based on people already tagged in the same album.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"suggestions": []})
+
+    album = get_object_or_404(Album, id=album_id, family=family)
+    photo = get_object_or_404(Photo, id=photo_id, album=album)
+
+    # People tagged in this album's photos, ordered by frequency
+    from django.db.models import Count
+    counts = (
+        Person.objects.filter(tagged_photos__album=album, is_deleted=False)
+        .exclude(tagged_photos=photo)
+        .annotate(freq=Count("tagged_photos"))
+        .order_by("-freq", "last_name", "first_name")[:5]
+    )
+    suggestions = [
+        {"id": p.id, "name": p.full_name, "freq": p.freq} for p in counts
+        if p.id not in photo.tagged_people.values_list("id", flat=True)
+    ]
+    return JsonResponse({"suggestions": suggestions})
+
+
+@login_required
 def photo_edit(request, family_id, album_id, photo_id):
     """
     Edit photo details (caption, date, location, tags).
@@ -3375,6 +3402,55 @@ def time_capsule_create(request, family_id):
         "family": family,
         "membership": membership,
         "form": form,
+    })
+
+
+@login_required
+def person_chatbot(request, family_id, person_id):
+    """
+    Lightweight person-aware summary/QA endpoint (no external AI).
+    Returns a synthesized narrative from memories, life story sections, and events.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+
+    person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+
+    memories = (
+        MemoryStory.objects.filter(person=person)
+        .order_by("-is_featured", "-created_at")
+        .prefetch_related("media")
+    )[:10]
+    story_sections = (
+        person.life_stories.first().sections.all() if person.life_stories.exists() else []
+    )
+    events = (
+        Event.objects.filter(family=family, title__icontains=person.first_name)
+        .order_by("-start_datetime")[:5]
+    )
+
+    def summarize():
+        parts = [f"{person.full_name} — quick story snapshot:"]
+        if person.birth_date:
+            parts.append(f"- Born: {person.birth_date}")
+        if person.death_date:
+            parts.append(f"- Passed: {person.death_date}")
+        if memories:
+            parts.append(f"- Top memories ({len(memories)}): " + "; ".join(m.title for m in memories[:3]))
+        if story_sections:
+            parts.append(f"- Life story sections: " + "; ".join(s.heading for s in story_sections[:4]))
+        if events:
+            parts.append(f"- Related events: " + "; ".join(e.title for e in events))
+        return "\n".join(parts)
+
+    response_text = summarize()
+
+    return render(request, "families/person_chatbot.html", {
+        "family": family,
+        "membership": membership,
+        "person": person,
+        "response_text": response_text,
     })
 
 

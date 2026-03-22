@@ -157,6 +157,7 @@ urlpatterns = [
     path("<int:family_id>/albums/<int:album_id>/photos/<int:photo_id>/edit/", views.photo_edit, name="photo_edit"),
     path("<int:family_id>/albums/<int:album_id>/photos/<int:photo_id>/delete/", views.photo_delete, name="photo_delete"),
     path("<int:family_id>/albums/<int:album_id>/photos/<int:photo_id>/set-cover/", views.photo_set_cover, name="photo_set_cover"),
+    path("<int:family_id>/albums/<int:album_id>/photos/<int:photo_id>/suggest-tags/", views.photo_tag_suggestions, name="photo_tag_suggestions"),
     
     # ==========================================================================
     # Phase 6: Notifications & Messaging URLs
@@ -252,6 +253,7 @@ urlpatterns = [
     path("<int:family_id>/time-capsules/", views.time_capsule_list, name="time_capsule_list"),
     path("<int:family_id>/time-capsules/new/", views.time_capsule_create, name="time_capsule_create"),
     path("<int:family_id>/time-capsules/<int:capsule_id>/", views.time_capsule_detail, name="time_capsule_detail"),
+    path("<int:family_id>/person/<int:person_id>/chatbot/", views.person_chatbot, name="person_chatbot"),
     
     # ==========================================================================
     # Museum Sharing URLs

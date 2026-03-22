@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Story Bot – {{ person.full_name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}">{{ person.full_name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Story Bot</span>
+    </nav>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-robot"></i> Tell me about {{ person.full_name }}</span>
+      </div>
+      <div class="card-body">
+        <pre style="white-space: pre-wrap; background: var(--fl-surface); padding: 1rem; border-radius: var(--fl-radius);">{{ response_text }}</pre>
+        <p class="muted" style="margin-top: 0.75rem;">This summary is generated from memories, life story sections, and related events already in FamilyLinx.</p>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}
