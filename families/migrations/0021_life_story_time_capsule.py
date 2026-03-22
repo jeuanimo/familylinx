@@ -1,4 +1,5 @@
 from django.db import migrations, models
+from django.conf import settings
 import django.db.models.deletion
 
 
@@ -19,7 +20,7 @@ class Migration(migrations.Migration):
                 ("is_published", models.BooleanField(default=True, help_text="Show to family now")),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
-                ("created_by", models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="created_life_stories", to="accounts.user")),
+                ("created_by", models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="created_life_stories", to=settings.AUTH_USER_MODEL)),
                 ("person", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="life_stories", to="families.person")),
             ],
             options={
@@ -39,7 +40,7 @@ class Migration(migrations.Migration):
                 ("attachment", models.FileField(blank=True, help_text="Optional attachment (letter, video, zip)", null=True, upload_to="timecapsules/%Y/%m/")),
                 ("audio", models.FileField(blank=True, help_text="Optional audio recording", null=True, upload_to="timecapsules/audio/%Y/%m/")),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
-                ("created_by", models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="created_time_capsules", to="accounts.user")),
+                ("created_by", models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="created_time_capsules", to=settings.AUTH_USER_MODEL)),
                 ("family", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="time_capsules", to="families.familyspace")),
             ],
             options={
