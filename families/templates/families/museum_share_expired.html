@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block title %}Share Expired - Living Museum{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card border-warning shadow-sm">
+                <div class="card-body text-center p-5">
+                    <i class="bi bi-hourglass-split display-3 text-warning"></i>
+                    <h1 class="h3 mt-3">This museum share has expired</h1>
+                    <p class="text-muted mb-4">
+                        The link is no longer active. If you still need access, ask the person who shared it to create a new one.
+                    </p>
+                    {% if share.shared_by %}
+                    <p class="small text-muted mb-0">
+                        Shared by {{ share.shared_by.get_full_name|default:share.shared_by.username }}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -62,6 +62,9 @@ urlpatterns = [
     
     # View single post with comments
     path("<int:family_id>/posts/<int:post_id>/", views.post_detail, name="post_detail"),
+
+    # Like/unlike a post
+    path("<int:family_id>/posts/<int:post_id>/like/", views.post_like_toggle, name="post_like_toggle"),
     
     # Delete a post (author or admin)
     path("<int:family_id>/posts/<int:post_id>/delete/", views.post_delete, name="post_delete"),

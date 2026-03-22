@@ -30,8 +30,10 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.http import JsonResponse
 from django.contrib import messages
+from django.core.paginator import Paginator
+from django.db import models
 from django.db.models import Q, Count
-from datetime import date
+from datetime import date, timedelta
 from collections import deque
 from .models import (
     FamilySpace, Membership, Invite, Post, Comment, Event, RSVP, Person, 
@@ -155,8 +157,30 @@ def family_detail(request, family_id):
     members = fam.memberships.select_related("user").order_by("joined_at")
     
     # Fetch posts for the feed (Phase 2)
-    posts = fam.posts.filter(is_hidden=False).select_related("author").order_by("-is_pinned", "-created_at")[:50]
-    post_form = PostCreateForm()
+    posts = fam.posts.filter(is_hidden=False).select_related(
+        "author",
+        "author__profile",
+    ).prefetch_related(
+        "comments",
+        "liked_by",
+        "tagged_people",
+    )
+    post_form = PostCreateForm(family=fam)
+
+    feed_scope = request.GET.get("feed", "tree")
+    immediate_filter_available = membership.linked_person is not None
+    immediate_person_ids = _get_immediate_family_ids(membership.linked_person)
+
+    if feed_scope == "immediate" and immediate_person_ids:
+        posts = posts.filter(
+            Q(author=request.user) |
+            Q(author__person_profile__id__in=immediate_person_ids) |
+            Q(tagged_people__id__in=immediate_person_ids)
+        ).distinct()
+    elif feed_scope == "immediate":
+        feed_scope = "tree"
+
+    posts = posts.order_by("-is_pinned", "-created_at")[:50]
     
     # Fetch upcoming events (Phase 3)
     upcoming_events = fam.events.filter(start_datetime__gte=timezone.now()).order_by("start_datetime")[:5]
@@ -169,6 +193,9 @@ def family_detail(request, family_id):
         "posts": posts,
         "post_form": post_form,
         "upcoming_events": upcoming_events,
+        "feed_scope": feed_scope,
+        "immediate_filter_available": immediate_filter_available,
+        "milestones": _build_family_milestones(fam),
     })
 
 
@@ -390,6 +417,84 @@ def _get_membership_or_deny(request, family_id):
         return None, None
 
 
+def _get_immediate_family_ids(person):
+    """Return a set containing the person and their immediate family."""
+    if not person:
+        return set()
+
+    immediate_ids = {person.id}
+    immediate_ids.update(parent.id for parent in person.parents)
+    immediate_ids.update(child.id for child in person.children)
+    immediate_ids.update(spouse.id for spouse in person.spouses)
+    immediate_ids.update(sibling.id for sibling in person.siblings)
+    return immediate_ids
+
+
+def _next_annual_date(month, day, today):
+    """Return the next annual occurrence for a month/day pair."""
+    try:
+        occurrence = date(today.year, month, day)
+    except ValueError:
+        occurrence = date(today.year, 2, 28)
+
+    if occurrence < today:
+        try:
+            occurrence = date(today.year + 1, month, day)
+        except ValueError:
+            occurrence = date(today.year + 1, 2, 28)
+    return occurrence
+
+
+def _build_family_milestones(family, days_ahead=45):
+    """Return upcoming birthdays, anniversaries, and memorials."""
+    today = timezone.localdate()
+    cutoff = today + timedelta(days=days_ahead)
+    milestones = []
+
+    for person in family.persons.filter(is_deleted=False).order_by("first_name", "last_name"):
+        if person.birth_date and person.is_living:
+            next_birthday = _next_annual_date(person.birth_date.month, person.birth_date.day, today)
+            if next_birthday <= cutoff:
+                milestones.append({
+                    "kind": "birthday",
+                    "icon": "bi-cake2",
+                    "title": f"{person.full_name}'s birthday",
+                    "subtitle": f"Turns {next_birthday.year - person.birth_date.year}",
+                    "date": next_birthday,
+                    "person": person,
+                })
+
+        if person.death_date:
+            next_memorial = _next_annual_date(person.death_date.month, person.death_date.day, today)
+            if next_memorial <= cutoff:
+                milestones.append({
+                    "kind": "memorial",
+                    "icon": "bi-flower1",
+                    "title": f"Memorial for {person.full_name}",
+                    "subtitle": f"{next_memorial.year - person.death_date.year} year remembrance",
+                    "date": next_memorial,
+                    "person": person,
+                })
+
+    for rel in family.relationships.filter(
+        relationship_type=Relationship.Type.SPOUSE,
+        is_deleted=False,
+        start_date__isnull=False,
+    ).select_related("person1", "person2"):
+        next_anniversary = _next_annual_date(rel.start_date.month, rel.start_date.day, today)
+        if next_anniversary <= cutoff:
+            milestones.append({
+                "kind": "anniversary",
+                "icon": "bi-heart",
+                "title": f"{rel.person1.full_name} and {rel.person2.full_name}",
+                "subtitle": f"{next_anniversary.year - rel.start_date.year} year anniversary",
+                "date": next_anniversary,
+                "relationship": rel,
+            })
+
+    return sorted(milestones, key=lambda item: item["date"])[:8]
+
+
 @login_required
 def post_create(request, family_id):
     """
@@ -409,14 +514,17 @@ def post_create(request, family_id):
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
         return render(request, "families/no_access.html", {"family": None})
+    if membership.role == Membership.Role.VIEWER:
+        return render(request, "families/no_access.html", {"family": family})
     
     if request.method == "POST":
-        form = PostCreateForm(request.POST, request.FILES)
+        form = PostCreateForm(request.POST, request.FILES, family=family)
         if form.is_valid():
             post = form.save(commit=False)
             post.family = family
             post.author = request.user
             post.save()
+            form.save_m2m()
             
             # Handle cropped image if present
             content_file, filename = process_cropped_image(request)
@@ -424,13 +532,10 @@ def post_create(request, family_id):
                 post.image.save(filename, content_file, save=True)
             
             return redirect("families:family_detail", family_id=family.id)
-    else:
-        form = PostCreateForm()
-    
-    return render(request, "families/post_create.html", {
-        "form": form,
-        "family": family,
-    })
+
+        messages.error(request, "Please add some text and check any media uploads before posting.")
+
+    return redirect("families:family_detail", family_id=family.id)
 
 
 @login_required
@@ -444,8 +549,13 @@ def post_detail(request, family_id, post_id):
     if not membership:
         return render(request, "families/no_access.html", {"family": None})
     
-    post = get_object_or_404(Post, id=post_id, family=family, is_hidden=False)
-    comments = post.comments.filter(is_hidden=False)
+    post = get_object_or_404(
+        Post.objects.select_related("author", "author__profile").prefetch_related("liked_by", "tagged_people"),
+        id=post_id,
+        family=family,
+        is_hidden=False,
+    )
+    comments = post.comments.filter(is_hidden=False).select_related("author", "author__profile")
     
     # Handle comment submission
     if request.method == "POST":
@@ -466,6 +576,28 @@ def post_detail(request, family_id, post_id):
         "comments": comments,
         "comment_form": comment_form,
     })
+
+
+@login_required
+def post_like_toggle(request, family_id, post_id):
+    """Toggle the current user's like on a family post."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+    if membership.role == Membership.Role.VIEWER:
+        return redirect("families:post_detail", family_id=family.id, post_id=post_id)
+
+    post = get_object_or_404(Post, id=post_id, family=family, is_hidden=False)
+    if request.method == "POST":
+        if post.liked_by.filter(id=request.user.id).exists():
+            post.liked_by.remove(request.user)
+        else:
+            post.liked_by.add(request.user)
+
+    next_url = request.POST.get("next")
+    if next_url:
+        return redirect(next_url)
+    return redirect("families:family_detail", family_id=family.id)
 
 
 @login_required
@@ -2380,18 +2512,43 @@ def museum_home(request, family_id):
     
     from .models import MemoryStory
     
+    story_type = request.GET.get("story_type", "").strip()
+    person_id = request.GET.get("person", "").strip()
+    search_query = request.GET.get("q", "").strip()
+
     # Get featured memories
     featured_memories = MemoryStory.objects.filter(
         person__family=family,
         is_featured=True
-    ).select_related('person', 'author').order_by('-created_at')[:6]
-    
-    # Get recent memories
-    recent_memories = MemoryStory.objects.filter(
+    ).select_related('person', 'author').prefetch_related('media').order_by('-created_at')[:6]
+
+    memories = MemoryStory.objects.filter(
         person__family=family
-    ).select_related('person', 'author').order_by('-created_at')[:12]
-    
-    # Get persons with memories
+    ).select_related('person', 'author').prefetch_related('media', 'reactions', 'comments').order_by('-is_featured', '-created_at')
+
+    if story_type:
+        memories = memories.filter(story_type=story_type)
+    if person_id.isdigit():
+        memories = memories.filter(person_id=person_id)
+    if search_query:
+        memories = memories.filter(
+            Q(title__icontains=search_query) |
+            Q(content__icontains=search_query) |
+            Q(person__first_name__icontains=search_query) |
+            Q(person__last_name__icontains=search_query)
+        )
+
+    paginator = Paginator(memories, 12)
+    memories_page = paginator.get_page(request.GET.get("page"))
+
+    # Get people with memories for discovery and filters
+    people = Person.objects.filter(
+        family=family,
+        is_deleted=False,
+        memories__isnull=False
+    ).distinct().order_by('last_name', 'first_name')
+
+    # Get persons with memories for highlights
     persons_with_memories = Person.objects.filter(
         family=family,
         is_deleted=False,
@@ -2399,20 +2556,25 @@ def museum_home(request, family_id):
     ).distinct().annotate(
         memory_count=Count('memories')
     ).order_by('-memory_count')[:10]
-    
+
     # Memory type counts
     memory_type_counts = MemoryStory.objects.filter(
         person__family=family
     ).values('story_type').annotate(count=Count('id'))
-    
+
     return render(request, "families/museum_home.html", {
         "family": family,
         "membership": membership,
         "featured_memories": featured_memories,
-        "recent_memories": recent_memories,
+        "memories": memories_page,
+        "people": people,
+        "story_types": MemoryStory.StoryType.choices,
+        "current_story_type": story_type,
+        "current_person_id": person_id,
+        "search_query": search_query,
         "persons_with_memories": persons_with_memories,
         "memory_type_counts": {m['story_type']: m['count'] for m in memory_type_counts},
-        "total_memories": MemoryStory.objects.filter(person__family=family).count(),
+        "total_memories": memories.count(),
     })
 
 
@@ -2438,7 +2600,11 @@ def museum_person(request, family_id, person_id):
     story_type = request.GET.get('type')
     if story_type:
         memories = memories.filter(story_type=story_type)
-    
+
+    story_type_counts = []
+    for type_code, type_name in MemoryStory.StoryType.choices:
+        story_type_counts.append((type_code, type_name, person.memories.filter(story_type=type_code).count()))
+
     return render(request, "families/museum_person.html", {
         "family": family,
         "membership": membership,
@@ -2446,6 +2612,9 @@ def museum_person(request, family_id, person_id):
         "memories": memories,
         "story_types": MemoryStory.StoryType.choices,
         "current_type": story_type,
+        "story_type_counts": story_type_counts,
+        "total_memories": person.memories.count(),
+        "total_media": MemoryMedia.objects.filter(memory__person=person).count(),
     })
 
 
@@ -2487,7 +2656,7 @@ def memory_detail(request, family_id, memory_id):
 
 
 @login_required
-def memory_create(request, family_id, person_id):
+def memory_create(request, family_id, person_id=None):
     """
     Create a new memory/story for a person.
     """
@@ -2501,9 +2670,31 @@ def memory_create(request, family_id, person_id):
     
     from .models import MemoryStory, MemoryMedia
     
-    person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+    # Get selected person if provided
+    selected_person = None
+    if person_id:
+        selected_person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+    
+    # Get all people for dropdown
+    people = Person.objects.filter(family=family, is_deleted=False).order_by('first_name', 'last_name')
     
     if request.method == "POST":
+        # Get person from form if not pre-selected
+        if not selected_person:
+            person_form_id = request.POST.get('person')
+            if person_form_id:
+                selected_person = get_object_or_404(Person, id=person_form_id, family=family, is_deleted=False)
+        
+        if not selected_person:
+            messages.error(request, "Please select a person for this memory.")
+            return render(request, "families/memory_create.html", {
+                "family": family,
+                "membership": membership,
+                "people": people,
+                "selected_person": None,
+                "story_types": MemoryStory.StoryType.choices,
+            })
+        
         title = request.POST.get('title', '').strip()
         content = request.POST.get('content', '').strip()
         story_type = request.POST.get('story_type', MemoryStory.StoryType.MEMORY)
@@ -2514,7 +2705,7 @@ def memory_create(request, family_id, person_id):
         
         if title and content:
             memory = MemoryStory.objects.create(
-                person=person,
+                person=selected_person,
                 title=title,
                 content=content,
                 story_type=story_type,
@@ -2547,7 +2738,7 @@ def memory_create(request, family_id, person_id):
                     uploaded_by=request.user,
                 )
             
-            messages.success(request, f"Memory '{title}' has been added to {person.full_name}'s story.")
+            messages.success(request, f"Memory '{title}' has been added to {selected_person.full_name}'s story.")
             return redirect("families:memory_detail", family_id=family.id, memory_id=memory.id)
         else:
             messages.error(request, "Please provide a title and content for the memory.")
@@ -2555,8 +2746,10 @@ def memory_create(request, family_id, person_id):
     return render(request, "families/memory_create.html", {
         "family": family,
         "membership": membership,
-        "person": person,
+        "selected_person": selected_person,
+        "people": people,
         "story_types": MemoryStory.StoryType.choices,
+        "is_admin": membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN],
     })
 
 
@@ -2770,7 +2963,7 @@ def memory_media_delete(request, family_id, memory_id, media_id):
 # =============================================================================
 
 @login_required
-def museum_share_create(request, family_id):
+def museum_share_create(request, family_id, share_type=None, object_id=None):
     """
     Create a share link for the museum or specific content.
     """
@@ -2780,14 +2973,24 @@ def museum_share_create(request, family_id):
     
     from .models import MuseumShare, MemoryStory
     
+    normalized_share_type = (share_type or "").upper()
+    memory = None
+    person = None
+    if object_id and normalized_share_type == MuseumShare.ShareType.MEMORY:
+        memory = get_object_or_404(MemoryStory, id=object_id, person__family=family)
+    elif object_id and normalized_share_type == MuseumShare.ShareType.PERSON:
+        person = get_object_or_404(Person, id=object_id, family=family, is_deleted=False)
+
     if request.method == "POST":
-        share_type = request.POST.get('share_type', MuseumShare.ShareType.MUSEUM)
+        raw_share_type = request.POST.get('share_type', share_type or MuseumShare.ShareType.MUSEUM)
+        normalized_share_type = (raw_share_type or MuseumShare.ShareType.MUSEUM).upper()
         memory_id = request.POST.get('memory_id')
         person_id = request.POST.get('person_id')
-        shared_with_email = request.POST.get('email', '').strip()
-        is_public_link = request.POST.get('is_public') == 'on'
+        shared_with_email = request.POST.get('shared_with_email', request.POST.get('email', '')).strip()
+        share_method = request.POST.get('share_method', 'link')
+        is_public_link = share_method == 'link' or request.POST.get('is_public') == 'on'
         message = request.POST.get('message', '').strip()
-        expires_days = request.POST.get('expires_days')
+        expires_days = request.POST.get('expires_in', request.POST.get('expires_days'))
         
         # Calculate expiration
         expires_at = None
@@ -2797,19 +3000,19 @@ def museum_share_create(request, family_id):
             expires_at = timezone.now() + timedelta(days=int(expires_days))
         
         share = MuseumShare(
-            share_type=share_type,
+            share_type=normalized_share_type,
             shared_by=request.user,
             shared_with_email=shared_with_email,
             is_public_link=is_public_link,
             message=message,
             expires_at=expires_at,
         )
-        
+
         # Set what is being shared
-        if share_type == MuseumShare.ShareType.MEMORY and memory_id:
+        if normalized_share_type == MuseumShare.ShareType.MEMORY and memory_id:
             memory = get_object_or_404(MemoryStory, id=memory_id, person__family=family)
             share.memory = memory
-        elif share_type == MuseumShare.ShareType.PERSON and person_id:
+        elif normalized_share_type == MuseumShare.ShareType.PERSON and person_id:
             person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
             share.person = person
         else:
@@ -2854,10 +3057,14 @@ def museum_share_create(request, family_id):
     # Get persons and memories for the form
     persons = Person.objects.filter(family=family, is_deleted=False).order_by('last_name', 'first_name')
     memories = MemoryStory.objects.filter(person__family=family).select_related('person')[:50]
-    
+
     return render(request, "families/museum_share_create.html", {
         "family": family,
         "membership": membership,
+        "share_type": normalized_share_type.lower() if normalized_share_type else "",
+        "person": person,
+        "memory": memory,
+        "people": persons,
         "persons": persons,
         "memories": memories,
         "share_types": MuseumShare.ShareType.choices,
@@ -2890,11 +3097,16 @@ def museum_share_list(request, family_id):
             models.Q(person__family=family) | 
             models.Q(memory__person__family=family)
         ).select_related('shared_with_user', 'memory', 'person')
-    
+
+    now = timezone.now()
     return render(request, "families/museum_share_list.html", {
         "family": family,
         "membership": membership,
         "shares": shares,
+        "active_shares": sum(1 for share in shares if share.is_valid()),
+        "expired_shares": sum(1 for share in shares if not share.is_valid()),
+        "total_views": sum(share.view_count for share in shares),
+        "now": now,
     })
 
 
@@ -2909,7 +3121,11 @@ def museum_share_delete(request, family_id, share_id):
     
     from .models import MuseumShare
     
-    share = get_object_or_404(MuseumShare, id=share_id)
+    share = get_object_or_404(
+        MuseumShare,
+        Q(id=share_id),
+        Q(family=family) | Q(person__family=family) | Q(memory__person__family=family),
+    )
     
     # Check permission
     can_delete = (
@@ -2927,8 +3143,12 @@ def museum_share_delete(request, family_id, share_id):
         
         messages.success(request, "Share has been revoked.")
         return redirect("families:museum_share_list", family_id=family.id)
-    
-    return JsonResponse({"error": "POST required"}, status=405)
+
+    return render(request, "families/museum_share_delete.html", {
+        "family": family,
+        "membership": membership,
+        "share": share,
+    })
 
 
 def museum_shared_view(request, share_token):
@@ -2971,7 +3191,7 @@ def museum_shared_view(request, share_token):
         context["memory"] = share.memory
         context["memory"].view_count += 1
         context["memory"].save(update_fields=['view_count'])
-        return render(request, "families/museum_shared_memory.html", context)
+        return render(request, "families/museum_shared_view.html", context)
     
     elif share.share_type == MuseumShare.ShareType.PERSON and share.person:
         context["person"] = share.person
@@ -2979,7 +3199,7 @@ def museum_shared_view(request, share_token):
             person=share.person,
             is_public=True  # Only show public memories
         ).select_related('author').prefetch_related('media')
-        return render(request, "families/museum_shared_person.html", context)
+        return render(request, "families/museum_shared_view.html", context)
     
     elif share.share_type == MuseumShare.ShareType.MUSEUM and share.family:
         context["family"] = share.family
@@ -2992,8 +3212,8 @@ def museum_shared_view(request, share_token):
             is_deleted=False,
             memories__is_public=True
         ).distinct()
-        return render(request, "families/museum_shared_home.html", context)
-    
+        return render(request, "families/museum_shared_view.html", context)
+
     return render(request, "families/museum_share_error.html", context)
 
 
@@ -3018,6 +3238,7 @@ def museum_my_shares(request):
     return render(request, "families/museum_my_shares.html", {
         "received_shares": received_shares,
         "created_shares": created_shares,
+        "now": timezone.now(),
     })
 
 

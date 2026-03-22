@@ -30,7 +30,7 @@
                     <select name="story_type" class="form-select">
                         <option value="">All Types</option>
                         {% for value, label in story_types %}
-                        <option value="{{ value }}" {% if request.GET.story_type == value %}selected{% endif %}>{{ label }}</option>
+                        <option value="{{ value }}" {% if current_story_type == value %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -39,13 +39,13 @@
                     <select name="person" class="form-select">
                         <option value="">All People</option>
                         {% for person in people %}
-                        <option value="{{ person.id }}" {% if request.GET.person == person.id|stringformat:"s" %}selected{% endif %}>{{ person.full_name }}</option>
+                        <option value="{{ person.id }}" {% if current_person_id == person.id|stringformat:"s" %}selected{% endif %}>{{ person.full_name }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Search</label>
-                    <input type="text" name="q" class="form-control" placeholder="Search memories..." value="{{ request.GET.q }}">
+                    <input type="text" name="q" class="form-control" placeholder="Search memories..." value="{{ search_query }}">
                 </div>
                 <div class="col-md-3">
                     <button type="submit" class="btn btn-secondary w-100">
@@ -94,7 +94,7 @@
         {% else %}
         All Memories
         {% endif %}
-        <span class="badge bg-secondary">{{ memories.count }}</span>
+        <span class="badge bg-secondary">{{ total_memories }}</span>
     </h4>
 
     {% if memories %}

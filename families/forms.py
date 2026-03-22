@@ -140,9 +140,18 @@ class PostCreateForm(forms.ModelForm):
         - Max upload size should be configured in settings/nginx
     """
     
+    def __init__(self, *args, family=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["tagged_people"].queryset = Person.objects.none()
+        if family is not None:
+            self.fields["tagged_people"].queryset = Person.objects.filter(
+                family=family,
+                is_deleted=False,
+            ).order_by("last_name", "first_name")
+
     class Meta:
         model = Post
-        fields = ["content", "image"]
+        fields = ["content", "image", "video", "tagged_people"]
         
         widgets = {
             'content': forms.Textarea(attrs={
@@ -154,10 +163,20 @@ class PostCreateForm(forms.ModelForm):
                 'class': 'form-control',
                 'accept': 'image/*',
             }),
+            'video': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': 'video/*',
+            }),
+            'tagged_people': forms.SelectMultiple(attrs={
+                'class': 'form-select',
+                'size': 6,
+            }),
         }
         labels = {
             'content': '',
             'image': 'Add Photo',
+            'video': 'Add Video',
+            'tagged_people': 'Tag Family Members',
         }
 
 

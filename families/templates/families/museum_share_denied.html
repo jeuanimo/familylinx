@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block title %}Access Denied - Living Museum{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card border-danger shadow-sm">
+                <div class="card-body text-center p-5">
+                    <i class="bi bi-shield-lock display-3 text-danger"></i>
+                    <h1 class="h3 mt-3">You do not have access to this share</h1>
+                    <p class="text-muted mb-4">
+                        This museum link was shared with a specific person or account, and the current signed-in user is not allowed to open it.
+                    </p>
+                    <a href="{% url 'families:museum_my_shares' %}" class="btn btn-outline-primary">
+                        View My Shares
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

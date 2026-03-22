@@ -373,6 +373,24 @@ class Post(models.Model):
         null=True,
         help_text="Optional image attachment"
     )
+    video = models.FileField(
+        upload_to="posts/videos/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Optional video attachment"
+    )
+    tagged_people = models.ManyToManyField(
+        "Person",
+        blank=True,
+        related_name="tagged_posts",
+        help_text="Family members tagged in this post"
+    )
+    liked_by = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="liked_family_posts",
+        help_text="Members who liked this post"
+    )
     
     # Timestamps
     created_at = models.DateTimeField(
@@ -398,6 +416,11 @@ class Post(models.Model):
         """Return truncated content preview."""
         preview = self.content[:50] + "..." if len(self.content) > 50 else self.content
         return f"{self.author.email}: {preview}"
+
+    @property
+    def like_count(self):
+        """Return the number of likes on the post."""
+        return self.liked_by.count()
     
     class Meta:
         verbose_name = "Post"
