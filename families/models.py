@@ -1206,6 +1206,12 @@ class Album(models.Model):
         related_name="person_albums",
         help_text="Highlight person this album is centered on (optional)"
     )
+    class MediaFocus(models.TextChoices):
+        MIXED = "MIXED", "Mixed Media"
+        PHOTOS = "PHOTOS", "Photos"
+        VIDEOS = "VIDEOS", "Videos"
+        DOCUMENTS = "DOCUMENTS", "Documents"
+
     cover_photo = models.ForeignKey(
         'Photo',
         on_delete=models.SET_NULL,
@@ -1228,6 +1234,12 @@ class Album(models.Model):
     updated_at = models.DateTimeField(
         auto_now=True,
         help_text="When this album was last modified"
+    )
+    media_focus = models.CharField(
+        max_length=15,
+        choices=MediaFocus.choices,
+        default=MediaFocus.MIXED,
+        help_text="Primary media type for this album"
     )
     
     def __str__(self):

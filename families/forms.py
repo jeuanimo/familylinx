@@ -620,7 +620,7 @@ class AlbumForm(forms.ModelForm):
     
     class Meta:
         model = Album
-        fields = ['title', 'description', 'event', 'primary_person']
+        fields = ['title', 'description', 'event', 'primary_person', 'media_focus']
         
         widgets = {
             'title': forms.TextInput(attrs={
@@ -639,12 +639,16 @@ class AlbumForm(forms.ModelForm):
             'primary_person': forms.Select(attrs={
                 'class': 'form-control',
             }),
+            'media_focus': forms.Select(attrs={
+                'class': 'form-control',
+            }),
         }
         labels = {
             'title': 'Album Title',
             'description': 'Description',
             'event': 'Event (optional)',
             'primary_person': 'Person (optional)',
+            'media_focus': 'Album Type',
         }
 
     def __init__(self, *args, family=None, **kwargs):
