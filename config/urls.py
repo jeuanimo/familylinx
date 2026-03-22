@@ -42,6 +42,5 @@ urlpatterns = [
     path("accounts/", include("allauth.urls")),
 ]
 
-# Serve media files when running the dev server (even if DEBUG=False)
-if settings.DEBUG or "runserver" in sys.argv:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Serve media files in this environment (development & sandbox)
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
