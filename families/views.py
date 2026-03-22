@@ -552,6 +552,7 @@ def _build_family_milestones(family, days_ahead=45):
             "person": m.person,
             "event": m.event,
             "image": m.image.url if m.image else None,
+            "id": m.id,
         })
 
     return sorted(milestones, key=lambda item: item["date"])[:12]

@@ -94,6 +94,11 @@
                                 <div class="muted">{{ milestone.subtitle }}</div>
                             </div>
                             <span class="badge badge-blue">{{ milestone.date|date:"M j" }}</span>
+                            {% if milestone.kind == 'custom' and membership.role != 'VIEWER' and milestone.id %}
+                            <a href="{% url 'families:milestone_edit' family_id=family.id milestone_id=milestone.id %}" class="btn btn-outline btn-sm" title="Edit milestone">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
