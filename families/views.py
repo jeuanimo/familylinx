@@ -4122,7 +4122,12 @@ def messaging_hub(request, family_id):
     members = Membership.objects.filter(
         family=family
     ).exclude(user=request.user).select_related("user", "user__profile").order_by("user__email")
-    branch_people = Person.objects.filter(family=family, is_deleted=False).order_by("last_name", "first_name")[:20]
+    branch_people = Person.objects.filter(
+        family=family,
+        is_deleted=False,
+        linked_user__isnull=False,
+        death_date__isnull=True,
+    ).order_by("last_name", "first_name")[:20]
     events = Event.objects.filter(family=family).order_by("-start_datetime")[:10]
 
     return render(request, "families/messaging_hub.html", {
