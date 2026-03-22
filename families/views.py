@@ -2990,6 +2990,22 @@ def photo_edit(request, family_id, album_id, photo_id):
         form = PhotoUploadForm(request.POST, request.FILES, instance=photo, family=family)
         if form.is_valid():
             form.save()
+            # Handle optional manual tag by name
+            manual_tag_name = request.POST.get("manual_tag_name", "").strip()
+            if manual_tag_name:
+                # Try to find matching people in this family (case-insensitive contains)
+                matches = Person.objects.filter(
+                    family=family,
+                    is_deleted=False,
+                    first_name__icontains=manual_tag_name.split()[0]
+                )
+                if matches:
+                    photo.tagged_people.add(*list(matches[:5]))
+                else:
+                    messages.warning(request, f"No matching family member found for '{manual_tag_name}'.")
+            redirect_to = request.POST.get("redirect_to")
+            if redirect_to == "detail":
+                return redirect("families:photo_detail", family_id=family.id, album_id=album.id, photo_id=photo.id)
             return redirect("families:photo_detail", family_id=family.id, album_id=album.id, photo_id=photo.id)
     else:
         form = PhotoUploadForm(instance=photo, family=family)
