@@ -18,7 +18,8 @@ Security Considerations (OWASP):
 from django import forms
 from .models import (
     FamilySpace, Invite, Membership, Post, Comment, Event, Person, Relationship,
-    Album, Photo, ChatMessage, ChatConversationMessage, DNAKit, DNAMatch
+    Album, Photo, ChatMessage, ChatConversationMessage, DNAKit, DNAMatch,
+    LifeStorySection, TimeCapsule
 )
 
 
@@ -837,6 +838,31 @@ class ChatMessageForm(forms.ModelForm):
         if len(content) > 2000:
             raise forms.ValidationError('Message is too long (max 2000 characters)')
         return content
+
+
+class LifeStorySectionForm(forms.ModelForm):
+    class Meta:
+        model = LifeStorySection
+        fields = ["heading", "content", "audio", "order"]
+        widgets = {
+            "heading": forms.TextInput(attrs={"class": "form-control", "placeholder": "Section heading"}),
+            "content": forms.Textarea(attrs={"class": "form-control", "rows": 4, "placeholder": "Add the story for this section..."}),
+            "audio": forms.FileInput(attrs={"class": "form-control", "accept": "audio/*"}),
+            "order": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+        }
+
+
+class TimeCapsuleForm(forms.ModelForm):
+    class Meta:
+        model = TimeCapsule
+        fields = ["title", "message", "open_at", "attachment", "audio"]
+        widgets = {
+            "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "Time capsule title"}),
+            "message": forms.Textarea(attrs={"class": "form-control", "rows": 4, "placeholder": "Write a message to the future..."}),
+            "open_at": forms.DateTimeInput(attrs={"class": "form-control", "type": "datetime-local"}),
+            "attachment": forms.FileInput(attrs={"class": "form-control"}),
+            "audio": forms.FileInput(attrs={"class": "form-control", "accept": "audio/*"}),
+        }
 
 
 class ConversationMessageForm(forms.ModelForm):

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Time Capsules – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Time Capsules</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-hourglass-split"></i> Time Capsules</h1>
+        <p class="muted">Schedule letters, audio, or files to open in the future.</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:time_capsule_create' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-plus-lg"></i> New Time Capsule
+        </a>
+      </div>
+    </div>
+
+    {% if capsules %}
+    <div class="stack">
+      {% for capsule in capsules %}
+      <div class="card">
+        <div class="card-body flex-between" style="gap: 1rem; align-items: center;">
+          <div>
+            <h3 style="margin: 0;"><a href="{% url 'families:time_capsule_detail' family_id=family.id capsule_id=capsule.id %}">{{ capsule.title }}</a></h3>
+            <small class="muted">
+              Opens {{ capsule.open_at|date:"M j, Y g:i A" }} ·
+              {% if capsule.is_unlocked %}Unlocked{% else %}Locked{% endif %}
+            </small>
+          </div>
+          {% if capsule.attachment or capsule.audio %}
+          <span class="badge badge-blue"><i class="bi bi-paperclip"></i> Attachment</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon"><i class="bi bi-hourglass"></i></div>
+          <h3>No time capsules yet</h3>
+          <p class="muted">Create one to leave messages for the future.</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

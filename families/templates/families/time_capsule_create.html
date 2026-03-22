@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}New Time Capsule – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:time_capsule_list' family_id=family.id %}">Time Capsules</a>
+      <span class="separator">/</span>
+      <span class="current">New</span>
+    </nav>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-hourglass-top"></i> Create Time Capsule</span>
+      </div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="form-group">
+            <label class="form-label">{{ form.title.label }}</label>
+            {{ form.title }}
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ form.message.label }}</label>
+            {{ form.message }}
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ form.open_at.label }}</label>
+            {{ form.open_at }}
+            <small class="muted">Recipients will only see this after this time.</small>
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ form.audio.label }}</label>
+            {{ form.audio }}
+          </div>
+          <div class="form-group">
+            <label class="form-label">{{ form.attachment.label }}</label>
+            {{ form.attachment }}
+          </div>
+          <div class="form-actions">
+            <a href="{% url 'families:time_capsule_list' family_id=family.id %}" class="btn btn-outline">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-save"></i> Save Capsule
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Time Capsule – {{ capsule.title }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:time_capsule_list' family_id=family.id %}">Time Capsules</a>
+      <span class="separator">/</span>
+      <span class="current">{{ capsule.title }}</span>
+    </nav>
+
+    <div class="card">
+      <div class="card-header flex-between">
+        <span class="card-title"><i class="bi bi-hourglass"></i> {{ capsule.title }}</span>
+        <span class="badge badge-{% if capsule.is_unlocked %}green{% else %}gold{% endif %}">
+          {% if capsule.is_unlocked %}Unlocked{% else %}Locked until {{ capsule.open_at|date:"M j, Y g:i A" }}{% endif %}
+        </span>
+      </div>
+      <div class="card-body">
+        {% if not capsule.is_unlocked %}
+        <p class="muted">This capsule remains sealed until the unlock time.</p>
+        {% else %}
+        {% if capsule.audio %}
+        <div class="mb-3">
+          <audio controls style="width: 100%;">
+            <source src="{{ capsule.audio.url }}">
+          </audio>
+        </div>
+        {% endif %}
+        <div class="stack">
+          <p>{{ capsule.message|linebreaks }}</p>
+          {% if capsule.attachment %}
+          <a href="{{ capsule.attachment.url }}" class="btn btn-outline" target="_blank">
+            <i class="bi bi-paperclip"></i> Download attachment
+          </a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

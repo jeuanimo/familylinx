@@ -1237,6 +1237,23 @@ class Album(models.Model):
     def photo_count(self):
         """Return the number of photos in this album."""
         return self.photos.count()
+
+    @property
+    def cover_media(self):
+        """Return the best media item to use as cover (photo preferred)."""
+        candidate = None
+        if self.cover_photo and self.cover_photo.media_type == Photo.MediaType.PHOTO:
+            if self.cover_photo.image or self.cover_photo.file:
+                candidate = self.cover_photo
+        if not candidate:
+            candidate = (
+                self.photos.filter(media_type=Photo.MediaType.PHOTO)
+                .exclude(image="")
+                .first()
+            )
+        if not candidate:
+            candidate = self.photos.filter(media_type=Photo.MediaType.PHOTO).first()
+        return candidate
     
     class Meta:
         verbose_name = "Album"
@@ -1614,6 +1631,121 @@ class MemoryReaction(models.Model):
         verbose_name = "Memory Reaction"
         verbose_name_plural = "Memory Reactions"
         unique_together = [('memory', 'user')]
+
+
+class LifeStory(models.Model):
+    """Structured life story for a person with optional time-capsule release."""
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="life_stories",
+        help_text="Person this life story belongs to"
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_life_stories",
+        help_text="User who created this life story"
+    )
+    title = models.CharField(max_length=200, default="Life Story")
+    summary = models.TextField(blank=True, help_text="Optional overview paragraph")
+    release_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Future release date (time capsule unlock)"
+    )
+    is_published = models.BooleanField(default=True, help_text="Show to family now")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def family(self):
+        return self.person.family
+
+    @property
+    def is_unlocked(self):
+        from django.utils import timezone
+        return self.release_at is None or timezone.now() >= self.release_at
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Life Story"
+        verbose_name_plural = "Life Stories"
+
+    def __str__(self):
+        return f"{self.title} for {self.person.full_name}"
+
+
+class LifeStorySection(models.Model):
+    """Sections within a life story (childhood, career, etc.)."""
+    life_story = models.ForeignKey(
+        LifeStory,
+        on_delete=models.CASCADE,
+        related_name="sections",
+        help_text="Parent life story"
+    )
+    heading = models.CharField(max_length=200)
+    content = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+    audio = models.FileField(
+        upload_to="lifestories/audio/%Y/%m/",
+        null=True,
+        blank=True,
+        help_text="Optional audio recording"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "created_at"]
+
+    def __str__(self):
+        return f"{self.heading} ({self.life_story.person.full_name})"
+
+
+class TimeCapsule(models.Model):
+    """Time capsule message scheduled for future release."""
+    family = models.ForeignKey(
+        FamilySpace,
+        on_delete=models.CASCADE,
+        related_name="time_capsules",
+        help_text="Family this capsule belongs to"
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_time_capsules",
+        help_text="User who created this capsule"
+    )
+    title = models.CharField(max_length=200)
+    message = models.TextField(blank=True)
+    open_at = models.DateTimeField(help_text="When this capsule unlocks")
+    is_opened = models.BooleanField(default=False)
+    attachment = models.FileField(
+        upload_to="timecapsules/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Optional attachment (letter, video, zip)"
+    )
+    audio = models.FileField(
+        upload_to="timecapsules/audio/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Optional audio recording"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["open_at"]
+
+    def __str__(self):
+        return f"{self.title} ({self.family.name})"
+
+    @property
+    def is_unlocked(self):
+        from django.utils import timezone
+        return self.is_opened or timezone.now() >= self.open_at
 
 
 class MuseumShare(models.Model):

@@ -54,11 +54,11 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'daphne',  # Daphne must precede staticfiles
     'django.contrib.staticfiles',
     'django.contrib.sites',  # Required by allauth
     
     # Third-party apps
-    'daphne',
     'channels',
     'allauth',
     'allauth.account',
@@ -230,7 +230,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # =============================================================================
 # MEDIA FILES (User uploads)
 # =============================================================================
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 

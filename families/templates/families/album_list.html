@@ -34,29 +34,17 @@
       {% for album in albums %}
       <a href="{% url 'families:album_detail' family_id=family.id album_id=album.id %}" class="album-card">
         <div class="album-cover">
-          {% if album.cover_photo %}
-          {% if album.cover_photo.image %}
-          <img src="{{ album.cover_photo.image.url }}" alt="{{ album.title }}">
-          {% elif album.cover_photo.file and album.cover_photo.media_type == 'PHOTO' %}
-          <img src="{{ album.cover_photo.file.url }}" alt="{{ album.title }}">
+          {% with cover=album.cover_media %}
+          {% if cover and cover.image %}
+          <img src="{{ cover.image.url }}" alt="{{ album.title }}">
+          {% elif cover and cover.file %}
+          <img src="{{ cover.file.url }}" alt="{{ album.title }}">
           {% else %}
           <div class="album-cover-placeholder">
             <i class="bi bi-images"></i>
           </div>
           {% endif %}
-          {% elif album.photos.first %}
-          {% if album.photos.first.image %}
-          <img src="{{ album.photos.first.image.url }}" alt="{{ album.title }}">
-          {% else %}
-          <div class="album-cover-placeholder">
-            <i class="bi bi-images"></i>
-          </div>
-          {% endif %}
-          {% else %}
-          <div class="album-cover-placeholder">
-            <i class="bi bi-images"></i>
-          </div>
-          {% endif %}
+          {% endwith %}
         </div>
         <div class="album-info">
           <h3>{{ album.title }}</h3>

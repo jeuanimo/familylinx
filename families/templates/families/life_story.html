@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Life Story – {{ person.full_name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">{{ person.full_name }} – Life Story</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-journal-richtext"></i> {{ life_story.title }}</h1>
+        <p class="muted">A structured story with audio memories and sections.</p>
+      </div>
+    </div>
+
+    {% if not life_story.is_unlocked %}
+    <div class="alert alert-warning">
+      <i class="bi bi-hourglass"></i> This life story is locked until {{ life_story.release_at|date:"M j, Y g:i A" }}.
+    </div>
+    {% endif %}
+
+    <div class="grid-2" style="gap: 1.5rem; align-items: start;">
+      <div class="stack">
+        {% if sections %}
+        {% for section in sections %}
+        <div class="card">
+          <div class="card-body">
+            <div class="flex-between" style="gap: 0.5rem;">
+              <div>
+                <h3 style="margin: 0;">{{ section.heading }}</h3>
+                <small class="muted">Order {{ section.order }}</small>
+              </div>
+              {% if section.audio %}
+              <span class="badge badge-blue"><i class="bi bi-mic"></i> Audio</span>
+              {% endif %}
+            </div>
+            <div style="margin-top: 0.5rem;">{{ section.content|linebreaks }}</div>
+            {% if section.audio %}
+            <div style="margin-top: 0.75rem;">
+              <audio controls style="width: 100%;">
+                <source src="{{ section.audio.url }}">
+              </audio>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="card">
+          <div class="card-body">
+            <div class="empty-state">
+              <div class="empty-state-icon"><i class="bi bi-journal-text"></i></div>
+              <h3>No sections yet</h3>
+              <p class="muted">Add sections to start building this life story.</p>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-plus-lg"></i> Add Section</span>
+        </div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-group">
+              <label class="form-label">{{ form.heading.label }}</label>
+              {{ form.heading }}
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ form.content.label }}</label>
+              {{ form.content }}
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ form.order.label }}</label>
+              {{ form.order }}
+            </div>
+            <div class="form-group">
+              <label class="form-label">{{ form.audio.label }}</label>
+              {{ form.audio }}
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary w-full">
+                <i class="bi bi-save"></i> Save Section
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

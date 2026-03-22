@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+import sys
 
 from . import views
 
@@ -41,6 +42,6 @@ urlpatterns = [
     path("accounts/", include("allauth.urls")),
 ]
 
-# Serve media files in development
-if settings.DEBUG:
+# Serve media files when running the dev server (even if DEBUG=False)
+if settings.DEBUG or "runserver" in sys.argv:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

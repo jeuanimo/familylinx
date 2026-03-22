@@ -43,7 +43,7 @@ from .models import (
     MemoryReaction, MuseumShare, ChatConversation, ChatConversationParticipant,
     ChatConversationMessage, ChatMessageReadReceipt, EventReminderLog
 )
-from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ChatMessageForm, ConversationMessageForm
+from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ChatMessageForm, ConversationMessageForm, LifeStorySectionForm, TimeCapsuleForm
 from utils.image_utils import process_cropped_image
 
 
@@ -3188,7 +3188,7 @@ def memory_detail(request, family_id, memory_id):
 
 
 @login_required
-def memory_create(request, family_id, person_id=None):
+def memory_create(request, family_id, person_id=None, *args, **kwargs):
     """
     Create a new memory/story for a person.
     """
@@ -3282,6 +3282,99 @@ def memory_create(request, family_id, person_id=None):
         "people": people,
         "story_types": MemoryStory.StoryType.choices,
         "is_admin": membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN],
+    })
+
+
+@login_required
+def life_story(request, family_id, person_id):
+    """View and edit a person's life story with ordered sections."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+
+    person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+    life_story = person.life_stories.order_by("-created_at").first()
+    if not life_story:
+        life_story = LifeStory.objects.create(person=person, created_by=request.user, title=f"{person.full_name}'s Life Story")
+
+    sections = life_story.sections.all()
+
+    if request.method == "POST":
+        form = LifeStorySectionForm(request.POST, request.FILES)
+        if form.is_valid():
+            section = form.save(commit=False)
+            section.life_story = life_story
+            section.save()
+            return redirect("families:life_story", family_id=family.id, person_id=person.id)
+    else:
+        form = LifeStorySectionForm()
+
+    return render(request, "families/life_story.html", {
+        "family": family,
+        "membership": membership,
+        "person": person,
+        "life_story": life_story,
+        "sections": sections,
+        "form": form,
+    })
+
+
+@login_required
+def time_capsule_list(request, family_id):
+    """List time capsules for a family."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+
+    capsules = TimeCapsule.objects.filter(family=family).order_by("open_at")
+    return render(request, "families/time_capsule_list.html", {
+        "family": family,
+        "membership": membership,
+        "capsules": capsules,
+    })
+
+
+@login_required
+def time_capsule_detail(request, family_id, capsule_id):
+    """View a time capsule; unlock if due."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+
+    capsule = get_object_or_404(TimeCapsule, id=capsule_id, family=family)
+    if capsule.is_unlocked and not capsule.is_opened:
+        capsule.is_opened = True
+        capsule.save(update_fields=["is_opened"])
+
+    return render(request, "families/time_capsule_detail.html", {
+        "family": family,
+        "membership": membership,
+        "capsule": capsule,
+    })
+
+
+@login_required
+def time_capsule_create(request, family_id):
+    """Create a new time capsule entry."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+
+    if request.method == "POST":
+        form = TimeCapsuleForm(request.POST, request.FILES)
+        if form.is_valid():
+            capsule = form.save(commit=False)
+            capsule.family = family
+            capsule.created_by = request.user
+            capsule.save()
+            return redirect("families:time_capsule_detail", family_id=family.id, capsule_id=capsule.id)
+    else:
+        form = TimeCapsuleForm()
+
+    return render(request, "families/time_capsule_create.html", {
+        "family": family,
+        "membership": membership,
+        "form": form,
     })
 
 

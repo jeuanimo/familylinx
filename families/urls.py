@@ -247,6 +247,11 @@ urlpatterns = [
     path("<int:family_id>/museum/memory/<int:memory_id>/react/", views.memory_react, name="memory_react"),
     path("<int:family_id>/museum/memory/<int:memory_id>/comment/", views.memory_comment, name="memory_comment"),
     path("<int:family_id>/museum/memory/<int:memory_id>/media/<int:media_id>/delete/", views.memory_media_delete, name="memory_media_delete"),
+    # Life Story & Time Capsules
+    path("<int:family_id>/museum/person/<int:person_id>/life-story/", views.life_story, name="life_story"),
+    path("<int:family_id>/time-capsules/", views.time_capsule_list, name="time_capsule_list"),
+    path("<int:family_id>/time-capsules/new/", views.time_capsule_create, name="time_capsule_create"),
+    path("<int:family_id>/time-capsules/<int:capsule_id>/", views.time_capsule_detail, name="time_capsule_detail"),
     
     # ==========================================================================
     # Museum Sharing URLs
