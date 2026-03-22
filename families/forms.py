@@ -151,6 +151,8 @@ class PostCreateForm(forms.ModelForm):
             self.fields["tagged_people"].queryset = Person.objects.filter(
                 family=family,
                 is_deleted=False,
+                linked_user__isnull=False,
+                death_date__isnull=True,
             ).order_by("last_name", "first_name")
 
     class Meta:
