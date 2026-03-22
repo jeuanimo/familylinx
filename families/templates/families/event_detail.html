@@ -28,7 +28,7 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <span class="badge badge-{% if event.event_type == 'BIRTHDAY' %}gold{% elif event.event_type == 'REUNION' %}green{% else %}blue{% endif %}" style="margin-bottom: 0.5rem;">
+              <span class="badge badge-{{ event_badge }}" style="margin-bottom: 0.5rem;">
                 {{ event.get_event_type_display }}
               </span>
               <h2 style="margin: 0;">{{ event.title }}</h2>
@@ -81,6 +81,18 @@
               {{ event.description|linebreaks }}
             </div>
             {% endif %}
+
+            <hr style="margin: 1.5rem 0;">
+            <div class="event-info-row">
+              <i class="bi bi-bell"></i>
+              <div>
+                <strong>Notifications</strong><br>
+                <span class="muted">
+                  {% if event.notify_members %}Family members will be notified about updates.{% else %}Member notifications are turned off.{% endif %}
+                  {% if event.send_reminders %} Reminders go out {{ event.reminder_days_before }} day{{ event.reminder_days_before|pluralize }} before the event.{% else %} Reminders are disabled.{% endif %}
+                </span>
+              </div>
+            </div>
             
             {% if event.is_past %}
             <div class="alert alert-warning mt-3">
@@ -177,6 +189,9 @@
         
         <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline w-full">
           <i class="bi bi-arrow-left"></i> Back to Family
+        </a>
+        <a href="{% url 'families:event_conversation_start' family_id=family.id event_id=event.id %}" class="btn btn-primary w-full">
+          <i class="bi bi-chat-dots"></i> Open Event Chat
         </a>
       </div>
     </div>

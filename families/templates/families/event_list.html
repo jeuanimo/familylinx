@@ -18,7 +18,7 @@
     <div class="page-header">
       <div class="page-header-content">
         <h1><i class="bi bi-calendar-event"></i> Family Events</h1>
-        <p class="muted">Plan reunions, birthdays, and special gatherings</p>
+        <p class="muted">Plan reunions, birthdays, funerals, memorials, and special gatherings</p>
       </div>
       {% if membership.role != 'VIEWER' %}
       <div class="page-actions">
@@ -32,11 +32,20 @@
     <!-- Filter Tabs -->
     <div class="event-tabs" style="margin-bottom: 1.5rem;">
       <a href="?show=upcoming" class="btn {% if show == 'upcoming' %}btn-primary{% else %}btn-outline{% endif %}">
-        <i class="bi bi-calendar-check"></i> Upcoming
+        <i class="bi bi-calendar-check"></i> Upcoming ({{ upcoming_count }})
       </a>
       <a href="?show=past" class="btn {% if show == 'past' %}btn-primary{% else %}btn-outline{% endif %}">
-        <i class="bi bi-clock-history"></i> Past Events
+        <i class="bi bi-clock-history"></i> Past Events ({{ past_count }})
       </a>
+    </div>
+
+    <div class="event-tabs" style="margin-bottom: 1.5rem;">
+      <a href="?show={{ show }}" class="btn {% if not event_type %}btn-primary{% else %}btn-outline{% endif %}">All Types</a>
+      {% for value, label in event_types %}
+      <a href="?show={{ show }}&type={{ value }}" class="btn {% if event_type == value %}btn-primary{% else %}btn-outline{% endif %}">
+        {{ label }}
+      </a>
+      {% endfor %}
     </div>
     
     {% if events %}
@@ -57,7 +66,7 @@
             {% endif %}
             <div class="event-info">
               <div class="event-meta">
-                <span class="badge badge-{% if event.event_type == 'BIRTHDAY' %}gold{% elif event.event_type == 'REUNION' %}green{% else %}blue{% endif %}" style="font-size: 0.75rem;">
+                <span class="badge badge-{% if event.event_type == 'BIRTHDAY' %}gold{% elif event.event_type == 'REUNION' %}green{% elif event.event_type == 'MEMORIAL' or event.event_type == 'FUNERAL' %}red{% else %}blue{% endif %}" style="font-size: 0.75rem;">
                   {{ event.get_event_type_display }}
                 </span>
                 <span class="muted">{{ event.start_datetime|time:"g:i A" }}</span>
@@ -74,6 +83,7 @@
             <div class="event-rsvp-summary">
               <span class="badge badge-green"><i class="bi bi-check-lg"></i> {{ event.rsvp_counts.GOING }}</span>
               <span class="badge badge-gold"><i class="bi bi-question-lg"></i> {{ event.rsvp_counts.MAYBE }}</span>
+              <span class="badge badge-red"><i class="bi bi-x-lg"></i> {{ event.rsvp_counts.NOT_GOING }}</span>
             </div>
           </div>
         </div>

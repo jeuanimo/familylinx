@@ -82,6 +82,7 @@ urlpatterns = [
     
     # List all events for a family
     path("<int:family_id>/events/", views.event_list, name="event_list"),
+    path("<int:family_id>/search/", views.family_search, name="family_search"),
     
     # Create a new event
     path("<int:family_id>/events/new/", views.event_create, name="event_create"),
@@ -167,7 +168,15 @@ urlpatterns = [
     path("notifications/mark-all-read/", views.notification_mark_all_read, name="notification_mark_all_read"),
     path("notifications/dropdown/", views.notification_dropdown, name="notification_dropdown"),
     
-    # Family Group Chat
+    # Unified Messaging
+    path("<int:family_id>/messages/", views.messaging_hub, name="messaging_hub"),
+    path("<int:family_id>/messages/direct/<int:user_id>/", views.direct_conversation_start, name="direct_conversation_start"),
+    path("<int:family_id>/messages/branch/<int:person_id>/", views.branch_conversation_start, name="branch_conversation_start"),
+    path("<int:family_id>/messages/event/<int:event_id>/", views.event_conversation_start, name="event_conversation_start"),
+    path("<int:family_id>/messages/conversations/<int:conversation_id>/", views.conversation_room, name="conversation_room"),
+    path("<int:family_id>/messages/conversations/<int:conversation_id>/messages/<int:message_id>/delete/", views.conversation_message_delete, name="conversation_message_delete"),
+
+    # Legacy Family Group Chat route
     path("<int:family_id>/chat/", views.chat_room, name="chat_room"),
     path("<int:family_id>/chat/messages/", views.chat_messages_json, name="chat_messages_json"),
     path("<int:family_id>/chat/<int:message_id>/delete/", views.chat_delete_message, name="chat_delete_message"),

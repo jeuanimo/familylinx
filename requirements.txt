@@ -1,7 +1,9 @@
 asgiref==3.11.1
+channels==4.3.1
 click==8.3.1
 colorama==0.4.6
 cssbeautifier==1.15.4
+daphne==4.2.1
 Django==6.0.2
 django-allauth==65.14.3
 djlint==1.36.4

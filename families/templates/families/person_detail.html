@@ -56,6 +56,9 @@
             
             {% if membership.role != 'VIEWER' %}
             <div class="person-actions">
+              <a href="{% url 'families:branch_conversation_start' family_id=family.id person_id=person.id %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-chat-dots"></i> Branch Chat
+              </a>
               <a href="{% url 'families:person_edit' family_id=family.id person_id=person.id %}" class="btn btn-outline btn-sm">
                 <i class="bi bi-pencil"></i> Edit
               </a>

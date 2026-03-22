@@ -69,6 +69,25 @@
               {{ form.image }}
               <small class="muted">Upload a cover image or flyer for your event</small>
             </div>
+
+            <div class="card" style="margin-top: 1rem;">
+              <div class="card-body">
+                <h4 style="margin-top: 0;">Notifications & Reminders</h4>
+                <div class="form-check" style="margin-bottom: 0.75rem;">
+                  {{ form.notify_members }}
+                  <label class="form-check-label" for="{{ form.notify_members.id_for_label }}">{{ form.notify_members.label }}</label>
+                </div>
+                <div class="form-check" style="margin-bottom: 0.75rem;">
+                  {{ form.send_reminders }}
+                  <label class="form-check-label" for="{{ form.send_reminders.id_for_label }}">{{ form.send_reminders.label }}</label>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">{{ form.reminder_days_before.label }}</label>
+                  {{ form.reminder_days_before }}
+                  <small class="muted">Google Calendar sync can plug in later as a separate phase.</small>
+                </div>
+              </div>
+            </div>
             
             <div class="form-actions">
               <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline">Cancel</a>

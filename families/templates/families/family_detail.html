@@ -21,6 +21,9 @@
     </div>
     <div class="page-actions">
         <span class="badge badge-blue" style="font-size: 0.9rem;">{{ membership.role }}</span>
+        <a href="{% url 'families:family_search' family_id=family.id %}" class="btn btn-outline btn-sm">
+          <i class="bi bi-search"></i> Discover
+        </a>
         {% if membership.role == 'OWNER' %}
         <a href="{% url 'families:family_delete' family_id=family.id %}" 
            class="btn btn-outline btn-sm" 
@@ -279,7 +282,14 @@
                         <span class="badge badge-green" style="font-size: 0.7rem;">You</span>
                         {% endif %}
                     </div>
-                    <span class="badge badge-blue">{{ m.role }}</span>
+                    <div class="flex-center" style="gap: 0.4rem;">
+                        {% if m.user != user %}
+                        <a href="{% url 'families:direct_conversation_start' family_id=family.id user_id=m.user.id %}" class="btn btn-outline btn-sm" title="Direct message">
+                            <i class="bi bi-chat-dots"></i>
+                        </a>
+                        {% endif %}
+                        <span class="badge badge-blue">{{ m.role }}</span>
+                    </div>
                 </li>
                 {% empty %}
                 <li class="muted">No members yet</li>
@@ -415,11 +425,11 @@
         <!-- Family Chat -->
         <div class="card">
             <div class="card-header">
-                <span class="card-title"><i class="bi bi-chat-dots"></i> Family Chat</span>
+                <span class="card-title"><i class="bi bi-chat-dots"></i> Messaging</span>
             </div>
             <div class="card-body">
-                <a href="{% url 'families:chat_room' family_id=family.id %}" class="btn btn-primary w-full">
-                    <i class="bi bi-chat-dots"></i> Open Chat
+                <a href="{% url 'families:messaging_hub' family_id=family.id %}" class="btn btn-primary w-full">
+                    <i class="bi bi-chat-dots"></i> Open Messages
                 </a>
             </div>
         </div>

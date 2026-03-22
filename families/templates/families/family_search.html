@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Search & Discovery - {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Search & Discovery</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-search"></i> Search & Discovery</h1>
+        <p class="muted">Explore family members, timeline posts, photos, and events from one place.</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-arrow-left"></i> Back to Family
+        </a>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card-body">
+        <form method="get" class="stack" style="gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label">Search</label>
+            <input
+              type="text"
+              name="q"
+              value="{{ query }}"
+              class="form-control"
+              placeholder="Search names, posts, captions, locations, and event details">
+          </div>
+
+          <div class="grid-2" style="gap: 1rem;">
+            <div class="form-group">
+              <label class="form-label">Person</label>
+              <select name="person" class="form-control">
+                <option value="">All family members</option>
+                {% for person in people_filter_options %}
+                <option value="{{ person.id }}"{% if selected_person and selected_person.id == person.id %} selected{% endif %}>
+                  {{ person.full_name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Event</label>
+              <select name="event" class="form-control">
+                <option value="">All events</option>
+                {% for event in event_filter_options %}
+                <option value="{{ event.id }}"{% if selected_event and selected_event.id == event.id %} selected{% endif %}>
+                  {{ event.title }} • {{ event.start_datetime|date:"M j, Y" }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="grid-2" style="gap: 1rem;">
+            <div class="form-group">
+              <label class="form-label">Date From</label>
+              <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Date To</label>
+              <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+            </div>
+          </div>
+
+          <div class="flex-between" style="gap: 0.75rem; flex-wrap: wrap;">
+            <small class="muted">
+              Event filtering also narrows posts and photos to that event's date window.
+            </small>
+            <div class="flex-center" style="gap: 0.5rem; flex-wrap: wrap;">
+              <a href="{% url 'families:family_search' family_id=family.id %}" class="btn btn-outline">Clear</a>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-search"></i> Search
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% if not has_active_filters %}
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card-body">
+        <div class="empty-state" style="padding: 1rem 0;">
+          <div class="empty-state-icon"><i class="bi bi-compass"></i></div>
+          <h3>Start with a name, date, person, or event</h3>
+          <p class="muted mb-0">Recent family activity is shown below so discovery still feels alive before you filter.</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="grid-2" style="gap: 1.5rem; align-items: start;">
+      <div class="stack" style="gap: 1.5rem;">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-people"></i> Family Members</span>
+            <span class="badge badge-blue">{{ people_results|length }}</span>
+          </div>
+          <div class="card-body">
+            {% if people_results %}
+            <div class="person-grid">
+              {% for person in people_results %}
+              <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" class="person-card">
+                <div class="person-card-photo">
+                  {% if person.photo %}
+                  <img src="{{ person.photo.url }}" alt="{{ person.full_name }}">
+                  {% else %}
+                  <div class="person-photo-placeholder">
+                    <i class="bi bi-person"></i>
+                  </div>
+                  {% endif %}
+                </div>
+                <div class="person-card-info">
+                  <strong>{{ person.full_name }}</strong>
+                  <span class="muted">
+                    {% if person.birth_date %}b. {{ person.birth_date|date:"M j, Y" }}{% endif %}
+                    {% if person.birth_date and person.death_date %}<br>{% endif %}
+                    {% if person.death_date %}d. {{ person.death_date|date:"M j, Y" }}{% endif %}
+                  </span>
+                </div>
+              </a>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted mb-0">No family members matched these filters.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-chat-dots"></i> Posts</span>
+            <span class="badge badge-blue">{{ post_results|length }}</span>
+          </div>
+          <div class="card-body">
+            {% if post_results %}
+            <div class="stack">
+              {% for post in post_results %}
+              <div class="feed-post">
+                <div class="feed-post-header">
+                  <div>
+                    <strong>{{ post.author.profile.get_display_name|default:post.author.email }}</strong><br>
+                    <small class="muted">{{ post.created_at|date:"M j, Y g:i A" }}</small>
+                  </div>
+                  <a href="{% url 'families:post_detail' family_id=family.id post_id=post.id %}" class="btn btn-outline btn-sm">
+                    Open
+                  </a>
+                </div>
+                <div class="feed-post-content">
+                  {{ post.content|truncatewords:35|linebreaks }}
+                </div>
+                {% if post.tagged_people.exists %}
+                <div class="feed-post-tags">
+                  <i class="bi bi-person-badge"></i>
+                  {% for person in post.tagged_people.all %}
+                  <span class="badge badge-blue">{{ person.full_name }}</span>
+                  {% endfor %}
+                </div>
+                {% endif %}
+                {% if post.image %}
+                <div class="mt-2">
+                  <img src="{{ post.image.url }}" alt="Post image" style="max-height: 180px; border-radius: 12px;">
+                </div>
+                {% endif %}
+                {% if post.video %}
+                <div class="mt-2">
+                  <span class="badge badge-gold"><i class="bi bi-play-btn"></i> Video</span>
+                </div>
+                {% endif %}
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted mb-0">No posts matched these filters.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="stack" style="gap: 1.5rem;">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-images"></i> Photos</span>
+            <span class="badge badge-blue">{{ photo_results|length }}</span>
+          </div>
+          <div class="card-body">
+            {% if photo_results %}
+            <div class="stack">
+              {% for photo in photo_results %}
+              <div class="card" style="border: 1px solid var(--fl-border);">
+                <div class="card-body">
+                  <div class="flex-between" style="gap: 0.75rem; align-items: start;">
+                    <div>
+                      <strong>{{ photo.caption|default:"Untitled photo" }}</strong><br>
+                      <small class="muted">
+                        {{ photo.album.title }}
+                        {% if photo.taken_date %} • {{ photo.taken_date|date:"M j, Y" }}{% endif %}
+                        {% if photo.taken_location %} • {{ photo.taken_location }}{% endif %}
+                      </small>
+                    </div>
+                    <a href="{% url 'families:photo_detail' family_id=family.id album_id=photo.album.id photo_id=photo.id %}" class="btn btn-outline btn-sm">
+                      Open
+                    </a>
+                  </div>
+                  <div class="mt-2">
+                    <img src="{{ photo.image.url }}" alt="{{ photo.caption|default:'Family photo' }}" style="width: 100%; max-height: 220px; object-fit: cover; border-radius: 12px;">
+                  </div>
+                  {% if photo.tagged_people.exists %}
+                  <div class="feed-post-tags mt-2">
+                    <i class="bi bi-person-badge"></i>
+                    {% for person in photo.tagged_people.all %}
+                    <span class="badge badge-blue">{{ person.full_name }}</span>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted mb-0">No photos matched these filters.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-calendar-event"></i> Events</span>
+            <span class="badge badge-blue">{{ event_results|length }}</span>
+          </div>
+          <div class="card-body">
+            {% if event_results %}
+            <div class="stack">
+              {% for event in event_results %}
+              <a href="{% url 'families:event_detail' family_id=family.id event_id=event.id %}" class="list-item-action">
+                <div class="flex-between" style="gap: 0.75rem; align-items: start;">
+                  <div>
+                    <strong>{{ event.title }}</strong><br>
+                    <small class="muted">
+                      {{ event.get_event_type_display }} • {{ event.start_datetime|date:"M j, Y g:i A" }}
+                      {% if event.location %} • {{ event.location }}{% endif %}
+                    </small>
+                    {% if event.description %}
+                    <div class="muted mt-1">{{ event.description|truncatewords:20 }}</div>
+                    {% endif %}
+                  </div>
+                  <span class="badge badge-{% if event.event_type == 'BIRTHDAY' %}gold{% elif event.event_type == 'REUNION' %}green{% elif event.event_type == 'MEMORIAL' or event.event_type == 'FUNERAL' %}red{% else %}blue{% endif %}">
+                    {{ event.get_event_type_display }}
+                  </span>
+                </div>
+              </a>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted mb-0">No events matched these filters.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

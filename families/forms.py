@@ -16,7 +16,10 @@ Security Considerations (OWASP):
 """
 
 from django import forms
-from .models import FamilySpace, Invite, Membership, Post, Comment, Event, Person, Relationship, Album, Photo, ChatMessage, DNAKit, DNAMatch
+from .models import (
+    FamilySpace, Invite, Membership, Post, Comment, Event, Person, Relationship,
+    Album, Photo, ChatMessage, ChatConversationMessage, DNAKit, DNAMatch
+)
 
 
 class FamilySpaceCreateForm(forms.ModelForm):
@@ -234,9 +237,34 @@ class EventCreateForm(forms.ModelForm):
         - DateTime fields use HTML5 datetime-local input for proper validation
     """
     
+    REMINDER_CHOICES = [
+        (1, "1 day before"),
+        (3, "3 days before"),
+        (7, "1 week before"),
+        (14, "2 weeks before"),
+        (30, "1 month before"),
+    ]
+
+    reminder_days_before = forms.TypedChoiceField(
+        choices=REMINDER_CHOICES,
+        coerce=int,
+        empty_value=7,
+    )
+
     class Meta:
         model = Event
-        fields = ["title", "description", "event_type", "start_datetime", "end_datetime", "location", "image"]
+        fields = [
+            "title",
+            "description",
+            "event_type",
+            "start_datetime",
+            "end_datetime",
+            "location",
+            "image",
+            "notify_members",
+            "send_reminders",
+            "reminder_days_before",
+        ]
         
         widgets = {
             'title': forms.TextInput(attrs={
@@ -267,6 +295,15 @@ class EventCreateForm(forms.ModelForm):
                 'class': 'form-control',
                 'accept': 'image/*',
             }),
+            'notify_members': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+            }),
+            'send_reminders': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+            }),
+            'reminder_days_before': forms.Select(attrs={
+                'class': 'form-control',
+            }),
         }
         labels = {
             'title': 'Event Title',
@@ -276,7 +313,18 @@ class EventCreateForm(forms.ModelForm):
             'end_datetime': 'End Date & Time (optional)',
             'location': 'Location',
             'image': 'Event Image (optional)',
+            'notify_members': 'Notify family members',
+            'send_reminders': 'Enable reminders',
+            'reminder_days_before': 'Reminder timing',
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start_datetime = cleaned_data.get("start_datetime")
+        end_datetime = cleaned_data.get("end_datetime")
+        if start_datetime and end_datetime and end_datetime < start_datetime:
+            self.add_error("end_datetime", "End time must be after the start time.")
+        return cleaned_data
 
 
 # =============================================================================
@@ -571,7 +619,7 @@ class AlbumForm(forms.ModelForm):
     
     class Meta:
         model = Album
-        fields = ['title', 'description']
+        fields = ['title', 'description', 'event', 'primary_person']
         
         widgets = {
             'title': forms.TextInput(attrs={
@@ -584,11 +632,28 @@ class AlbumForm(forms.ModelForm):
                 'class': 'form-control',
                 'rows': 3,
             }),
+            'event': forms.Select(attrs={
+                'class': 'form-control',
+            }),
+            'primary_person': forms.Select(attrs={
+                'class': 'form-control',
+            }),
         }
         labels = {
             'title': 'Album Title',
             'description': 'Description',
+            'event': 'Event (optional)',
+            'primary_person': 'Person (optional)',
         }
+
+    def __init__(self, *args, family=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if family:
+            self.fields['event'].queryset = Event.objects.filter(family=family).order_by('-start_datetime')
+            self.fields['primary_person'].queryset = Person.objects.filter(family=family, is_deleted=False).order_by('last_name', 'first_name')
+        else:
+            self.fields['event'].queryset = Event.objects.none()
+            self.fields['primary_person'].queryset = Person.objects.none()
 
 
 class PhotoUploadForm(forms.ModelForm):
@@ -609,12 +674,29 @@ class PhotoUploadForm(forms.ModelForm):
     
     class Meta:
         model = Photo
-        fields = ['image', 'caption', 'taken_date', 'taken_location', 'tagged_people']
+        fields = [
+            'media_type',
+            'image',
+            'file',
+            'caption',
+            'taken_date',
+            'taken_location',
+            'tagged_people',
+            'event',
+            'primary_person',
+        ]
         
         widgets = {
+            'media_type': forms.Select(attrs={
+                'class': 'form-control',
+            }),
             'image': forms.FileInput(attrs={
                 'class': 'form-control',
                 'accept': 'image/*',
+            }),
+            'file': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': 'video/*,application/pdf,image/*',
             }),
             'caption': forms.TextInput(attrs={
                 'placeholder': 'Add a caption...',
@@ -633,13 +715,23 @@ class PhotoUploadForm(forms.ModelForm):
                 'class': 'form-control',
                 'size': '5',
             }),
+            'event': forms.Select(attrs={
+                'class': 'form-control',
+            }),
+            'primary_person': forms.Select(attrs={
+                'class': 'form-control',
+            }),
         }
         labels = {
+            'media_type': 'Type',
             'image': 'Photo',
+            'file': 'Video or Document',
             'caption': 'Caption',
             'taken_date': 'Date Taken',
             'taken_location': 'Location',
             'tagged_people': 'Tag People',
+            'event': 'Event (optional)',
+            'primary_person': 'Person (optional)',
         }
     
     def __init__(self, *args, family=None, **kwargs):
@@ -649,22 +741,52 @@ class PhotoUploadForm(forms.ModelForm):
             self.fields['tagged_people'].queryset = Person.objects.filter(
                 family=family
             ).order_by('last_name', 'first_name')
+            self.fields['event'].queryset = Event.objects.filter(family=family).order_by('-start_datetime')
+            self.fields['primary_person'].queryset = Person.objects.filter(family=family, is_deleted=False).order_by('last_name', 'first_name')
+        else:
+            self.fields['tagged_people'].queryset = Person.objects.none()
+            self.fields['event'].queryset = Event.objects.none()
+            self.fields['primary_person'].queryset = Person.objects.none()
     
-    def clean_image(self):
-        """Validate the uploaded image."""
-        image = self.cleaned_data.get('image')
-        
-        if image:
-            # Check file size (10MB max for photos)
-            if image.size > 10 * 1024 * 1024:
-                raise forms.ValidationError('Photo must be under 10MB')
-            
-            # Check file type
-            allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-            if hasattr(image, 'content_type') and image.content_type not in allowed_types:
-                raise forms.ValidationError('Please upload a valid image (JPEG, PNG, GIF, or WebP)')
-        
-        return image
+    def clean(self):
+        cleaned = super().clean()
+        media_type = cleaned.get('media_type') or Photo.MediaType.PHOTO
+        image = cleaned.get('image')
+        file_field = cleaned.get('file')
+
+        if media_type == Photo.MediaType.PHOTO:
+            if not image and not file_field:
+                raise forms.ValidationError('Please upload a photo.')
+            target = image or file_field
+            if target:
+                if target.size > 15 * 1024 * 1024:
+                    raise forms.ValidationError('Photo must be under 15MB.')
+                allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+                if hasattr(target, 'content_type') and target.content_type not in allowed_types:
+                    raise forms.ValidationError('Upload a valid image (JPEG, PNG, GIF, WebP).')
+            cleaned['image'] = image or file_field
+            cleaned['file'] = None
+
+        elif media_type == Photo.MediaType.VIDEO:
+            if not file_field:
+                raise forms.ValidationError('Upload a video file.')
+            if file_field.size > 100 * 1024 * 1024:
+                raise forms.ValidationError('Video must be under 100MB.')
+            if hasattr(file_field, 'content_type') and not file_field.content_type.startswith('video/'):
+                raise forms.ValidationError('Upload a valid video file.')
+            cleaned['image'] = None
+
+        elif media_type == Photo.MediaType.DOCUMENT:
+            if not file_field:
+                raise forms.ValidationError('Upload a document file.')
+            if file_field.size > 25 * 1024 * 1024:
+                raise forms.ValidationError('Document must be under 25MB.')
+            allowed_docs = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png']
+            if hasattr(file_field, 'content_type') and file_field.content_type not in allowed_docs:
+                raise forms.ValidationError('Upload PDF, DOC, DOCX, or image scans.')
+            cleaned['image'] = None
+
+        return cleaned
 
 
 class MultiPhotoUploadForm(forms.Form):
@@ -714,6 +836,32 @@ class ChatMessageForm(forms.ModelForm):
             raise forms.ValidationError('Message cannot be empty')
         if len(content) > 2000:
             raise forms.ValidationError('Message is too long (max 2000 characters)')
+        return content
+
+
+class ConversationMessageForm(forms.ModelForm):
+    """
+    Form for sending a message in a unified realtime conversation.
+    """
+
+    class Meta:
+        model = ChatConversationMessage
+        fields = ["content"]
+        widgets = {
+            "content": forms.Textarea(attrs={
+                "class": "form-control",
+                "rows": 2,
+                "placeholder": "Type a message...",
+                "maxlength": 4000,
+            })
+        }
+
+    def clean_content(self):
+        content = self.cleaned_data.get("content", "").strip()
+        if not content:
+            raise forms.ValidationError("Message cannot be empty")
+        if len(content) > 4000:
+            raise forms.ValidationError("Message is too long (max 4000 characters)")
         return content
 
 

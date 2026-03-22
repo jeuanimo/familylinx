@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ photo.caption|default:"Photo" }} – {{ album.title }} | FamilyLinx{% endblock %}
+{% block title %}{{ photo.caption|default:"Media" }} – {{ album.title }} | FamilyLinx{% endblock %}
 
 {% block content %}
 <main>
@@ -16,7 +16,7 @@
       <span class="separator">/</span>
       <a href="{% url 'families:album_detail' family_id=family.id album_id=album.id %}">{{ album.title }}</a>
       <span class="separator">/</span>
-      <span class="current">Photo</span>
+      <span class="current">Media</span>
     </nav>
     
     <div class="photo-viewer">
@@ -45,9 +45,26 @@
         {% endif %}
       </div>
       
-      <!-- Main Photo -->
+      <!-- Main Media -->
       <div class="photo-main">
+        {% if photo.media_type == 'PHOTO' and photo.image %}
         <img src="{{ photo.image.url }}" alt="{{ photo.caption|default:'Photo' }}">
+        {% elif photo.media_type == 'PHOTO' and photo.file %}
+        <img src="{{ photo.file.url }}" alt="{{ photo.caption|default:'Photo' }}">
+        {% elif photo.media_type == 'VIDEO' and photo.file %}
+        <video controls style="width: 100%; border-radius: 12px;">
+          <source src="{{ photo.file.url }}">
+          Your browser does not support the video tag.
+        </video>
+        {% elif photo.media_type == 'DOCUMENT' and photo.file %}
+        <div class="card" style="padding: 1.5rem; text-align: center;">
+          <i class="bi bi-file-earmark-text" style="font-size: 2rem;"></i>
+          <p class="muted mb-2">Document</p>
+          <a href="{{ photo.file.url }}" target="_blank" class="btn btn-outline">
+            <i class="bi bi-box-arrow-up-right"></i> Open Document
+          </a>
+        </div>
+        {% endif %}
       </div>
       
       <!-- Photo Info -->
@@ -68,6 +85,8 @@
                 {% endif %}
                 <span class="muted"><i class="bi bi-person"></i> Uploaded by {{ photo.uploaded_by.email|default:"Unknown" }}</span>
                 <span class="muted"><i class="bi bi-clock"></i> {{ photo.uploaded_at|date:"M j, Y" }}</span>
+                {% if photo.event %}<span class="muted"><i class="bi bi-calendar-event"></i> {{ photo.event.title }}</span>{% endif %}
+                {% if photo.primary_person %}<span class="muted"><i class="bi bi-person"></i> {{ photo.primary_person.full_name }}</span>{% endif %}
               </div>
               
               {% if photo.tagged_people.exists %}
@@ -92,10 +111,12 @@
                 <i class="bi bi-pencil"></i> Edit Details
               </a>
               
+              {% if photo.media_type == 'PHOTO' %}
               <a href="{% url 'families:photo_set_cover' family_id=family.id album_id=album.id photo_id=photo.id %}" 
                  class="btn btn-outline w-full mb-2">
                 <i class="bi bi-star"></i> Set as Cover
               </a>
+              {% endif %}
               {% endif %}
               
               {% if membership.role == 'OWNER' or membership.role == 'ADMIN' or photo.uploaded_by == user %}

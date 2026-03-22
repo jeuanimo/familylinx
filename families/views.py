@@ -31,6 +31,7 @@ from django.utils import timezone
 from django.http import JsonResponse
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.core.mail import send_mail
 from django.db import models
 from django.db.models import Q, Count
 from datetime import date, timedelta
@@ -39,9 +40,10 @@ from .models import (
     FamilySpace, Membership, Invite, Post, Comment, Event, RSVP, Person, 
     Relationship, Album, Photo, Notification, ChatMessage, create_notification, 
     AuditLog, DeletionRequest, MemoryStory, MemoryMedia, MemoryComment, 
-    MemoryReaction, MuseumShare
+    MemoryReaction, MuseumShare, ChatConversation, ChatConversationParticipant,
+    ChatConversationMessage, ChatMessageReadReceipt, EventReminderLog
 )
-from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ChatMessageForm
+from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ChatMessageForm, ConversationMessageForm
 from utils.image_utils import process_cropped_image
 
 
@@ -430,6 +432,53 @@ def _get_immediate_family_ids(person):
     return immediate_ids
 
 
+def _send_email_notification(recipients, subject, message, link="", request=None):
+    """
+    Lightweight email helper for notifications. Fails silently so UI is never blocked.
+    """
+    emails = [u.email for u in recipients if getattr(u, "email", None)]
+    if not emails:
+        return
+
+    body = message or subject
+    if link:
+        absolute_link = request.build_absolute_uri(link) if request else link
+        body = f"{body}\n\nOpen: {absolute_link}"
+
+    try:
+        send_mail(
+            subject=subject,
+            message=body,
+            from_email=None,  # use DEFAULT_FROM_EMAIL
+            recipient_list=emails,
+            fail_silently=True,
+        )
+    except Exception:
+        # Fail silently; in-app notification still delivered.
+        pass
+
+
+def _notify_users(recipients, notification_type, title, message="", link="", family=None, actor=None, request=None):
+    """
+    Deliver in-app + email notifications to a list of users.
+    """
+    notified_users = []
+    for user in recipients:
+        if actor and user.id == actor.id:
+            continue
+        notified_users.append(user)
+        create_notification(
+            recipient=user,
+            family=family,
+            notification_type=notification_type,
+            title=title,
+            message=message,
+            link=link,
+        )
+
+    _send_email_notification(notified_users, title, message, link, request=request)
+
+
 def _next_annual_date(month, day, today):
     """Return the next annual occurrence for a month/day pair."""
     try:
@@ -495,6 +544,212 @@ def _build_family_milestones(family, days_ahead=45):
     return sorted(milestones, key=lambda item: item["date"])[:8]
 
 
+def _display_name_for_user(user):
+    """Return the best display name available for a user."""
+    if hasattr(user, "profile"):
+        return user.profile.get_display_name()
+    return user.email.split("@")[0]
+
+
+def _conversation_title(conversation, current_user):
+    """Return the display title for a conversation."""
+    if conversation.title:
+        return conversation.title
+    if conversation.conversation_type == ChatConversation.ConversationType.FAMILY:
+        return f"{conversation.family.name} Family Chat"
+    if conversation.conversation_type == ChatConversation.ConversationType.EVENT and conversation.event:
+        return conversation.event.title
+    if conversation.conversation_type == ChatConversation.ConversationType.BRANCH and conversation.branch_root:
+        return f"{conversation.branch_root.full_name} Branch Chat"
+    if conversation.conversation_type == ChatConversation.ConversationType.DIRECT:
+        others = [
+            p.user for p in conversation.participants.select_related("user", "user__profile")
+            if p.user_id != current_user.id
+        ]
+        if others:
+            return _display_name_for_user(others[0])
+        return "Direct Message"
+    return "Conversation"
+
+
+def _upsert_conversation_participant(conversation, user):
+    """Ensure a user is attached to a conversation."""
+    participant, _ = ChatConversationParticipant.objects.get_or_create(
+        conversation=conversation,
+        user=user,
+    )
+    return participant
+
+
+def _ensure_shared_conversation_participants(conversation):
+    """Attach all family members to non-direct conversations."""
+    if conversation.conversation_type == ChatConversation.ConversationType.DIRECT:
+        return
+    members = Membership.objects.filter(family=conversation.family).select_related("user")
+    for membership in members:
+        _upsert_conversation_participant(conversation, membership.user)
+
+
+def _get_or_create_family_conversation(family, user):
+    """Return the family-wide group conversation."""
+    conversation, _ = ChatConversation.objects.get_or_create(
+        family=family,
+        conversation_type=ChatConversation.ConversationType.FAMILY,
+        defaults={
+            "title": f"{family.name} Family Chat",
+            "created_by": user,
+        },
+    )
+    _ensure_shared_conversation_participants(conversation)
+    return conversation
+
+
+def _get_or_create_direct_conversation(family, user, other_user):
+    """Return a stable direct conversation for two family members."""
+    user_ids = sorted([user.id, other_user.id])
+    direct_key = f"{family.id}:{user_ids[0]}:{user_ids[1]}"
+    conversation, _ = ChatConversation.objects.get_or_create(
+        direct_key=direct_key,
+        defaults={
+            "family": family,
+            "conversation_type": ChatConversation.ConversationType.DIRECT,
+            "created_by": user,
+        },
+    )
+    _upsert_conversation_participant(conversation, user)
+    _upsert_conversation_participant(conversation, other_user)
+    return conversation
+
+
+def _get_or_create_branch_conversation(family, user, branch_root):
+    """Return or create a branch conversation for a family person."""
+    conversation, _ = ChatConversation.objects.get_or_create(
+        family=family,
+        conversation_type=ChatConversation.ConversationType.BRANCH,
+        branch_root=branch_root,
+        defaults={
+            "title": f"{branch_root.full_name} Branch Chat",
+            "created_by": user,
+        },
+    )
+    _ensure_shared_conversation_participants(conversation)
+    return conversation
+
+
+def _get_or_create_event_conversation(family, user, event):
+    """Return or create a conversation attached to an event."""
+    conversation, _ = ChatConversation.objects.get_or_create(
+        family=family,
+        conversation_type=ChatConversation.ConversationType.EVENT,
+        event=event,
+        defaults={
+            "title": event.title,
+            "created_by": user,
+        },
+    )
+    _ensure_shared_conversation_participants(conversation)
+    return conversation
+
+
+def _mark_conversation_read(conversation, user):
+    """Mark all visible non-own messages in a conversation as read for a user."""
+    now = timezone.now()
+    unread_messages = ChatConversationMessage.objects.filter(
+        conversation=conversation,
+        is_deleted=False,
+    ).exclude(author=user)
+
+    for message in unread_messages:
+        ChatMessageReadReceipt.objects.update_or_create(
+            message=message,
+            user=user,
+            defaults={"read_at": now},
+        )
+
+    ChatConversationParticipant.objects.filter(
+        conversation=conversation,
+        user=user,
+    ).update(last_read_at=now)
+
+
+def _serialize_conversation_message(message, current_user):
+    """Build template/json-friendly message data."""
+    receipts = list(
+        message.read_receipts.select_related("user", "user__profile").exclude(user=message.author)
+    )
+    read_by = [_display_name_for_user(receipt.user) for receipt in receipts]
+    return {
+        "id": message.id,
+        "author_label": "You" if message.author_id == current_user.id else _display_name_for_user(message.author) if message.author else "Deleted User",
+        "author_id": message.author_id,
+        "content": message.content,
+        "created_at": message.created_at,
+        "is_own": message.author_id == current_user.id,
+        "read_by": read_by,
+        "read_receipt_text": f"Seen by {', '.join(read_by)}" if read_by else "",
+    }
+
+
+def _event_type_badge(event_type):
+    """Return a badge color for event types."""
+    if event_type == Event.EventType.BIRTHDAY:
+        return "gold"
+    if event_type == Event.EventType.REUNION:
+        return "green"
+    if event_type in [Event.EventType.MEMORIAL, Event.EventType.FUNERAL]:
+        return "red"
+    return "blue"
+
+
+def _notify_event_members(event, actor, title, message, include_actor=False, request=None):
+    """Send an event notification to family members."""
+    recipients = [m.user for m in Membership.objects.filter(family=event.family).select_related("user")]
+    _notify_users(
+        recipients=recipients,
+        notification_type=Notification.NotificationType.EVENT,
+        title=title,
+        message=message,
+        link=f"/families/{event.family.id}/events/{event.id}/",
+        family=event.family,
+        actor=None if include_actor else actor,
+        request=request,
+    )
+
+
+def _dispatch_due_event_reminders(family, request=None):
+    """Create reminder notifications for events whose reminder window has arrived."""
+    now = timezone.now()
+    upcoming_events = Event.objects.filter(
+        family=family,
+        send_reminders=True,
+        start_datetime__gte=now,
+    )
+    for event in upcoming_events:
+        reminder_at = event.start_datetime - timedelta(days=event.reminder_days_before)
+        if reminder_at > now:
+            continue
+
+        reminder_date = event.start_datetime.date()
+        memberships = Membership.objects.filter(family=family).select_related("user")
+        for membership in memberships:
+            log, created = EventReminderLog.objects.get_or_create(
+                event=event,
+                user=membership.user,
+                reminder_for_date=reminder_date,
+            )
+            if not created:
+                continue
+            _notify_users(
+                recipients=[membership.user],
+                notification_type=Notification.NotificationType.EVENT,
+                title=f"Reminder: {event.title}",
+                message=f"{event.get_event_type_display()} on {event.start_datetime.strftime('%B %d at %I:%M %p')}",
+                link=f"/families/{family.id}/events/{event.id}/",
+                family=family,
+                request=request,
+            )
+
+
 @login_required
 def post_create(request, family_id):
     """
@@ -530,7 +785,23 @@ def post_create(request, family_id):
             content_file, filename = process_cropped_image(request)
             if content_file and filename:
                 post.image.save(filename, content_file, save=True)
-            
+
+            recipients = [
+                m.user for m in Membership.objects.filter(family=family).select_related("user")
+                if m.user_id != request.user.id
+            ]
+            author_name = _display_name_for_user(request.user)
+            snippet = post.content[:120]
+            _notify_users(
+                recipients=recipients,
+                notification_type=Notification.NotificationType.POST,
+                title=f"New post in {family.name}",
+                message=f"{author_name}: {snippet}",
+                link=f"/families/{family.id}/posts/{post.id}/",
+                family=family,
+                request=request,
+            )
+
             return redirect("families:family_detail", family_id=family.id)
 
         messages.error(request, "Please add some text and check any media uploads before posting.")
@@ -565,6 +836,27 @@ def post_detail(request, family_id, post_id):
             comment.post = post
             comment.author = request.user
             comment.save()
+
+            recipients = set()
+            if post.author_id and post.author_id != request.user.id:
+                recipients.add(post.author)
+            for c in post.comments.exclude(author=request.user).select_related("author"):
+                if c.author:
+                    recipients.add(c.author)
+            for person in post.tagged_people.all():
+                if person.linked_user and person.linked_user_id != request.user.id:
+                    recipients.add(person.linked_user)
+
+            commenter_name = _display_name_for_user(request.user)
+            _notify_users(
+                recipients=list(recipients),
+                notification_type=Notification.NotificationType.COMMENT,
+                title=f"New comment on a post in {family.name}",
+                message=f"{commenter_name}: {comment.content[:120]}",
+                link=f"/families/{family.id}/posts/{post.id}/",
+                family=family,
+                request=request,
+            )
             return redirect("families:post_detail", family_id=family.id, post_id=post.id)
     else:
         comment_form = CommentForm()
@@ -703,6 +995,15 @@ def event_create(request, family_id):
             content_file, filename = process_cropped_image(request)
             if content_file and filename:
                 event.image.save(filename, content_file, save=True)
+
+            if event.notify_members:
+                _notify_event_members(
+                    event=event,
+                    actor=request.user,
+                    title=f"New {event.get_event_type_display()} in {family.name}",
+                    message=f"{event.title} is scheduled for {event.start_datetime.strftime('%B %d, %Y at %I:%M %p')}",
+                    request=request,
+                )
             
             return redirect("families:event_detail", family_id=family.id, event_id=event.id)
     else:
@@ -725,6 +1026,7 @@ def event_detail(request, family_id, event_id):
         return render(request, "families/no_access.html", {"family": None})
     
     event = get_object_or_404(Event, id=event_id, family=family)
+    _dispatch_due_event_reminders(family, request=request)
     
     # Get user's current RSVP status
     user_rsvp = RSVP.objects.filter(event=event, user=request.user).first()
@@ -742,6 +1044,7 @@ def event_detail(request, family_id, event_id):
         "going": going,
         "maybe": maybe,
         "not_going": not_going,
+        "event_badge": _event_type_badge(event.event_type),
     })
 
 
@@ -776,6 +1079,15 @@ def event_edit(request, family_id, event_id):
             content_file, filename = process_cropped_image(request)
             if content_file and filename:
                 event.image.save(filename, content_file, save=True)
+
+            if event.notify_members:
+                _notify_event_members(
+                    event=event,
+                    actor=request.user,
+                    title=f"{event.title} was updated",
+                    message=f"{event.get_event_type_display()} details changed for {event.start_datetime.strftime('%B %d, %Y at %I:%M %p')}",
+                    request=request,
+                )
             
             return redirect("families:event_detail", family_id=family.id, event_id=event.id)
     else:
@@ -843,6 +1155,15 @@ def event_rsvp(request, family_id, event_id):
                 user=request.user,
                 defaults={"status": status}
             )
+            if event.created_by_id != request.user.id:
+                create_notification(
+                    recipient=event.created_by,
+                    notification_type=Notification.NotificationType.EVENT,
+                    title=f"RSVP update for {event.title}",
+                    message=f"{request.user.email} responded: {dict(RSVP.Status.choices).get(status, status)}",
+                    link=f"/families/{family.id}/events/{event.id}/",
+                    family=family,
+                )
     
     return redirect("families:event_detail", family_id=family.id, event_id=event.id)
 
@@ -857,18 +1178,194 @@ def event_list(request, family_id):
         return render(request, "families/no_access.html", {"family": None})
     
     show = request.GET.get("show", "upcoming")
+    event_type = request.GET.get("type", "")
     now = timezone.now()
-    
+
+    _dispatch_due_event_reminders(family, request=request)
+
+    events = Event.objects.filter(family=family)
     if show == "past":
-        events = Event.objects.filter(family=family, start_datetime__lt=now).order_by('-start_datetime')
+        events = events.filter(start_datetime__lt=now).order_by('-start_datetime')
     else:
-        events = Event.objects.filter(family=family, start_datetime__gte=now).order_by('start_datetime')
+        events = events.filter(start_datetime__gte=now).order_by('start_datetime')
+    if event_type:
+        events = events.filter(event_type=event_type)
     
     return render(request, "families/event_list.html", {
         "family": family,
         "membership": membership,
         "events": events,
         "show": show,
+        "event_type": event_type,
+        "event_types": Event.EventType.choices,
+        "upcoming_count": Event.objects.filter(family=family, start_datetime__gte=now).count(),
+        "past_count": Event.objects.filter(family=family, start_datetime__lt=now).count(),
+    })
+
+
+@login_required
+def family_search(request, family_id):
+    """
+    Search across people, posts, photos, and events within a family.
+
+    Supports free-text search plus optional date, person, and event filters.
+    The event filter is also used as a date window for related posts/photos.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+
+    query = request.GET.get("q", "").strip()
+    person_id = request.GET.get("person", "").strip()
+    event_id = request.GET.get("event", "").strip()
+    date_from = request.GET.get("date_from", "").strip()
+    date_to = request.GET.get("date_to", "").strip()
+
+    selected_person = None
+    if person_id.isdigit():
+        selected_person = Person.objects.filter(
+            family=family,
+            is_deleted=False,
+            id=person_id,
+        ).first()
+
+    selected_event = None
+    if event_id.isdigit():
+        selected_event = Event.objects.filter(family=family, id=event_id).first()
+
+    effective_date_from = date_from
+    effective_date_to = date_to
+    if selected_event:
+        effective_date_from = effective_date_from or selected_event.start_datetime.date().isoformat()
+        event_end = selected_event.end_datetime.date() if selected_event.end_datetime else selected_event.start_datetime.date()
+        effective_date_to = effective_date_to or event_end.isoformat()
+
+    has_active_filters = any([query, selected_person, selected_event, effective_date_from, effective_date_to])
+
+    people = Person.objects.filter(
+        family=family,
+        is_deleted=False,
+    ).select_related("linked_user__profile")
+    posts = Post.objects.filter(
+        family=family,
+        is_hidden=False,
+    ).select_related(
+        "author",
+        "author__profile",
+    ).prefetch_related(
+        "tagged_people",
+        "liked_by",
+        "comments",
+    )
+    photos = Photo.objects.filter(
+        album__family=family,
+    ).select_related(
+        "album",
+        "uploaded_by",
+    ).prefetch_related("tagged_people")
+    events = Event.objects.filter(family=family).select_related("created_by")
+
+    if query:
+        people = people.filter(
+            Q(first_name__icontains=query) |
+            Q(last_name__icontains=query) |
+            Q(maiden_name__icontains=query) |
+            Q(bio__icontains=query) |
+            Q(birth_place__icontains=query) |
+            Q(death_place__icontains=query)
+        )
+        posts = posts.filter(
+            Q(content__icontains=query) |
+            Q(author__email__icontains=query) |
+            Q(author__profile__display_name__icontains=query) |
+            Q(tagged_people__first_name__icontains=query) |
+            Q(tagged_people__last_name__icontains=query)
+        ).distinct()
+        photos = photos.filter(
+            Q(caption__icontains=query) |
+            Q(taken_location__icontains=query) |
+            Q(album__title__icontains=query) |
+            Q(tagged_people__first_name__icontains=query) |
+            Q(tagged_people__last_name__icontains=query)
+        ).distinct()
+        events = events.filter(
+            Q(title__icontains=query) |
+            Q(description__icontains=query) |
+            Q(location__icontains=query)
+        )
+
+    if selected_person:
+        people = people.filter(id=selected_person.id)
+        posts = posts.filter(
+            Q(tagged_people=selected_person) |
+            Q(author__person_profile=selected_person)
+        ).distinct()
+        photos = photos.filter(tagged_people=selected_person).distinct()
+        events = events.filter(
+            Q(title__icontains=selected_person.first_name) |
+            Q(title__icontains=selected_person.last_name) |
+            Q(description__icontains=selected_person.first_name) |
+            Q(description__icontains=selected_person.last_name)
+        ).distinct()
+
+    if effective_date_from:
+        people = people.filter(
+            Q(birth_date__gte=effective_date_from) |
+            Q(death_date__gte=effective_date_from)
+        ).distinct()
+        posts = posts.filter(created_at__date__gte=effective_date_from)
+        photos = photos.filter(
+            Q(taken_date__gte=effective_date_from) |
+            Q(taken_date__isnull=True, uploaded_at__date__gte=effective_date_from)
+        ).distinct()
+        events = events.filter(start_datetime__date__gte=effective_date_from)
+
+    if effective_date_to:
+        people = people.filter(
+            Q(birth_date__lte=effective_date_to) |
+            Q(death_date__lte=effective_date_to)
+        ).distinct()
+        posts = posts.filter(created_at__date__lte=effective_date_to)
+        photos = photos.filter(
+            Q(taken_date__lte=effective_date_to) |
+            Q(taken_date__isnull=True, uploaded_at__date__lte=effective_date_to)
+        ).distinct()
+        events = events.filter(start_datetime__date__lte=effective_date_to)
+
+    if selected_event:
+        events = events.filter(id=selected_event.id)
+
+    if has_active_filters:
+        people = people.order_by("last_name", "first_name")[:24]
+        posts = posts.order_by("-created_at")[:18]
+        photos = photos.order_by("-taken_date", "-uploaded_at")[:18]
+        events = events.order_by("start_datetime")[:18]
+    else:
+        people = people.order_by("last_name", "first_name")[:12]
+        posts = posts.order_by("-created_at")[:8]
+        photos = photos.order_by("-taken_date", "-uploaded_at")[:8]
+        events = events.order_by("-start_datetime")[:8]
+
+    people_filter_options = family.persons.filter(
+        is_deleted=False
+    ).order_by("last_name", "first_name")
+    event_filter_options = family.events.order_by("-start_datetime")[:50]
+
+    return render(request, "families/family_search.html", {
+        "family": family,
+        "membership": membership,
+        "query": query,
+        "date_from": effective_date_from,
+        "date_to": effective_date_to,
+        "selected_person": selected_person,
+        "selected_event": selected_event,
+        "people_filter_options": people_filter_options,
+        "event_filter_options": event_filter_options,
+        "people_results": people,
+        "post_results": posts,
+        "photo_results": photos,
+        "event_results": events,
+        "has_active_filters": has_active_filters,
     })
 
 
@@ -1667,7 +2164,27 @@ def person_create(request, family_id):
                         person2=child,
                         relationship_type=Relationship.Type.PARENT_CHILD
                     )
-            
+
+            recipients = [
+                m.user for m in Membership.objects.filter(family=family).select_related("user")
+                if m.user_id != request.user.id
+            ]
+            detail_bits = []
+            if person.birth_date:
+                detail_bits.append(f"b. {person.birth_date.strftime('%Y')}")
+            if person.death_date:
+                detail_bits.append(f"d. {person.death_date.strftime('%Y')}")
+            subtitle = " · ".join(detail_bits)
+            _notify_users(
+                recipients=recipients,
+                notification_type=Notification.NotificationType.PERSON,
+                title=f"New family member added: {person.full_name}",
+                message=subtitle or f"Added by { _display_name_for_user(request.user) }",
+                link=f"/families/{family.id}/people/{person.id}/",
+                family=family,
+                request=request,
+            )
+
             return redirect("families:person_detail", family_id=family.id, person_id=person.id)
     else:
         form = PersonForm(family=family)
@@ -2207,7 +2724,7 @@ def album_list(request, family_id):
     if not membership:
         return render(request, "families/no_access.html", {"family": None})
     
-    albums = Album.objects.filter(family=family).prefetch_related('photos')
+    albums = Album.objects.filter(family=family).select_related('event', 'primary_person', 'cover_photo').prefetch_related('photos')
     
     return render(request, "families/album_list.html", {
         "family": family,
@@ -2230,7 +2747,7 @@ def album_create(request, family_id):
         return render(request, "families/no_access.html", {"family": family})
     
     if request.method == "POST":
-        form = AlbumForm(request.POST)
+        form = AlbumForm(request.POST, family=family)
         if form.is_valid():
             album = form.save(commit=False)
             album.family = family
@@ -2238,7 +2755,7 @@ def album_create(request, family_id):
             album.save()
             return redirect("families:album_detail", family_id=family.id, album_id=album.id)
     else:
-        form = AlbumForm()
+        form = AlbumForm(family=family)
     
     return render(request, "families/album_create.html", {
         "family": family,
@@ -2257,13 +2774,18 @@ def album_detail(request, family_id, album_id):
         return render(request, "families/no_access.html", {"family": None})
     
     album = get_object_or_404(Album, id=album_id, family=family)
-    photos = album.photos.all().prefetch_related('tagged_people')
+    photos = album.photos.all().select_related('event', 'primary_person').prefetch_related('tagged_people')
+    photo_items = photos.filter(media_type=Photo.MediaType.PHOTO)
+    video_items = photos.filter(media_type=Photo.MediaType.VIDEO)
+    document_items = photos.filter(media_type=Photo.MediaType.DOCUMENT)
     
     return render(request, "families/album_detail.html", {
         "family": family,
         "membership": membership,
         "album": album,
-        "photos": photos,
+        "photos": photo_items,
+        "videos": video_items,
+        "documents": document_items,
     })
 
 
@@ -2283,12 +2805,12 @@ def album_edit(request, family_id, album_id):
     album = get_object_or_404(Album, id=album_id, family=family)
     
     if request.method == "POST":
-        form = AlbumForm(request.POST, instance=album)
+        form = AlbumForm(request.POST, instance=album, family=family)
         if form.is_valid():
             form.save()
             return redirect("families:album_detail", family_id=family.id, album_id=album.id)
     else:
-        form = AlbumForm(instance=album)
+        form = AlbumForm(instance=album, family=family)
     
     return render(request, "families/album_edit.html", {
         "family": family,
@@ -2342,34 +2864,40 @@ def photo_upload(request, family_id, album_id):
     album = get_object_or_404(Album, id=album_id, family=family)
     
     if request.method == "POST":
-        # Handle multiple file upload
+        # Handle quick multi-photo upload
         files = request.FILES.getlist('photos')
-        
         if files:
             for f in files:
-                # Validate file size (10MB max per photo)
                 if f.size > 10 * 1024 * 1024:
                     continue  # Skip oversized files
-                
                 Photo.objects.create(
                     album=album,
+                    media_type=Photo.MediaType.PHOTO,
                     image=f,
                     uploaded_by=request.user,
+                    event=album.event,
+                    primary_person=album.primary_person,
                 )
-            
             return redirect("families:album_detail", family_id=family.id, album_id=album.id)
-        
-        # Single photo upload with metadata
+
+        # Single media upload with metadata
         form = PhotoUploadForm(request.POST, request.FILES, family=family)
         if form.is_valid():
             photo = form.save(commit=False)
             photo.album = album
             photo.uploaded_by = request.user
+            if not photo.event:
+                photo.event = album.event
+            if not photo.primary_person:
+                photo.primary_person = album.primary_person
             photo.save()
             form.save_m2m()  # Save tagged_people
             return redirect("families:album_detail", family_id=family.id, album_id=album.id)
     else:
-        form = PhotoUploadForm(family=family)
+        form = PhotoUploadForm(family=family, initial={
+            "event": album.event_id,
+            "primary_person": album.primary_person_id,
+        })
     
     return render(request, "families/photo_upload.html", {
         "family": family,
@@ -2488,6 +3016,10 @@ def photo_set_cover(request, family_id, album_id, photo_id):
     
     album = get_object_or_404(Album, id=album_id, family=family)
     photo = get_object_or_404(Photo, id=photo_id, album=album)
+
+    if photo.media_type != Photo.MediaType.PHOTO:
+        messages.error(request, "Only photos can be used as album covers.")
+        return redirect("families:album_detail", family_id=family_id, album_id=album_id)
     
     album.cover_photo = photo
     album.save()
@@ -3338,83 +3870,181 @@ def notification_dropdown(request):
 
 
 @login_required
-def chat_room(request, family_id):
+def messaging_hub(request, family_id):
     """
-    Family group chat room.
-    
-    Displays chat messages and allows posting new messages.
-    Members can view and send messages; viewers can only view.
-    Shows online status for family members.
+    Unified messaging hub for family, direct, branch, and event conversations.
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
         return render(request, "families/no_access.html", {"family": None})
-    
-    # Get recent messages (last 100)
-    chat_messages = ChatMessage.objects.filter(
-        family=family,
-        is_deleted=False
-    ).select_related('author', 'author__profile').order_by('-created_at')[:100]
-    
-    # Reverse to show oldest first in display
-    chat_messages = list(reversed(chat_messages))
-    
-    # Get all family members with their online status
+
+    _get_or_create_family_conversation(family, request.user)
+
+    participations = ChatConversationParticipant.objects.filter(
+        user=request.user,
+        conversation__family=family,
+    ).select_related(
+        "conversation",
+        "conversation__branch_root",
+        "conversation__event",
+    ).prefetch_related(
+        "conversation__participants__user",
+        "conversation__participants__user__profile",
+        "conversation__messages",
+    ).order_by("-conversation__updated_at")
+
+    conversations = []
+    for participation in participations:
+        conversation = participation.conversation
+        latest_message = conversation.messages.filter(is_deleted=False).select_related("author").order_by("-created_at").first()
+        unread_count = conversation.messages.filter(is_deleted=False).exclude(
+            author=request.user
+        ).exclude(
+            read_receipts__user=request.user
+        ).count()
+        conversations.append({
+            "conversation": conversation,
+            "title": _conversation_title(conversation, request.user),
+            "latest_message": latest_message,
+            "unread_count": unread_count,
+        })
+
     members = Membership.objects.filter(
         family=family
-    ).select_related('user', 'user__profile').order_by('user__email')
-    
-    # Build online members list
-    online_members = []
-    offline_members = []
-    for m in members:
-        member_info = {
-            'user': m.user,
-            'role': m.role,
-            'display_name': m.user.profile.get_display_name() if hasattr(m.user, 'profile') else m.user.email.split('@')[0],
-            'profile_picture': m.user.profile.get_profile_picture_url() if hasattr(m.user, 'profile') else None,
-        }
-        if hasattr(m.user, 'profile') and m.user.profile.is_online():
-            online_members.append(member_info)
-        else:
-            offline_members.append(member_info)
-    
-    form = ChatMessageForm()
-    
-    if request.method == "POST" and membership.role != Membership.Role.VIEWER:
-        form = ChatMessageForm(request.POST)
-        if form.is_valid():
-            message = form.save(commit=False)
-            message.family = family
-            message.author = request.user
-            message.save()
-            
-            # Notify other family members about new message
-            other_members = Membership.objects.filter(
-                family=family
-            ).exclude(user=request.user).select_related('user')
-            
-            for m in other_members:
-                create_notification(
-                    recipient=m.user,
-                    notification_type=Notification.NotificationType.CHAT,
-                    title=f"New message in {family.name}",
-                    message=f"{request.user.email}: {message.content[:50]}...",
-                    link=f"/families/{family.id}/chat/",
-                    family=family
-                )
-            
-            # Redirect to prevent form resubmission
-            return redirect("families:chat_room", family_id=family.id)
-    
-    return render(request, "families/chat_room.html", {
+    ).exclude(user=request.user).select_related("user", "user__profile").order_by("user__email")
+    branch_people = Person.objects.filter(family=family, is_deleted=False).order_by("last_name", "first_name")[:20]
+    events = Event.objects.filter(family=family).order_by("-start_datetime")[:10]
+
+    return render(request, "families/messaging_hub.html", {
         "family": family,
         "membership": membership,
-        "chat_messages": chat_messages,
-        "form": form,
-        "online_members": online_members,
-        "offline_members": offline_members,
+        "conversations": conversations,
+        "members": members,
+        "branch_people": branch_people,
+        "events": events,
     })
+
+
+@login_required
+def direct_conversation_start(request, family_id, user_id):
+    """Create or open a direct conversation with another family member."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+
+    if user_id == request.user.id:
+        return redirect("families:messaging_hub", family_id=family.id)
+
+    other_membership = get_object_or_404(Membership.objects.select_related("user"), family=family, user_id=user_id)
+    conversation = _get_or_create_direct_conversation(family, request.user, other_membership.user)
+    return redirect("families:conversation_room", family_id=family.id, conversation_id=conversation.id)
+
+
+@login_required
+def branch_conversation_start(request, family_id, person_id):
+    """Create or open a branch conversation."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+
+    person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+    conversation = _get_or_create_branch_conversation(family, request.user, person)
+    return redirect("families:conversation_room", family_id=family.id, conversation_id=conversation.id)
+
+
+@login_required
+def event_conversation_start(request, family_id, event_id):
+    """Create or open an event conversation."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+
+    event = get_object_or_404(Event, id=event_id, family=family)
+    conversation = _get_or_create_event_conversation(family, request.user, event)
+    return redirect("families:conversation_room", family_id=family.id, conversation_id=conversation.id)
+
+
+@login_required
+def conversation_room(request, family_id, conversation_id):
+    """
+    Realtime room for a unified conversation.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+
+    conversation = get_object_or_404(
+        ChatConversation.objects.select_related("family", "branch_root", "event"),
+        id=conversation_id,
+        family=family,
+    )
+    if conversation.conversation_type != ChatConversation.ConversationType.DIRECT:
+        _ensure_shared_conversation_participants(conversation)
+    participant = ChatConversationParticipant.objects.filter(conversation=conversation, user=request.user).first()
+    if not participant:
+        return render(request, "families/no_access.html", {"family": family})
+
+    _mark_conversation_read(conversation, request.user)
+
+    messages_qs = conversation.messages.filter(is_deleted=False).select_related(
+        "author",
+        "author__profile",
+    ).prefetch_related(
+        "read_receipts__user",
+        "read_receipts__user__profile",
+    ).order_by("-created_at")[:100]
+    messages_data = [_serialize_conversation_message(message, request.user) for message in reversed(list(messages_qs))]
+
+    participants = conversation.participants.select_related("user", "user__profile")
+    return render(request, "families/conversation_room.html", {
+        "family": family,
+        "membership": membership,
+        "conversation": conversation,
+        "conversation_title": _conversation_title(conversation, request.user),
+        "messages_data": messages_data,
+        "participants": participants,
+        "form": ConversationMessageForm(),
+        "ws_path": f"/ws/families/{family.id}/conversations/{conversation.id}/",
+    })
+
+
+@login_required
+def chat_room(request, family_id):
+    """
+    Legacy family chat route that now redirects into the unified conversation room.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+    conversation = _get_or_create_family_conversation(family, request.user)
+    return redirect("families:conversation_room", family_id=family.id, conversation_id=conversation.id)
+
+
+@login_required
+def conversation_message_delete(request, family_id, conversation_id, message_id):
+    """
+    Soft delete a unified conversation message.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"error": "Access denied"}, status=403)
+
+    conversation = get_object_or_404(ChatConversation, id=conversation_id, family=family)
+    message = get_object_or_404(ChatConversationMessage, id=message_id, conversation=conversation)
+
+    can_delete = (
+        membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN] or
+        message.author == request.user
+    )
+    if not can_delete:
+        return JsonResponse({"error": "Permission denied"}, status=403)
+
+    if request.method == "POST":
+        message.is_deleted = True
+        message.save(update_fields=["is_deleted", "updated_at"])
+        return redirect("families:conversation_room", family_id=family.id, conversation_id=conversation.id)
+
+    return JsonResponse({"error": "POST required"}, status=405)
 
 
 @login_required

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Upload Photos – {{ album.title }} | FamilyLinx{% endblock %}
+{% block title %}Upload Media – {{ album.title }} | FamilyLinx{% endblock %}
 
 {% block content %}
 <main>
@@ -16,14 +16,14 @@
       <span class="separator">/</span>
       <a href="{% url 'families:album_detail' family_id=family.id album_id=album.id %}">{{ album.title }}</a>
       <span class="separator">/</span>
-      <span class="current">Upload Photos</span>
+      <span class="current">Upload Media</span>
     </nav>
     
     <div class="form-page">
       <!-- Quick Upload -->
       <div class="card">
         <div class="card-header">
-          <span class="card-title"><i class="bi bi-cloud-upload"></i> Quick Upload</span>
+          <span class="card-title"><i class="bi bi-cloud-upload"></i> Quick Upload (photos)</span>
         </div>
         <div class="card-body">
           <form method="post" enctype="multipart/form-data">
@@ -54,18 +54,36 @@
       <!-- Single Photo with Details -->
       <div class="card" style="margin-top: 1.5rem;">
         <div class="card-header">
-          <span class="card-title"><i class="bi bi-image"></i> Upload Single Photo (with details)</span>
+          <span class="card-title"><i class="bi bi-collection-play"></i> Upload Single Media (with details)</span>
         </div>
         <div class="card-body">
           <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
-            
-            <div class="form-group">
-              <label class="form-label required">{{ form.image.label }}</label>
-              {{ form.image }}
-              {% if form.image.errors %}
-              <div class="form-error">{{ form.image.errors.0 }}</div>
-              {% endif %}
+            <div class="grid-2" style="gap: 1rem;">
+              <div class="form-group">
+                <label class="form-label required">{{ form.media_type.label }}</label>
+                {{ form.media_type }}
+                {% if form.media_type.errors %}<div class="form-error">{{ form.media_type.errors.0 }}</div>{% endif %}
+              </div>
+              <div class="form-group">
+                <label class="form-label">{{ form.event.label }}</label>
+                {{ form.event }}
+              </div>
+            </div>
+
+            <div class="grid-2" style="gap: 1rem;">
+              <div class="form-group">
+                <label class="form-label">{{ form.image.label }}</label>
+                {{ form.image }}
+                {% if form.image.errors %}<div class="form-error">{{ form.image.errors.0 }}</div>{% endif %}
+                <small class="muted">Use for photos</small>
+              </div>
+              <div class="form-group">
+                <label class="form-label">{{ form.file.label }}</label>
+                {{ form.file }}
+                {% if form.file.errors %}<div class="form-error">{{ form.file.errors.0 }}</div>{% endif %}
+                <small class="muted">Use for videos or documents</small>
+              </div>
             </div>
             
             <div class="form-group">
@@ -90,10 +108,15 @@
               {{ form.tagged_people }}
               <small class="form-text muted">Hold Ctrl/Cmd to select multiple people</small>
             </div>
+
+            <div class="form-group">
+              <label class="form-label">{{ form.primary_person.label }}</label>
+              {{ form.primary_person }}
+            </div>
             
             <div class="form-actions">
               <button type="submit" class="btn btn-primary">
-                <i class="bi bi-cloud-upload"></i> Upload Photo
+                <i class="bi bi-cloud-upload"></i> Upload Media
               </button>
             </div>
           </form>

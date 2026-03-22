@@ -23,12 +23,23 @@
         {% if album.description %}
         <p class="muted">{{ album.description }}</p>
         {% endif %}
-        <small class="muted">{{ photos|length }} photo{{ photos|length|pluralize }} · Created {{ album.created_at|date:"M j, Y" }}</small>
+        {% with pv=photos|length vv=videos|length dv=documents|length %}
+        {% with total=pv|add:vv|add:dv %}
+        <small class="muted">
+          {{ total }} item{{ total|pluralize }} · Created {{ album.created_at|date:"M j, Y" }}
+        </small>
+        {% endwith %}
+        {% endwith %}
+        <div class="muted" style="margin-top: 0.35rem;">
+          {% if album.event %}<i class="bi bi-calendar-event"></i> {{ album.event.title }}{% endif %}
+          {% if album.event and album.primary_person %} · {% endif %}
+          {% if album.primary_person %}<i class="bi bi-person"></i> {{ album.primary_person.full_name }}{% endif %}
+        </div>
       </div>
       <div class="page-actions">
         {% if membership.role != 'VIEWER' %}
         <a href="{% url 'families:photo_upload' family_id=family.id album_id=album.id %}" class="btn btn-primary">
-          <i class="bi bi-cloud-upload"></i> Upload Photos
+          <i class="bi bi-cloud-upload"></i> Upload Media
         </a>
         <a href="{% url 'families:album_edit' family_id=family.id album_id=album.id %}" class="btn btn-outline">
           <i class="bi bi-pencil"></i> Edit
@@ -43,12 +54,17 @@
     </div>
     
     {% if photos %}
+    <h3><i class="bi bi-image"></i> Photos</h3>
     <div class="photo-grid">
       {% for photo in photos %}
       <a href="{% url 'families:photo_detail' family_id=family.id album_id=album.id photo_id=photo.id %}" 
          class="photo-card {% if album.cover_photo_id == photo.id %}photo-card-cover{% endif %}">
         <div class="photo-thumb">
+          {% if photo.image %}
           <img src="{{ photo.image.url }}" alt="{{ photo.caption|default:'Photo' }}" loading="lazy">
+          {% elif photo.file %}
+          <img src="{{ photo.file.url }}" alt="{{ photo.caption|default:'Photo' }}" loading="lazy">
+          {% endif %}
         </div>
         {% if album.cover_photo_id == photo.id %}
         <span class="photo-cover-badge"><i class="bi bi-star-fill"></i></span>
@@ -61,16 +77,90 @@
       </a>
       {% endfor %}
     </div>
-    {% else %}
+    {% endif %}
+
+    {% if videos %}
+    <h3 style="margin-top: 2rem;"><i class="bi bi-play-btn"></i> Videos</h3>
+    <div class="stack">
+      {% for video in videos %}
+      <div class="card">
+        <div class="card-body">
+          <div class="flex-between" style="gap: 0.75rem; align-items: center;">
+            <div>
+              <strong>{{ video.caption|default:"Family video" }}</strong><br>
+              <small class="muted">
+                {% if video.taken_date %}{{ video.taken_date|date:"M j, Y" }} · {% endif %}
+                Uploaded {{ video.uploaded_at|date:"M j, Y" }}
+              </small>
+            </div>
+            <a href="{% url 'families:photo_detail' family_id=family.id album_id=album.id photo_id=video.id %}" class="btn btn-outline btn-sm">
+              Open
+            </a>
+          </div>
+          {% if video.file %}
+          <video controls style="width: 100%; margin-top: 0.75rem; border-radius: 12px;">
+            <source src="{{ video.file.url }}">
+            Your browser does not support the video tag.
+          </video>
+          {% endif %}
+          {% if video.tagged_people.exists %}
+          <div class="photo-tags" style="margin-top: 0.5rem;">
+            <i class="bi bi-people"></i>
+            {% for person in video.tagged_people.all %}
+            <span class="badge badge-blue">{{ person.full_name }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if documents %}
+    <h3 style="margin-top: 2rem;"><i class="bi bi-file-earmark-text"></i> Documents</h3>
+    <div class="stack">
+      {% for doc in documents %}
+      <div class="card">
+        <div class="card-body">
+          <div class="flex-between" style="gap: 0.75rem; align-items: center;">
+            <div>
+              <strong>{{ doc.caption|default:"Document" }}</strong><br>
+              <small class="muted">
+                {% if doc.taken_date %}{{ doc.taken_date|date:"M j, Y" }} · {% endif %}
+                Uploaded {{ doc.uploaded_at|date:"M j, Y" }}
+              </small>
+            </div>
+            {% if doc.file %}
+            <a href="{{ doc.file.url }}" target="_blank" class="btn btn-outline btn-sm">
+              <i class="bi bi-box-arrow-up-right"></i> View
+            </a>
+            {% endif %}
+          </div>
+          {% if doc.tagged_people.exists %}
+          <div class="photo-tags" style="margin-top: 0.5rem;">
+            <i class="bi bi-people"></i>
+            {% for person in doc.tagged_people.all %}
+            <span class="badge badge-blue">{{ person.full_name }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not photos and not videos and not documents %}
     <div class="card">
       <div class="card-body">
         <div class="empty-state">
           <div class="empty-state-icon"><i class="bi bi-image"></i></div>
-          <h3>No Photos Yet</h3>
-          <p class="muted">Upload some photos to this album!</p>
+          <h3>No media yet</h3>
+          <p class="muted">Upload photos, videos, or family documents to this album.</p>
           {% if membership.role != 'VIEWER' %}
           <a href="{% url 'families:photo_upload' family_id=family.id album_id=album.id %}" class="btn btn-primary">
-            <i class="bi bi-cloud-upload"></i> Upload Photos
+            <i class="bi bi-cloud-upload"></i> Upload Media
           </a>
           {% endif %}
         </div>

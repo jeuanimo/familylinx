@@ -58,6 +58,8 @@ INSTALLED_APPS = [
     'django.contrib.sites',  # Required by allauth
     
     # Third-party apps
+    'daphne',
+    'channels',
     'allauth',
     'allauth.account',
     'allauth.socialaccount',  # Optional: for social login later
@@ -85,6 +87,7 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'config.urls'
+ASGI_APPLICATION = 'config.asgi.application'
 
 TEMPLATES = [
     {
@@ -104,6 +107,12 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
 
 
 # =============================================================================

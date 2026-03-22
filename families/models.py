@@ -515,6 +515,7 @@ class Event(models.Model):
         REUNION = 'REUNION', 'Family Reunion'
         HOLIDAY = 'HOLIDAY', 'Holiday Gathering'
         ANNIVERSARY = 'ANNIVERSARY', 'Anniversary'
+        FUNERAL = 'FUNERAL', 'Funeral'
         MEMORIAL = 'MEMORIAL', 'Memorial'
         OTHER = 'OTHER', 'Other'
     
@@ -562,6 +563,18 @@ class Event(models.Model):
         blank=True,
         null=True,
         help_text="Event cover image or flyer"
+    )
+    notify_members = models.BooleanField(
+        default=True,
+        help_text="Notify family members when this event is created or updated"
+    )
+    send_reminders = models.BooleanField(
+        default=True,
+        help_text="Send reminder notifications before the event"
+    )
+    reminder_days_before = models.PositiveIntegerField(
+        default=7,
+        help_text="How many days before the event reminders should be sent"
     )
     
     # Creator info
@@ -648,6 +661,34 @@ class RSVP(models.Model):
         verbose_name = "RSVP"
         verbose_name_plural = "RSVPs"
         unique_together = ['event', 'user']
+
+
+class EventReminderLog(models.Model):
+    """
+    Tracks reminder notifications already sent for an event occurrence.
+    """
+
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name="reminder_logs",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="event_reminder_logs",
+    )
+    reminder_for_date = models.DateField(
+        help_text="The event date this reminder was sent for"
+    )
+    notified_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("event", "user", "reminder_for_date")]
+        ordering = ["-notified_at"]
+
+    def __str__(self):
+        return f"Reminder for {self.user.email} about {self.event.title}"
 
 
 # =============================================================================
@@ -1149,6 +1190,22 @@ class Album(models.Model):
         blank=True,
         help_text="Optional description of this album"
     )
+    event = models.ForeignKey(
+        'Event',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="albums",
+        help_text="Event this album is associated with (optional)"
+    )
+    primary_person = models.ForeignKey(
+        'Person',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="person_albums",
+        help_text="Highlight person this album is centered on (optional)"
+    )
     cover_photo = models.ForeignKey(
         'Photo',
         on_delete=models.SET_NULL,
@@ -1191,12 +1248,13 @@ class Photo(models.Model):
     """
     A photo in an album.
     
-    Photos can be tagged with people from the family tree
-    and include captions and dates.
+    Media items can be photos, videos, or documents and support tagging people.
     
     Attributes:
         album (Album): The album this photo belongs to
-        image (ImageField): The uploaded image file
+        media_type (str): PHOTO, VIDEO, or DOCUMENT
+        image (ImageField): The uploaded image file (for photos)
+        file (FileField): Generic file field for video/document uploads
         caption (str): Optional caption/description
         taken_date (date): When the photo was taken
         taken_location (str): Where the photo was taken
@@ -1204,6 +1262,11 @@ class Photo(models.Model):
         uploaded_by (User): Who uploaded this photo
         uploaded_at (datetime): When uploaded
     """
+
+    class MediaType(models.TextChoices):
+        PHOTO = "PHOTO", "Photo"
+        VIDEO = "VIDEO", "Video"
+        DOCUMENT = "DOCUMENT", "Document"
     
     album = models.ForeignKey(
         Album,
@@ -1211,9 +1274,23 @@ class Photo(models.Model):
         related_name="photos",
         help_text="The album this photo belongs to"
     )
+    media_type = models.CharField(
+        max_length=10,
+        choices=MediaType.choices,
+        default=MediaType.PHOTO,
+        help_text="Type of media"
+    )
     image = models.ImageField(
         upload_to="photos/%Y/%m/",
+        blank=True,
+        null=True,
         help_text="The photo image file"
+    )
+    file = models.FileField(
+        upload_to="media/files/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Uploaded video or document file"
     )
     caption = models.CharField(
         max_length=500,
@@ -1236,6 +1313,22 @@ class Photo(models.Model):
         related_name="tagged_photos",
         help_text="People appearing in this photo"
     )
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="media_items",
+        help_text="Event this media belongs to (optional)"
+    )
+    primary_person = models.ForeignKey(
+        Person,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="primary_media_items",
+        help_text="Person this media is centered on (optional)"
+    )
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -1249,9 +1342,10 @@ class Photo(models.Model):
     )
     
     def __str__(self):
+        label = self.get_media_type_display()
         if self.caption:
-            return f"{self.caption[:50]}..."
-        return f"Photo {self.id} in {self.album.title}"
+            return f"{label}: {self.caption[:50]}..."
+        return f"{label} {self.id} in {self.album.title}"
     
     class Meta:
         verbose_name = "Photo"
@@ -1859,6 +1953,163 @@ class ChatMessage(models.Model):
         indexes = [
             models.Index(fields=['family', 'created_at']),
         ]
+
+
+class ChatConversation(models.Model):
+    """
+    Unified conversation model for direct, branch, event, and family chats.
+    """
+
+    class ConversationType(models.TextChoices):
+        FAMILY = "FAMILY", "Family Chat"
+        DIRECT = "DIRECT", "Direct Message"
+        BRANCH = "BRANCH", "Family Branch"
+        EVENT = "EVENT", "Event Chat"
+
+    family = models.ForeignKey(
+        FamilySpace,
+        on_delete=models.CASCADE,
+        related_name="chat_conversations",
+        help_text="Family space this conversation belongs to",
+    )
+    conversation_type = models.CharField(
+        max_length=20,
+        choices=ConversationType.choices,
+        default=ConversationType.FAMILY,
+        help_text="What kind of conversation this is",
+    )
+    title = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Optional custom conversation title",
+    )
+    branch_root = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="branch_conversations",
+        help_text="Root person for a family-branch conversation",
+    )
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="chat_conversations",
+        help_text="Event this conversation is attached to",
+    )
+    direct_key = models.CharField(
+        max_length=120,
+        null=True,
+        blank=True,
+        unique=True,
+        help_text="Stable unique key for direct conversations",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_chat_conversations",
+        help_text="User who created the conversation",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.title or f"{self.get_conversation_type_display()} ({self.family.name})"
+
+    class Meta:
+        ordering = ["-updated_at", "-created_at"]
+        indexes = [
+            models.Index(fields=["family", "conversation_type"]),
+            models.Index(fields=["family", "-updated_at"]),
+        ]
+
+
+class ChatConversationParticipant(models.Model):
+    """
+    Membership of a user inside a chat conversation.
+    """
+
+    conversation = models.ForeignKey(
+        ChatConversation,
+        on_delete=models.CASCADE,
+        related_name="participants",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="family_chat_participations",
+    )
+    joined_at = models.DateTimeField(auto_now_add=True)
+    last_read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = [("conversation", "user")]
+        ordering = ["joined_at"]
+
+    def __str__(self):
+        return f"{self.user.email} in {self.conversation_id}"
+
+
+class ChatConversationMessage(models.Model):
+    """
+    A message sent within a unified chat conversation.
+    """
+
+    conversation = models.ForeignKey(
+        ChatConversation,
+        on_delete=models.CASCADE,
+        related_name="messages",
+        help_text="Conversation this message belongs to",
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="family_conversation_messages",
+        help_text="User who sent this message",
+    )
+    content = models.TextField(max_length=4000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_deleted = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["conversation", "created_at"]),
+        ]
+
+    def __str__(self):
+        author_name = self.author.email if self.author else "Deleted User"
+        return f"{author_name}: {self.content[:60]}"
+
+
+class ChatMessageReadReceipt(models.Model):
+    """
+    Per-message read receipt for conversation participants.
+    """
+
+    message = models.ForeignKey(
+        ChatConversationMessage,
+        on_delete=models.CASCADE,
+        related_name="read_receipts",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="chat_read_receipts",
+    )
+    read_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("message", "user")]
+        ordering = ["-read_at"]
+
+    def __str__(self):
+        return f"{self.user.email} read {self.message_id}"
 
 
 def create_notification(recipient, notification_type, title, message="", link="", family=None):

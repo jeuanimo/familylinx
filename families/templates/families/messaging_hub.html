@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Messages - {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Messages</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-chat-dots"></i> Messaging</h1>
+        <p class="muted">Direct messages, family branches, and event conversations for {{ family.name }}</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:chat_room' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-people"></i> Family Chat
+        </a>
+      </div>
+    </div>
+
+    <div class="grid-2" style="grid-template-columns: 1.6fr 1fr; gap: 1.5rem;">
+      <div class="stack-lg">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-inboxes"></i> Conversations</span>
+          </div>
+          {% if conversations %}
+          <div class="list">
+            {% for item in conversations %}
+            <a href="{% url 'families:conversation_room' family_id=family.id conversation_id=item.conversation.id %}" class="list-item-action">
+              <div class="flex-between" style="gap: 1rem; width: 100%;">
+                <div>
+                  <strong>{{ item.title }}</strong>
+                  <div class="muted" style="margin-top: 0.2rem;">
+                    {% if item.latest_message %}
+                    {{ item.latest_message.content|truncatechars:70 }}
+                    {% else %}
+                    No messages yet.
+                    {% endif %}
+                  </div>
+                </div>
+                <div style="text-align: right; min-width: 90px;">
+                  {% if item.unread_count %}
+                  <span class="badge badge-red">{{ item.unread_count }} new</span>
+                  {% endif %}
+                  {% if item.latest_message %}
+                  <div class="muted" style="margin-top: 0.25rem; font-size: 0.85rem;">{{ item.latest_message.created_at|timesince }} ago</div>
+                  {% endif %}
+                </div>
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="card-body">
+            <p class="muted mb-0">No conversations yet.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="stack-lg">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-person-lines-fill"></i> Direct Messages</span>
+          </div>
+          <div class="list">
+            {% for member in members %}
+            <a href="{% url 'families:direct_conversation_start' family_id=family.id user_id=member.user.id %}" class="list-item-action">
+              <strong>{{ member.user.profile.get_display_name|default:member.user.email }}</strong>
+              <div class="muted">{{ member.role }}</div>
+            </a>
+            {% empty %}
+            <div class="card-body"><p class="muted mb-0">No other family members yet.</p></div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-diagram-3"></i> Branch Chats</span>
+          </div>
+          <div class="list">
+            {% for person in branch_people %}
+            <a href="{% url 'families:branch_conversation_start' family_id=family.id person_id=person.id %}" class="list-item-action">
+              <strong>{{ person.full_name }}</strong>
+              <div class="muted">Open branch conversation</div>
+            </a>
+            {% empty %}
+            <div class="card-body"><p class="muted mb-0">No people available yet.</p></div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-calendar-event"></i> Event Chats</span>
+          </div>
+          <div class="list">
+            {% for event in events %}
+            <a href="{% url 'families:event_conversation_start' family_id=family.id event_id=event.id %}" class="list-item-action">
+              <strong>{{ event.title }}</strong>
+              <div class="muted">{{ event.start_datetime|date:"M j, Y g:i A" }}</div>
+            </a>
+            {% empty %}
+            <div class="card-body"><p class="muted mb-0">No events available yet.</p></div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

@@ -26,12 +26,12 @@
             {% endif %}
             
             <div class="form-group">
-                <label for="id_login" class="form-label">Email Address</label>
-                <input type="email" 
+                <label for="id_login" class="form-label">Username or Email</label>
+                <input type="text" 
                        name="login" 
                        id="id_login"
                        class="form-control {% if form.login.errors %}is-invalid{% endif %}"
-                       placeholder="you@example.com"
+                       placeholder="username or email"
                        value="{{ form.login.value|default:'' }}"
                        autofocus
                        required>

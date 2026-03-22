@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}{{ conversation_title }} - {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:messaging_hub' family_id=family.id %}">Messages</a>
+      <span class="separator">/</span>
+      <span class="current">{{ conversation_title }}</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-chat-square-dots"></i> {{ conversation_title }}</h1>
+        <p class="muted">
+          {% if conversation.conversation_type == 'DIRECT' %}
+          1:1 conversation
+          {% elif conversation.conversation_type == 'BRANCH' %}
+          Family branch chat
+          {% elif conversation.conversation_type == 'EVENT' %}
+          Event chat
+          {% else %}
+          Family-wide conversation
+          {% endif %}
+        </p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:messaging_hub' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-arrow-left"></i> Back to Messages
+        </a>
+      </div>
+    </div>
+
+    <div class="chat-layout">
+      <aside class="chat-sidebar">
+        <div class="chat-members-panel">
+          <h3><i class="bi bi-people"></i> Participants</h3>
+          <ul class="members-list">
+            {% for participant in participants %}
+            <li class="member-item">
+              <div class="member-avatar">
+                {% if participant.user.profile.profile_picture %}
+                <img src="{{ participant.user.profile.profile_picture.url }}" alt="{{ participant.user.profile.get_display_name }}">
+                {% else %}
+                <div class="avatar-placeholder"><i class="bi bi-person"></i></div>
+                {% endif %}
+              </div>
+              <div class="member-info">
+                <span class="member-name">{{ participant.user.profile.get_display_name|default:participant.user.email }}{% if participant.user == request.user %} (you){% endif %}</span>
+                <span class="member-role">
+                  {% if participant.last_read_at %}Read {{ participant.last_read_at|timesince }} ago{% else %}Unread{% endif %}
+                </span>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </aside>
+
+      <div class="chat-container">
+        <div class="chat-messages" id="chat-messages">
+          {% if messages_data %}
+            {% for message in messages_data %}
+            <div class="chat-message {% if message.is_own %}chat-message-own{% endif %}" data-message-id="{{ message.id }}">
+              <div class="chat-message-header">
+                <span class="chat-author">{{ message.author_label }}</span>
+                <span class="chat-time">{{ message.created_at|date:"g:i A" }}</span>
+              </div>
+              <div class="chat-message-body">{{ message.content|linebreaks }}</div>
+              {% if message.is_own and message.read_receipt_text %}
+              <div class="chat-read-receipt">{{ message.read_receipt_text }}</div>
+              {% endif %}
+              {% if message.is_own or membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+              <div class="chat-message-actions">
+                <form method="post" action="{% url 'families:conversation_message_delete' family_id=family.id conversation_id=conversation.id message_id=message.id %}" onsubmit="return confirm('Delete this message?');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn-icon" title="Delete message">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          {% else %}
+          <div class="chat-empty" id="chat-empty">
+            <i class="bi bi-chat-dots"></i>
+            <p>No messages yet. Start the conversation!</p>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if membership.role != 'VIEWER' %}
+        <div class="chat-input-container">
+          <form class="chat-form" id="chat-form">
+            {% csrf_token %}
+            <div class="chat-input-wrapper">
+              {{ form.content }}
+              <button type="submit" class="btn btn-primary chat-send-btn">
+                <i class="bi bi-send"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+        {% else %}
+        <div class="chat-input-container chat-viewer-notice">
+          <p class="muted mb-0"><i class="bi bi-eye"></i> Viewers can read messages but cannot send them.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</main>
+
+<style>
+.chat-read-receipt {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--fl-muted);
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const container = document.getElementById('chat-messages');
+  const form = document.getElementById('chat-form');
+  const textarea = form ? form.querySelector('textarea') : null;
+  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const socket = new WebSocket(`${scheme}://${window.location.host}{{ ws_path }}`);
+
+  function scrollToBottom() {
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }
+
+  function escapeHtml(value) {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function markRead() {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ action: 'mark_read' }));
+    }
+  }
+
+  function appendMessage(message) {
+    const emptyState = document.getElementById('chat-empty');
+    if (emptyState) {
+      emptyState.remove();
+    }
+
+    const messageEl = document.createElement('div');
+    messageEl.className = 'chat-message' + (message.is_own ? ' chat-message-own' : '');
+    messageEl.dataset.messageId = message.id;
+
+    const time = new Date(message.created_at);
+    const timeLabel = time.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const receiptHtml = message.is_own && message.receipt_text
+      ? `<div class="chat-read-receipt">${escapeHtml(message.receipt_text)}</div>`
+      : '';
+
+    messageEl.innerHTML = `
+      <div class="chat-message-header">
+        <span class="chat-author">${escapeHtml(message.author_label)}</span>
+        <span class="chat-time">${timeLabel}</span>
+      </div>
+      <div class="chat-message-body"><p>${escapeHtml(message.content).replace(/\n/g, '<br>')}</p></div>
+      ${receiptHtml}
+    `;
+
+    container.appendChild(messageEl);
+    scrollToBottom();
+    if (!message.is_own) {
+      markRead();
+    }
+  }
+
+  socket.addEventListener('open', function () {
+    scrollToBottom();
+    markRead();
+  });
+
+  socket.addEventListener('message', function (event) {
+    const data = JSON.parse(event.data);
+    if (data.type === 'message') {
+      appendMessage(data.message);
+    }
+    if (data.type === 'receipt') {
+      const messageEl = container.querySelector(`[data-message-id="${data.message_id}"]`);
+      if (!messageEl) return;
+      let receiptEl = messageEl.querySelector('.chat-read-receipt');
+      if (!data.receipt_text) {
+        if (receiptEl) receiptEl.remove();
+        return;
+      }
+      if (!receiptEl) {
+        receiptEl = document.createElement('div');
+        receiptEl.className = 'chat-read-receipt';
+        messageEl.appendChild(receiptEl);
+      }
+      receiptEl.textContent = data.receipt_text;
+    }
+  });
+
+  if (textarea) {
+    textarea.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+  }
+
+  if (form) {
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      const content = textarea.value.trim();
+      if (!content || socket.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({ action: 'send_message', content }));
+      textarea.value = '';
+      textarea.style.height = 'auto';
+    });
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      markRead();
+    }
+  });
+});
+</script>
+{% endblock %}
