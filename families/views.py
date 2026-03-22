@@ -2939,6 +2939,7 @@ def photo_detail(request, family_id, album_id, photo_id):
 def photo_tag_suggestions(request, family_id, album_id, photo_id):
     """
     Provide simple tag suggestions based on people already tagged in the same album.
+    Acts as a lightweight face-rec placeholder by using tag frequency proximity.
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
@@ -2956,7 +2957,14 @@ def photo_tag_suggestions(request, family_id, album_id, photo_id):
         .order_by("-freq", "last_name", "first_name")[:5]
     )
     suggestions = [
-        {"id": p.id, "name": p.full_name, "freq": p.freq} for p in counts
+        {
+            "id": p.id,
+            "name": p.full_name,
+            "freq": p.freq,
+            "confidence": min(0.95, 0.4 + 0.1 * p.freq),  # heuristic confidence
+            "reason": "Similar faces in this album (placeholder)",
+        }
+        for p in counts
         if p.id not in photo.tagged_people.values_list("id", flat=True)
     ]
     return JsonResponse({"suggestions": suggestions})
@@ -3409,7 +3417,7 @@ def time_capsule_create(request, family_id):
 def person_chatbot(request, family_id, person_id):
     """
     Lightweight person-aware summary/QA endpoint (no external AI).
-    Returns a synthesized narrative from memories, life story sections, and events.
+    Returns a synthesized narrative and simple retrieval-based answer.
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
@@ -3429,6 +3437,7 @@ def person_chatbot(request, family_id, person_id):
         Event.objects.filter(family=family, title__icontains=person.first_name)
         .order_by("-start_datetime")[:5]
     )
+    question = request.GET.get("q", "").strip()
 
     def summarize():
         parts = [f"{person.full_name} — quick story snapshot:"]
@@ -3446,11 +3455,27 @@ def person_chatbot(request, family_id, person_id):
 
     response_text = summarize()
 
+    answer = ""
+    if question:
+        corpus = []
+        corpus.extend([f"{m.title}: {m.content}" for m in memories])
+        corpus.extend([f"{s.heading}: {s.content}" for s in story_sections])
+        corpus.extend([f"Event {e.title}: {e.description}" for e in events if e.description])
+        from difflib import get_close_matches
+        best = get_close_matches(question.lower(), [c.lower() for c in corpus], n=1, cutoff=0.1)
+        if best:
+            idx = [c.lower() for c in corpus].index(best[0])
+            answer = corpus[idx]
+        else:
+            answer = "I couldn't find an exact answer, but here's the latest summary:\n" + response_text
+
     return render(request, "families/person_chatbot.html", {
         "family": family,
         "membership": membership,
         "person": person,
         "response_text": response_text,
+        "question": question,
+        "answer": answer,
     })
 
 

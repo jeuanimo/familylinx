@@ -20,8 +20,29 @@
         <span class="card-title"><i class="bi bi-robot"></i> Tell me about {{ person.full_name }}</span>
       </div>
       <div class="card-body">
-        <pre style="white-space: pre-wrap; background: var(--fl-surface); padding: 1rem; border-radius: var(--fl-radius);">{{ response_text }}</pre>
-        <p class="muted" style="margin-top: 0.75rem;">This summary is generated from memories, life story sections, and related events already in FamilyLinx.</p>
+        <form method="get" class="mb-3">
+          <div class="grid-2" style="gap: 0.75rem;">
+            <input type="text" name="q" value="{{ question }}" class="form-control" placeholder="Ask a question about {{ person.full_name }} (e.g., Where were they born?)">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Ask</button>
+          </div>
+        </form>
+
+        {% if question %}
+        <div class="card" style="margin-bottom: 1rem;">
+          <div class="card-header"><strong>Answer</strong></div>
+          <div class="card-body">
+            <pre style="white-space: pre-wrap; background: transparent; padding: 0;">{{ answer }}</pre>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="card">
+          <div class="card-header"><strong>Summary</strong></div>
+          <div class="card-body">
+            <pre style="white-space: pre-wrap; background: transparent; padding: 0;">{{ response_text }}</pre>
+          </div>
+        </div>
+        <p class="muted" style="margin-top: 0.75rem;">This uses existing memories, life story sections, and events already in FamilyLinx. No external AI calls are made.</p>
       </div>
     </div>
   </div>
