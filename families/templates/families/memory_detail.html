@@ -1,0 +1,271 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ memory.title }} - Living Museum{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'families:family_detail' family.id %}">{{ family.name }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'families:museum_home' family.id %}">Living Museum</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'families:museum_person' family.id memory.person.id %}">{{ memory.person.full_name }}</a></li>
+            <li class="breadcrumb-item active">{{ memory.title|truncatewords:5 }}</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <article class="card mb-4">
+                <div class="card-body">
+                    <!-- Header -->
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <span class="badge bg-{{ memory.story_type|lower|default:'secondary' }} mb-2">
+                                {{ memory.get_story_type_display }}
+                            </span>
+                            {% if memory.is_featured %}
+                            <span class="badge bg-warning text-dark ms-1">
+                                <i class="bi bi-star-fill"></i> Featured
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% if can_edit %}
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-three-dots"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="{% url 'families:memory_edit' family.id memory.id %}"><i class="bi bi-pencil"></i> Edit</a></li>
+                                <li><a class="dropdown-item" href="{% url 'families:museum_share_create_object' family.id 'memory' memory.id %}"><i class="bi bi-share"></i> Share</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="{% url 'families:memory_delete' family.id memory.id %}"><i class="bi bi-trash"></i> Delete</a></li>
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Title -->
+                    <h1 class="h2 mb-3">{{ memory.title }}</h1>
+
+                    <!-- Meta Info -->
+                    <div class="d-flex flex-wrap gap-3 mb-4 text-muted small">
+                        <span>
+                            <i class="bi bi-person"></i>
+                            About <a href="{% url 'families:museum_person' family.id memory.person.id %}">{{ memory.person.full_name }}</a>
+                        </span>
+                        {% if memory.date_of_memory %}
+                        <span><i class="bi bi-calendar"></i> {{ memory.date_of_memory }}</span>
+                        {% endif %}
+                        {% if memory.location %}
+                        <span><i class="bi bi-geo-alt"></i> {{ memory.location }}</span>
+                        {% endif %}
+                        <span><i class="bi bi-eye"></i> {{ memory.view_count }} views</span>
+                    </div>
+
+                    <!-- Media Gallery -->
+                    {% if memory.media.all %}
+                    <div class="mb-4">
+                        <div class="row g-2">
+                            {% for media in memory.media.all %}
+                            <div class="col-{% if forloop.first and memory.media.count == 1 %}12{% elif memory.media.count == 2 %}6{% else %}4{% endif %}">
+                                {% if media.media_type == 'PHOTO' %}
+                                <a href="{{ media.file.url }}" data-lightbox="memory-{{ memory.id }}" data-title="{{ media.caption }}">
+                                    <img src="{{ media.file.url }}" class="img-fluid rounded" alt="{{ media.caption }}" style="{% if forloop.first and memory.media.count == 1 %}max-height: 500px;{% else %}height: 200px;{% endif %} width: 100%; object-fit: cover;">
+                                </a>
+                                {% elif media.media_type == 'VIDEO' %}
+                                <video controls class="w-100 rounded" style="max-height: 400px;">
+                                    <source src="{{ media.file.url }}" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                </video>
+                                {% elif media.media_type == 'AUDIO' %}
+                                <div class="p-3 bg-light rounded">
+                                    <i class="bi bi-music-note-beamed"></i>
+                                    <audio controls class="w-100 mt-2">
+                                        <source src="{{ media.file.url }}" type="audio/mpeg">
+                                        Your browser does not support the audio element.
+                                    </audio>
+                                </div>
+                                {% else %}
+                                <a href="{{ media.file.url }}" class="d-block p-3 bg-light rounded text-center" target="_blank">
+                                    <i class="bi bi-file-earmark display-4"></i>
+                                    <br>
+                                    <small>{{ media.caption|default:"Document" }}</small>
+                                </a>
+                                {% endif %}
+                                {% if media.caption %}
+                                <small class="text-muted d-block mt-1">{{ media.caption }}</small>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Content -->
+                    <div class="memory-content">
+                        {{ memory.content|linebreaks }}
+                    </div>
+
+                    <!-- Author Info -->
+                    <div class="border-top pt-3 mt-4">
+                        <small class="text-muted">
+                            Shared by {% if memory.author %}{{ memory.author.get_full_name|default:memory.author.username }}{% else %}Unknown{% endif %}
+                            on {{ memory.created_at|date:"F j, Y" }}
+                            {% if memory.updated_at != memory.created_at %}
+                            &bull; Updated {{ memory.updated_at|date:"F j, Y" }}
+                            {% endif %}
+                        </small>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Reactions -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="mb-3">Reactions</h5>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        {% for reaction_type, emoji in reaction_types %}
+                        <form method="post" action="{% url 'families:memory_react' family.id memory.id %}" class="d-inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="reaction_type" value="{{ reaction_type }}">
+                            <button type="submit" class="btn btn-sm {% if user_reaction == reaction_type %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                                {{ emoji }} <span class="reaction-count">{{ reaction_counts|default_if_none:0 }}</span>
+                            </button>
+                        </form>
+                        {% endfor %}
+                    </div>
+                    {% if reactions %}
+                    <small class="text-muted">
+                        {% for reaction in reactions|slice:":5" %}
+                        {{ reaction.user.first_name|default:reaction.user.username }}{% if not forloop.last %}, {% endif %}
+                        {% endfor %}
+                        {% if reactions.count > 5 %}and {{ reactions.count|add:"-5" }} more{% endif %}
+                        reacted to this memory
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Comments -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-chat"></i> Comments ({{ comments.count }})</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Comment Form -->
+                    <form method="post" action="{% url 'families:memory_comment' family.id memory.id %}" class="mb-4">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <textarea name="content" class="form-control" rows="3" placeholder="Share your thoughts about this memory..." required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send"></i> Post Comment
+                        </button>
+                    </form>
+
+                    <!-- Comment List -->
+                    {% if comments %}
+                    <div class="comments-list">
+                        {% for comment in comments %}
+                        <div class="d-flex mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                            <div class="flex-shrink-0">
+                                <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <span class="text-white">{{ comment.author.first_name.0|default:comment.author.username.0|upper }}</span>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <strong>{{ comment.author.get_full_name|default:comment.author.username }}</strong>
+                                    <small class="text-muted">{{ comment.created_at|timesince }} ago</small>
+                                </div>
+                                <p class="mb-0 mt-1">{{ comment.content }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center">No comments yet. Be the first to share your thoughts!</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- About Person -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">About {{ memory.person.first_name }}</h6>
+                </div>
+                <div class="card-body text-center">
+                    {% if memory.person.photo %}
+                    <img src="{{ memory.person.photo.url }}" class="rounded-circle mb-3" style="width: 100px; height: 100px; object-fit: cover;">
+                    {% else %}
+                    <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 100px; height: 100px;">
+                        <i class="bi bi-person-fill text-white" style="font-size: 2.5rem;"></i>
+                    </div>
+                    {% endif %}
+                    <h5 class="mb-1">{{ memory.person.full_name }}</h5>
+                    {% if memory.person.birth_date %}
+                    <p class="text-muted small mb-3">{{ memory.person.birth_date }} {% if memory.person.death_date %}- {{ memory.person.death_date }}{% endif %}</p>
+                    {% endif %}
+                    <a href="{% url 'families:museum_person' family.id memory.person.id %}" class="btn btn-sm btn-outline-primary">
+                        View Museum <span class="badge bg-secondary">{{ person_memory_count }}</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Related Memories -->
+            {% if related_memories %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">More About {{ memory.person.first_name }}</h6>
+                </div>
+                <ul class="list-group list-group-flush">
+                    {% for related in related_memories %}
+                    <li class="list-group-item">
+                        <a href="{% url 'families:memory_detail' family.id related.id %}" class="text-decoration-none">
+                            <span class="badge bg-{{ related.story_type|lower|default:'secondary' }} me-1">{{ related.get_story_type_display }}</span>
+                            {{ related.title|truncatewords:6 }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <!-- Share -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-share"></i> Share This Memory</h6>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">Share this memory with family members or create a public link.</p>
+                    <a href="{% url 'families:museum_share_create_object' family.id 'memory' memory.id %}" class="btn btn-outline-primary btn-sm w-100">
+                        <i class="bi bi-link-45deg"></i> Create Share Link
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.badge.bg-memory { background-color: #6f42c1 !important; }
+.badge.bg-story { background-color: #0d6efd !important; }
+.badge.bg-tribute { background-color: #dc3545 !important; }
+.badge.bg-biography { background-color: #198754 !important; }
+.badge.bg-milestone { background-color: #ffc107 !important; color: #000; }
+.badge.bg-tradition { background-color: #fd7e14 !important; }
+.badge.bg-recipe { background-color: #20c997 !important; }
+.badge.bg-lesson { background-color: #0dcaf0 !important; }
+
+.memory-content {
+    font-size: 1.1rem;
+    line-height: 1.8;
+}
+</style>
+{% endblock %}

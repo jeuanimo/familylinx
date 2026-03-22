@@ -65,10 +65,18 @@ def profile_view(request, user_id):
         posts = posts.exclude(visibility='PRIVATE')
     
     # Get shared families (for family members visibility)
-    from families.models import Membership
+    from families.models import Membership, DNAKit
     user_families = set(Membership.objects.filter(user=request.user).values_list('family_id', flat=True))
     profile_families = set(Membership.objects.filter(user=profile_user).values_list('family_id', flat=True))
     shared_families = user_families & profile_families
+    
+    # Get DNA kits for this user (only visible on own profile or if public)
+    dna_kits = []
+    if is_own_profile:
+        dna_kits = DNAKit.objects.filter(user=profile_user).order_by('-uploaded_at')[:5]
+    else:
+        # Only show non-private kits to others
+        dna_kits = DNAKit.objects.filter(user=profile_user, is_private=False).order_by('-uploaded_at')[:5]
     
     # Post form for own profile or commenting
     post_form = ProfilePostForm() if is_own_profile else None
@@ -82,6 +90,7 @@ def profile_view(request, user_id):
         'post_form': post_form,
         'comment_form': comment_form,
         'shared_families': shared_families,
+        'dna_kits': dna_kits,
     }
     
     return render(request, 'accounts/profile_view.html', context)

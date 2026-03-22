@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Living Museum - {{ family.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1><i class="bi bi-book"></i> Living Museum</h1>
+            <p class="text-muted mb-0">Stories, memories, and tributes for {{ family.name }}</p>
+        </div>
+        <div>
+            <a href="{% url 'families:memory_create' family.id %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Add Memory
+            </a>
+            <a href="{% url 'families:museum_share_list' family.id %}" class="btn btn-outline-secondary">
+                <i class="bi bi-share"></i> Shares
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Story Type</label>
+                    <select name="story_type" class="form-select">
+                        <option value="">All Types</option>
+                        {% for value, label in story_types %}
+                        <option value="{{ value }}" {% if request.GET.story_type == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Person</label>
+                    <select name="person" class="form-select">
+                        <option value="">All People</option>
+                        {% for person in people %}
+                        <option value="{{ person.id }}" {% if request.GET.person == person.id|stringformat:"s" %}selected{% endif %}>{{ person.full_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Search</label>
+                    <input type="text" name="q" class="form-control" placeholder="Search memories..." value="{{ request.GET.q }}">
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-secondary w-100">
+                        <i class="bi bi-search"></i> Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Featured Memories -->
+    {% if featured_memories %}
+    <div class="mb-4">
+        <h4><i class="bi bi-star-fill text-warning"></i> Featured Memories</h4>
+        <div class="row">
+            {% for memory in featured_memories %}
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 border-warning">
+                    {% if memory.media.first %}
+                    <img src="{{ memory.media.first.file.url }}" class="card-img-top" alt="{{ memory.title }}" style="height: 200px; object-fit: cover;">
+                    {% endif %}
+                    <div class="card-body">
+                        <span class="badge bg-{{ memory.story_type|lower }}">{{ memory.get_story_type_display }}</span>
+                        <h5 class="card-title mt-2">{{ memory.title }}</h5>
+                        <p class="card-text text-muted small">
+                            About <a href="{% url 'families:museum_person' family.id memory.person.id %}">{{ memory.person.full_name }}</a>
+                        </p>
+                        <p class="card-text">{{ memory.content|truncatewords:30 }}</p>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <a href="{% url 'families:memory_detail' family.id memory.id %}" class="btn btn-sm btn-outline-primary">
+                            Read More
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- All Memories -->
+    <h4 class="mb-3">
+        {% if request.GET.q or request.GET.story_type or request.GET.person %}
+        Search Results
+        {% else %}
+        All Memories
+        {% endif %}
+        <span class="badge bg-secondary">{{ memories.count }}</span>
+    </h4>
+
+    {% if memories %}
+    <div class="row">
+        {% for memory in memories %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 memory-card">
+                {% if memory.media.first %}
+                <div class="memory-media-preview">
+                    <img src="{{ memory.media.first.file.url }}" class="card-img-top" alt="{{ memory.title }}" style="height: 180px; object-fit: cover;">
+                    {% if memory.media.count > 1 %}
+                    <span class="badge bg-dark position-absolute top-0 end-0 m-2">
+                        <i class="bi bi-images"></i> {{ memory.media.count }}
+                    </span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge bg-{{ memory.story_type|lower|default:'secondary' }}">
+                            {{ memory.get_story_type_display }}
+                        </span>
+                        {% if memory.is_featured %}
+                        <i class="bi bi-star-fill text-warning"></i>
+                        {% endif %}
+                    </div>
+                    <h5 class="card-title">{{ memory.title }}</h5>
+                    <p class="card-text text-muted small mb-2">
+                        <i class="bi bi-person"></i> 
+                        <a href="{% url 'families:museum_person' family.id memory.person.id %}">{{ memory.person.full_name }}</a>
+                    </p>
+                    {% if memory.date_of_memory %}
+                    <p class="card-text text-muted small mb-2">
+                        <i class="bi bi-calendar"></i> {{ memory.date_of_memory }}
+                    </p>
+                    {% endif %}
+                    <p class="card-text">{{ memory.content|truncatewords:25 }}</p>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="small text-muted">
+                            <i class="bi bi-eye"></i> {{ memory.view_count }}
+                            <i class="bi bi-heart ms-2"></i> {{ memory.reactions.count }}
+                            <i class="bi bi-chat ms-2"></i> {{ memory.comments.count }}
+                        </div>
+                        <a href="{% url 'families:memory_detail' family.id memory.id %}" class="btn btn-sm btn-primary">
+                            View
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if memories.has_other_pages %}
+    <nav aria-label="Page navigation" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if memories.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ memories.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a>
+            </li>
+            {% endif %}
+            {% for num in memories.paginator.page_range %}
+            <li class="page-item {% if memories.number == num %}active{% endif %}">
+                <a class="page-link" href="?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ num }}</a>
+            </li>
+            {% endfor %}
+            {% if memories.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ memories.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+    {% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-book display-1 text-muted"></i>
+        <h4 class="mt-3">No memories yet</h4>
+        <p class="text-muted">Be the first to share a story or memory about your family members.</p>
+        <a href="{% url 'families:memory_create' family.id %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Add First Memory
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.memory-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.memory-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+.badge.bg-memory { background-color: #6f42c1 !important; }
+.badge.bg-story { background-color: #0d6efd !important; }
+.badge.bg-tribute { background-color: #dc3545 !important; }
+.badge.bg-biography { background-color: #198754 !important; }
+.badge.bg-milestone { background-color: #ffc107 !important; color: #000; }
+.badge.bg-tradition { background-color: #fd7e14 !important; }
+.badge.bg-recipe { background-color: #20c997 !important; }
+.badge.bg-lesson { background-color: #0dcaf0 !important; }
+</style>
+{% endblock %}

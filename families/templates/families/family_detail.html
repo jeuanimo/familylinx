@@ -311,6 +311,25 @@
             </div>
         </div>
         
+        <!-- Living Museum -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-book"></i> Living Museum</span>
+            </div>
+            <div class="card-body">
+                <div class="stack-sm">
+                    <a href="{% url 'families:museum_home' family_id=family.id %}" class="btn btn-primary w-full">
+                        <i class="bi bi-book"></i> Visit Museum
+                    </a>
+                    {% if membership.role != 'VIEWER' %}
+                    <a href="{% url 'families:memory_create' family_id=family.id %}" class="btn btn-outline w-full">
+                        <i class="bi bi-plus-lg"></i> Add Memory
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
         <!-- Family Chat -->
         <div class="card">
             <div class="card-header">

@@ -1237,6 +1237,457 @@ class Photo(models.Model):
 
 
 # =============================================================================
+# Living Museum - Stories, Memories & Tributes
+# =============================================================================
+
+class MemoryStory(models.Model):
+    """
+    A story, memory, or tribute about a person in the family tree.
+    
+    The Living Museum allows family members to share memories, anecdotes,
+    and stories about their relatives - creating a rich narrative history.
+    
+    Attributes:
+        person (Person): The person this memory is about
+        title (str): Title of the story/memory
+        content (str): The story content (rich text)
+        story_type (str): Type of memory (story, tribute, biography, etc.)
+        author (User): Who wrote this memory
+        date_of_memory (date): When this memory took place (optional)
+        is_featured (bool): Featured on person's profile
+        is_public (bool): Visible to shared/guest viewers
+    """
+    
+    class StoryType(models.TextChoices):
+        MEMORY = 'MEMORY', 'Memory'
+        STORY = 'STORY', 'Story'
+        TRIBUTE = 'TRIBUTE', 'Tribute'
+        BIOGRAPHY = 'BIOGRAPHY', 'Biography'
+        MILESTONE = 'MILESTONE', 'Life Milestone'
+        TRADITION = 'TRADITION', 'Family Tradition'
+        RECIPE = 'RECIPE', 'Family Recipe'
+        LESSON = 'LESSON', 'Life Lesson'
+    
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="memories",
+        help_text="The person this memory is about"
+    )
+    title = models.CharField(
+        max_length=200,
+        help_text="Title of the story or memory"
+    )
+    content = models.TextField(
+        help_text="The story content"
+    )
+    story_type = models.CharField(
+        max_length=20,
+        choices=StoryType.choices,
+        default=StoryType.MEMORY,
+        help_text="Type of memory"
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="authored_memories",
+        help_text="Who wrote this memory"
+    )
+    date_of_memory = models.DateField(
+        null=True,
+        blank=True,
+        help_text="When this memory took place"
+    )
+    location = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Where this memory took place"
+    )
+    is_featured = models.BooleanField(
+        default=False,
+        help_text="Feature this memory on the person's profile"
+    )
+    is_public = models.BooleanField(
+        default=False,
+        help_text="Make visible to shared/guest viewers"
+    )
+    
+    # Engagement
+    view_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of times this memory has been viewed"
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this memory was created"
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this memory was last modified"
+    )
+    
+    def __str__(self):
+        return f"{self.title} - {self.person.full_name}"
+    
+    @property
+    def family(self):
+        """Get the family space this memory belongs to."""
+        return self.person.family
+    
+    class Meta:
+        verbose_name = "Memory/Story"
+        verbose_name_plural = "Memories & Stories"
+        ordering = ['-is_featured', '-created_at']
+
+
+class MemoryMedia(models.Model):
+    """
+    Media attachment for a memory (photos, videos, audio).
+    
+    Allows rich multimedia storytelling with photos, videos, and audio
+    recordings attached to memory stories.
+    
+    Attributes:
+        memory (MemoryStory): The memory this media belongs to
+        media_type (str): Type of media (photo, video, audio)
+        file (FileField): The media file
+        caption (str): Optional caption
+        order (int): Display order
+    """
+    
+    class MediaType(models.TextChoices):
+        PHOTO = 'PHOTO', 'Photo'
+        VIDEO = 'VIDEO', 'Video'
+        AUDIO = 'AUDIO', 'Audio Recording'
+        DOCUMENT = 'DOCUMENT', 'Document'
+    
+    memory = models.ForeignKey(
+        MemoryStory,
+        on_delete=models.CASCADE,
+        related_name="media",
+        help_text="The memory this media belongs to"
+    )
+    media_type = models.CharField(
+        max_length=20,
+        choices=MediaType.choices,
+        default=MediaType.PHOTO,
+        help_text="Type of media"
+    )
+    file = models.FileField(
+        upload_to="museum/%Y/%m/",
+        help_text="The media file"
+    )
+    thumbnail = models.ImageField(
+        upload_to="museum/thumbs/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Thumbnail for videos"
+    )
+    caption = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Caption for this media"
+    )
+    order = models.PositiveIntegerField(
+        default=0,
+        help_text="Display order"
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="uploaded_memory_media",
+        help_text="Who uploaded this media"
+    )
+    uploaded_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this media was uploaded"
+    )
+    
+    def __str__(self):
+        return f"{self.media_type}: {self.caption[:30] if self.caption else 'No caption'}"
+    
+    class Meta:
+        verbose_name = "Memory Media"
+        verbose_name_plural = "Memory Media"
+        ordering = ['order', 'uploaded_at']
+
+
+class MemoryComment(models.Model):
+    """
+    Comments on memory stories from family members.
+    
+    Allows other family members to add their own recollections
+    or reactions to shared memories.
+    """
+    
+    memory = models.ForeignKey(
+        MemoryStory,
+        on_delete=models.CASCADE,
+        related_name="comments",
+        help_text="The memory being commented on"
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="memory_comments",
+        help_text="Who wrote this comment"
+    )
+    content = models.TextField(
+        max_length=1000,
+        help_text="Comment text"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this comment was posted"
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this comment was last edited"
+    )
+    
+    def __str__(self):
+        return f"Comment by {self.author.email} on {self.memory.title}"
+    
+    class Meta:
+        verbose_name = "Memory Comment"
+        verbose_name_plural = "Memory Comments"
+        ordering = ['created_at']
+
+
+class MemoryReaction(models.Model):
+    """
+    Reactions (like, love, etc.) on memory stories.
+    """
+    
+    class ReactionType(models.TextChoices):
+        LIKE = 'LIKE', '👍 Like'
+        LOVE = 'LOVE', '❤️ Love'
+        LAUGH = 'LAUGH', '😂 Laugh'
+        CRY = 'CRY', '😢 Touching'
+        WOW = 'WOW', '😮 Wow'
+    
+    memory = models.ForeignKey(
+        MemoryStory,
+        on_delete=models.CASCADE,
+        related_name="reactions",
+        help_text="The memory being reacted to"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="memory_reactions",
+        help_text="Who reacted"
+    )
+    reaction_type = models.CharField(
+        max_length=10,
+        choices=ReactionType.choices,
+        default=ReactionType.LIKE,
+        help_text="Type of reaction"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When reaction was added"
+    )
+    
+    class Meta:
+        verbose_name = "Memory Reaction"
+        verbose_name_plural = "Memory Reactions"
+        unique_together = [('memory', 'user')]
+
+
+class MuseumShare(models.Model):
+    """
+    Share the Living Museum or specific memories with others.
+    
+    Allows family members to share memories with:
+    - Specific users (by email)
+    - Anyone with a link (public share link)
+    
+    Attributes:
+        share_type (str): What is being shared (memory, person, museum)
+        memory (MemoryStory): Specific memory (if share_type is MEMORY)
+        person (Person): Person's memories (if share_type is PERSON)
+        family (FamilySpace): Entire museum (if share_type is MUSEUM)
+        shared_by (User): Who created the share
+        shared_with_email (str): Email of recipient (optional)
+        shared_with_user (User): User recipient (if registered)
+        share_token (str): Unique token for link sharing
+        is_public_link (bool): Whether anyone with link can view
+        expires_at (datetime): When share expires (optional)
+    """
+    
+    class ShareType(models.TextChoices):
+        MEMORY = 'MEMORY', 'Single Memory'
+        PERSON = 'PERSON', "Person's Memories"
+        MUSEUM = 'MUSEUM', 'Entire Museum'
+    
+    share_type = models.CharField(
+        max_length=20,
+        choices=ShareType.choices,
+        default=ShareType.MEMORY,
+        help_text="What is being shared"
+    )
+    
+    # What is shared (one of these will be set based on share_type)
+    memory = models.ForeignKey(
+        MemoryStory,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="shares",
+        help_text="Specific memory being shared"
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="museum_shares",
+        help_text="Person whose memories are being shared"
+    )
+    family = models.ForeignKey(
+        FamilySpace,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="museum_shares",
+        help_text="Family whose entire museum is being shared"
+    )
+    
+    # Who is sharing
+    shared_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="museum_shares_created",
+        help_text="User who created this share"
+    )
+    
+    # Who is receiving (optional - can be public link)
+    shared_with_email = models.EmailField(
+        blank=True,
+        help_text="Email of the recipient"
+    )
+    shared_with_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="museum_shares_received",
+        help_text="User who received the share (if registered)"
+    )
+    
+    # Share link token
+    share_token = models.CharField(
+        max_length=64,
+        unique=True,
+        editable=False,
+        help_text="Unique token for share link"
+    )
+    is_public_link = models.BooleanField(
+        default=False,
+        help_text="Anyone with the link can view"
+    )
+    
+    # Optional message
+    message = models.TextField(
+        blank=True,
+        max_length=500,
+        help_text="Optional personal message"
+    )
+    
+    # Expiration and tracking
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When share expires (null = never)"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this share is currently active"
+    )
+    view_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of times this share has been viewed"
+    )
+    last_viewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the share was last viewed"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When share was created"
+    )
+    
+    def save(self, *args, **kwargs):
+        """Generate share token if not set."""
+        import secrets
+        if not self.share_token:
+            self.share_token = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+    
+    def is_valid(self):
+        """Check if share is still valid."""
+        from django.utils import timezone
+        if not self.is_active:
+            return False
+        if self.expires_at and self.expires_at < timezone.now():
+            return False
+        return True
+    
+    def record_view(self):
+        """Record a view of this share."""
+        from django.utils import timezone
+        self.view_count += 1
+        self.last_viewed_at = timezone.now()
+        self.save(update_fields=['view_count', 'last_viewed_at'])
+    
+    def can_access(self, user=None):
+        """Check if user/visitor can access this share."""
+        if not self.is_valid():
+            return False
+        
+        # Public links are accessible to anyone
+        if self.is_public_link:
+            return True
+        
+        # If shared with specific user
+        if user and self.shared_with_user == user:
+            return True
+        
+        # If shared by email and user has that email
+        if user and self.shared_with_email and user.email.lower() == self.shared_with_email.lower():
+            return True
+        
+        return False
+    
+    def get_share_url(self):
+        """Get the shareable URL for this share."""
+        return f"/museum/shared/{self.share_token}/"
+    
+    def __str__(self):
+        target = ""
+        if self.share_type == self.ShareType.MEMORY and self.memory:
+            target = self.memory.title
+        elif self.share_type == self.ShareType.PERSON and self.person:
+            target = f"{self.person.full_name}'s memories"
+        elif self.share_type == self.ShareType.MUSEUM and self.family:
+            target = f"{self.family.name} museum"
+        
+        recipient = self.shared_with_email or "Public Link"
+        return f"Share: {target} → {recipient}"
+    
+    class Meta:
+        verbose_name = "Museum Share"
+        verbose_name_plural = "Museum Shares"
+        ordering = ['-created_at']
+
+
+# =============================================================================
 # Phase 6: Notifications & Messaging
 # =============================================================================
 
@@ -2537,6 +2988,295 @@ class DeletionRequest(models.Model):
     class Meta:
         verbose_name = "Deletion Request"
         verbose_name_plural = "Deletion Requests"
+        ordering = ['-created_at']
+
+
+# =============================================================================
+# Cross-Space Sharing Models
+# =============================================================================
+
+class SpaceAccessRequest(models.Model):
+    """
+    Request from a user to access another family's tree.
+    
+    Users can discover related family spaces and request view access.
+    The target space's owners/admins can approve or deny requests.
+    
+    Attributes:
+        requester (User): User requesting access
+        target_family (FamilySpace): Family space they want to view
+        message (str): Optional message explaining the request
+        status (str): Pending, Approved, Denied
+        reviewed_by (User): Admin who reviewed 
+        reviewed_at (datetime): When reviewed
+    """
+    
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        APPROVED = 'APPROVED', 'Approved'
+        DENIED = 'DENIED', 'Denied'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+    
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="space_access_requests_sent",
+        help_text="User requesting access"
+    )
+    target_family = models.ForeignKey(
+        FamilySpace,
+        on_delete=models.CASCADE,
+        related_name="access_requests",
+        help_text="Family space being requested"
+    )
+    message = models.TextField(
+        blank=True,
+        max_length=500,
+        help_text="Optional message to the family admins"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        help_text="Request status"
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="access_requests_reviewed",
+        help_text="Admin who reviewed this request"
+    )
+    reviewer_notes = models.TextField(
+        blank=True,
+        max_length=500,
+        help_text="Notes from the reviewer"
+    )
+    reviewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the request was reviewed"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When request was created"
+    )
+    
+    def approve(self, reviewer, notes=''):
+        """Approve the access request and create SharedAccess."""
+        from django.utils import timezone
+        
+        self.status = self.Status.APPROVED
+        self.reviewed_by = reviewer
+        self.reviewer_notes = notes
+        self.reviewed_at = timezone.now()
+        self.save()
+        
+        # Create SharedAccess record
+        SharedAccess.objects.get_or_create(
+            user=self.requester,
+            family=self.target_family,
+            defaults={
+                'granted_by': reviewer,
+                'access_level': SharedAccess.AccessLevel.VIEWER,
+            }
+        )
+    
+    def deny(self, reviewer, notes=''):
+        """Deny the access request."""
+        from django.utils import timezone
+        
+        self.status = self.Status.DENIED
+        self.reviewed_by = reviewer
+        self.reviewer_notes = notes
+        self.reviewed_at = timezone.now()
+        self.save()
+    
+    def cancel(self):
+        """Cancel a pending request (by requester)."""
+        self.status = self.Status.CANCELLED
+        self.save()
+    
+    def __str__(self):
+        return f"{self.requester.email} → {self.target_family.name} ({self.status})"
+    
+    class Meta:
+        verbose_name = "Space Access Request"
+        verbose_name_plural = "Space Access Requests"
+        ordering = ['-created_at']
+        unique_together = [('requester', 'target_family')]
+
+
+class SharedAccess(models.Model):
+    """
+    Grants a user read access to a family space they're not a member of.
+    
+    This allows cross-family tree viewing for collaborative genealogy.
+    Shared users can view but not edit the family tree.
+    
+    Attributes:
+        user (User): User who has shared access
+        family (FamilySpace): Family space they can view
+        access_level (str): Level of access (currently just viewer)
+        granted_by (User): Who granted the access
+        expires_at (datetime): Optional expiration date
+    """
+    
+    class AccessLevel(models.TextChoices):
+        VIEWER = 'VIEWER', 'View Only'
+        LIMITED = 'LIMITED', 'Limited (ancestors only)'
+    
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="shared_family_access",
+        help_text="User with shared access"
+    )
+    family = models.ForeignKey(
+        FamilySpace,
+        on_delete=models.CASCADE,
+        related_name="shared_access_grants",
+        help_text="Family space being shared"
+    )
+    access_level = models.CharField(
+        max_length=20,
+        choices=AccessLevel.choices,
+        default=AccessLevel.VIEWER,
+        help_text="Level of access granted"
+    )
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="access_grants_given",
+        help_text="User who granted the access"
+    )
+    granted_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When access was granted"
+    )
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When access expires (null = never)"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this access grant is currently active"
+    )
+    
+    def is_valid(self):
+        """Check if access is still valid."""
+        from django.utils import timezone
+        if not self.is_active:
+            return False
+        if self.expires_at and self.expires_at < timezone.now():
+            return False
+        return True
+    
+    def revoke(self):
+        """Revoke this access grant."""
+        self.is_active = False
+        self.save()
+    
+    def __str__(self):
+        return f"{self.user.email} can view {self.family.name}"
+    
+    class Meta:
+        verbose_name = "Shared Access"
+        verbose_name_plural = "Shared Access Grants"
+        unique_together = [('user', 'family')]
+        ordering = ['-granted_at']
+
+
+class CrossSpacePersonLink(models.Model):
+    """
+    Links the same person across different family spaces.
+    
+    When users discover that a person exists in multiple family trees,
+    they can propose linking them. This enables collaborative genealogy
+    and helps avoid duplicate research.
+    
+    Attributes:
+        person1 (Person): Person in one family space
+        person2 (Person): Same person in another space
+        proposed_by (User): Who suggested the link
+        status (str): Proposed, Confirmed, Rejected
+        confidence_score (float): Match confidence
+    """
+    
+    class Status(models.TextChoices):
+        PROPOSED = 'PROPOSED', 'Proposed'
+        CONFIRMED = 'CONFIRMED', 'Confirmed'
+        REJECTED = 'REJECTED', 'Rejected'
+    
+    person1 = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="cross_space_links_as_person1",
+        help_text="Person in one family space"
+    )
+    person2 = models.ForeignKey(
+        Person,
+        on_delete=models.CASCADE,
+        related_name="cross_space_links_as_person2",
+        help_text="Same person in another family space"
+    )
+    proposed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="cross_space_links_proposed",
+        help_text="User who proposed the link"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PROPOSED,
+        help_text="Link status"
+    )
+    confidence_score = models.FloatField(
+        default=0,
+        help_text="Match confidence (0-100)"
+    )
+    match_reasons = models.TextField(
+        blank=True,
+        default="[]",
+        help_text="JSON array explaining the match"
+    )
+    confirmed_by_space1 = models.BooleanField(
+        default=False,
+        help_text="Confirmed by person1's family admin"
+    )
+    confirmed_by_space2 = models.BooleanField(
+        default=False,
+        help_text="Confirmed by person2's family admin"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When link was proposed"
+    )
+    
+    def confirm_for_space(self, family):
+        """Confirm the link for one of the family spaces."""
+        if self.person1.family == family:
+            self.confirmed_by_space1 = True
+        elif self.person2.family == family:
+            self.confirmed_by_space2 = True
+        
+        # If both confirmed, mark as confirmed
+        if self.confirmed_by_space1 and self.confirmed_by_space2:
+            self.status = self.Status.CONFIRMED
+        
+        self.save()
+    
+    def __str__(self):
+        return f"{self.person1.full_name} ↔ {self.person2.full_name} ({self.status})"
+    
+    class Meta:
+        verbose_name = "Cross-Space Person Link"
+        verbose_name_plural = "Cross-Space Person Links"
         ordering = ['-created_at']
 
 

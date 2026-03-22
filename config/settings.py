@@ -81,6 +81,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',  # Required by allauth
+    'accounts.middleware.UserActivityMiddleware',  # Track user online status
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -164,8 +165,8 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # Allauth configuration (updated for django-allauth 0.60+)
-ACCOUNT_LOGIN_METHODS = {'email'}  # Login with email instead of username
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']  # Required signup fields
+ACCOUNT_LOGIN_METHODS = {'username', 'email'}  # Allow both username and email login
+ACCOUNT_SIGNUP_FIELDS = ['username*', 'email', 'password1*', 'password2*']  # Username required, email optional
 ACCOUNT_EMAIL_VERIFICATION = 'none'  # Set to 'mandatory' in production
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True

@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Add Memory - Living Museum{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'families:family_detail' family.id %}">{{ family.name }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'families:museum_home' family.id %}">Living Museum</a></li>
+            <li class="breadcrumb-item active">Add Memory</li>
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="bi bi-plus-circle"></i> Share a Memory</h4>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <!-- Story Type -->
+                        <div class="mb-4">
+                            <label class="form-label">What type of memory is this?</label>
+                            <div class="row g-2">
+                                {% for value, label in story_types %}
+                                <div class="col-6 col-md-3">
+                                    <input type="radio" class="btn-check" name="story_type" id="type_{{ value }}" value="{{ value }}" {% if value == 'MEMORY' %}checked{% endif %}>
+                                    <label class="btn btn-outline-secondary w-100" for="type_{{ value }}">
+                                        {% if value == 'MEMORY' %}<i class="bi bi-heart"></i>
+                                        {% elif value == 'STORY' %}<i class="bi bi-book"></i>
+                                        {% elif value == 'TRIBUTE' %}<i class="bi bi-flower2"></i>
+                                        {% elif value == 'BIOGRAPHY' %}<i class="bi bi-person-lines-fill"></i>
+                                        {% elif value == 'MILESTONE' %}<i class="bi bi-trophy"></i>
+                                        {% elif value == 'TRADITION' %}<i class="bi bi-calendar-heart"></i>
+                                        {% elif value == 'RECIPE' %}<i class="bi bi-cup-hot"></i>
+                                        {% elif value == 'LESSON' %}<i class="bi bi-lightbulb"></i>
+                                        {% endif %}
+                                        <br>
+                                        <small>{{ label }}</small>
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Person -->
+                        <div class="mb-3">
+                            <label for="person" class="form-label">About whom? *</label>
+                            <select name="person" id="person" class="form-select" required>
+                                <option value="">Select a person...</option>
+                                {% for person in people %}
+                                <option value="{{ person.id }}" {% if selected_person and person.id == selected_person.id %}selected{% endif %}>
+                                    {{ person.full_name }}
+                                    {% if person.birth_date %}({{ person.birth_date|date:"Y" }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Title -->
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Title *</label>
+                            <input type="text" class="form-control" id="title" name="title" placeholder="Give your memory a title..." required maxlength="200">
+                        </div>
+
+                        <!-- Content -->
+                        <div class="mb-3">
+                            <label for="content" class="form-label">Your Memory *</label>
+                            <textarea class="form-control" id="content" name="content" rows="8" placeholder="Share your story, memory, or tribute..." required></textarea>
+                            <div class="form-text">Write your memory in your own words. Be as detailed as you like!</div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Date of Memory -->
+                            <div class="col-md-6 mb-3">
+                                <label for="date_of_memory" class="form-label">When did this happen? (optional)</label>
+                                <input type="date" class="form-control" id="date_of_memory" name="date_of_memory">
+                            </div>
+
+                            <!-- Location -->
+                            <div class="col-md-6 mb-3">
+                                <label for="location" class="form-label">Location (optional)</label>
+                                <input type="text" class="form-control" id="location" name="location" placeholder="Where did this take place?" maxlength="200">
+                            </div>
+                        </div>
+
+                        <!-- Media Upload -->
+                        <div class="mb-4">
+                            <label class="form-label">Add Photos, Videos, or Documents (optional)</label>
+                            <div class="border rounded p-4 text-center bg-light" id="media-upload-zone">
+                                <i class="bi bi-cloud-upload display-4 text-muted"></i>
+                                <p class="text-muted mb-2">Drag and drop files here, or click to select</p>
+                                <input type="file" class="form-control" id="media_files" name="media_files" multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx">
+                                <div class="form-text">Supported: Images, Videos, Audio, PDF, Word documents</div>
+                            </div>
+                            <div id="media-preview" class="row g-2 mt-2"></div>
+                        </div>
+
+                        <!-- Options -->
+                        <div class="mb-4">
+                            <div class="form-check mb-2">
+                                <input type="checkbox" class="form-check-input" id="is_public" name="is_public">
+                                <label class="form-check-label" for="is_public">
+                                    <i class="bi bi-globe"></i> Make this memory visible to shared users
+                                </label>
+                            </div>
+                            {% if is_admin %}
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="is_featured" name="is_featured">
+                                <label class="form-check-label" for="is_featured">
+                                    <i class="bi bi-star"></i> Feature this memory
+                                </label>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Submit -->
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg"></i> Save Memory
+                            </button>
+                            <a href="{% url 'families:museum_home' family.id %}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Preview uploaded media files
+document.getElementById('media_files').addEventListener('change', function(e) {
+    const preview = document.getElementById('media-preview');
+    preview.innerHTML = '';
+    
+    Array.from(e.target.files).forEach((file, index) => {
+        const col = document.createElement('div');
+        col.className = 'col-4 col-md-3';
+        
+        if (file.type.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.className = 'img-fluid rounded';
+            img.style.height = '100px';
+            img.style.width = '100%';
+            img.style.objectFit = 'cover';
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            col.appendChild(img);
+        } else {
+            col.innerHTML = `
+                <div class="border rounded p-2 text-center" style="height: 100px;">
+                    <i class="bi bi-file-earmark display-6"></i>
+                    <br>
+                    <small class="text-truncate d-block">${file.name}</small>
+                </div>
+            `;
+        }
+        
+        preview.appendChild(col);
+    });
+});
+</script>
+{% endblock %}

@@ -699,6 +699,44 @@
             {% endif %}
         </div>
         
+        <!-- DNA Kits Section -->
+        <div class="tree-link-card">
+            <h3><i class="bi bi-dna"></i> DNA Kits</h3>
+            {% if dna_kits %}
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                {% for kit in dna_kits %}
+                <div class="tree-person-link">
+                    <div style="width: 36px; height: 36px; border-radius: var(--fl-radius); 
+                                background: linear-gradient(135deg, var(--fl-blue), var(--fl-purple)); 
+                                display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <i class="bi bi-dna" style="font-size: 1rem; color: white;"></i>
+                    </div>
+                    <div style="flex: 1; min-width: 0;">
+                        <strong style="display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ kit.display_name }}</strong>
+                        <small class="muted">{{ kit.get_provider_display }}</small>
+                    </div>
+                    {% if is_own_profile %}
+                    <a href="{% url 'families:dna_kit_detail' kit_id=kit.id %}" class="btn btn-sm btn-outline">View</a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted" style="font-size: 0.9rem;">
+                {% if is_own_profile %}
+                Register your DNA test kits to discover family connections.
+                {% else %}
+                No DNA kits shared.
+                {% endif %}
+            </p>
+            {% endif %}
+            {% if is_own_profile %}
+            <a href="{% url 'families:dna_kit_create' %}" class="btn btn-outline w-full" style="margin-top: 0.75rem;">
+                <i class="bi bi-plus-lg"></i> Register DNA Kit
+            </a>
+            {% endif %}
+        </div>
+        
         <!-- Shared Families -->
         {% if shared_families %}
         <div class="intro-card" style="margin-top: 1rem;">

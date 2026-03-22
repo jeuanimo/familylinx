@@ -1,0 +1,689 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}DNA Connections | FamilyLinx{% endblock %}
+
+{% block extra_css %}
+<style>
+  .network-container {
+    width: 100%;
+    height: calc(100vh - 200px);
+    min-height: 600px;
+    background: var(--fl-surface);
+    border-radius: var(--fl-radius-lg);
+    overflow: hidden;
+    position: relative;
+  }
+  
+  .network-svg {
+    width: 100%;
+    height: 100%;
+  }
+  
+  /* Node styling */
+  .node {
+    cursor: pointer;
+  }
+  
+  .node circle {
+    stroke-width: 3px;
+    transition: all 0.2s;
+  }
+  
+  .node.own circle {
+    fill: #e3f2fd;
+    stroke: #1976d2;
+  }
+  
+  .node.other circle {
+    fill: #fff3e0;
+    stroke: #f57c00;
+  }
+  
+  .node:hover circle {
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+    transform: scale(1.1);
+  }
+  
+  .node-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-anchor: middle;
+    fill: var(--fl-text);
+    pointer-events: none;
+  }
+  
+  .node-sublabel {
+    font-size: 9px;
+    text-anchor: middle;
+    fill: var(--fl-muted);
+    pointer-events: none;
+  }
+  
+  /* Link styling */
+  .link {
+    fill: none;
+    stroke-opacity: 0.6;
+    transition: all 0.2s;
+  }
+  
+  .link.close {
+    stroke: #4caf50;
+  }
+  
+  .link.extended {
+    stroke: #2196f3;
+  }
+  
+  .link.distant {
+    stroke: #9e9e9e;
+  }
+  
+  .link.confirmed {
+    stroke-dasharray: none;
+  }
+  
+  .link.unconfirmed {
+    stroke-dasharray: 5,5;
+  }
+  
+  .link:hover {
+    stroke-opacity: 1;
+  }
+  
+  /* Controls */
+  .network-controls {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    z-index: 100;
+  }
+  
+  .network-controls button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: var(--fl-card);
+    color: var(--fl-text);
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .network-controls button:hover {
+    background: var(--fl-blue);
+    color: white;
+  }
+  
+  /* Legend */
+  .network-legend {
+    position: absolute;
+    bottom: 1rem;
+    left: 1rem;
+    background: var(--fl-card);
+    padding: 1rem;
+    border-radius: var(--fl-radius);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    z-index: 100;
+    font-size: 0.85rem;
+  }
+  
+  .legend-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.25rem 0;
+  }
+  
+  .legend-line {
+    width: 30px;
+    height: 4px;
+    border-radius: 2px;
+  }
+  
+  .legend-line.close { background: #4caf50; }
+  .legend-line.extended { background: #2196f3; }
+  .legend-line.distant { background: #9e9e9e; }
+  
+  .legend-circle {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid;
+  }
+  
+  .legend-circle.own {
+    background: #e3f2fd;
+    border-color: #1976d2;
+  }
+  
+  .legend-circle.other {
+    background: #fff3e0;
+    border-color: #f57c00;
+  }
+  
+  /* Info panel */
+  .info-panel {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    width: 300px;
+    background: var(--fl-card);
+    border-radius: var(--fl-radius);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    z-index: 100;
+    display: none;
+  }
+  
+  .info-panel.active {
+    display: block;
+  }
+  
+  .info-panel-header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--fl-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .info-panel-header h4 {
+    margin: 0;
+    font-size: 1rem;
+  }
+  
+  .info-panel-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--fl-muted);
+    font-size: 1.25rem;
+    padding: 0;
+  }
+  
+  .info-panel-body {
+    padding: 1rem;
+  }
+  
+  .info-stat {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+  }
+  
+  .info-stat-label {
+    color: var(--fl-muted);
+  }
+  
+  .info-stat-value {
+    font-weight: 600;
+  }
+  
+  .info-panel-actions {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--fl-border);
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .info-panel-actions .btn {
+    flex: 1;
+    font-size: 0.85rem;
+  }
+  
+  /* cM display */
+  .cm-display {
+    font-size: 2rem;
+    font-weight: bold;
+    text-align: center;
+    padding: 0.5rem;
+    border-radius: var(--fl-radius);
+    margin-bottom: 1rem;
+  }
+  
+  .cm-display.close {
+    background: rgba(76, 175, 80, 0.1);
+    color: #4caf50;
+  }
+  
+  .cm-display.extended {
+    background: rgba(33, 150, 243, 0.1);
+    color: #2196f3;
+  }
+  
+  .cm-display.distant {
+    background: rgba(158, 158, 158, 0.1);
+    color: #9e9e9e;
+  }
+  
+  .cm-display small {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: normal;
+  }
+  
+  /* Stats bar */
+  .network-stats {
+    padding: 0.75rem 1rem;
+    background: var(--fl-card);
+    border-bottom: 1px solid var(--fl-border);
+    display: flex;
+    gap: 2rem;
+    font-size: 0.9rem;
+  }
+  
+  .network-stats .stat {
+    color: var(--fl-muted);
+  }
+  
+  .network-stats .stat strong {
+    color: var(--fl-text);
+  }
+  
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+  }
+  
+  .empty-state i {
+    font-size: 4rem;
+    color: var(--fl-muted);
+  }
+  
+  .empty-state h3 {
+    margin: 1rem 0 0.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:dna_kit_list' %}">DNA Dashboard</a>
+      <span class="separator">/</span>
+      <span class="current">Connections</span>
+    </nav>
+    
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-diagram-3" style="color: var(--fl-blue);"></i> DNA Connections</h1>
+        <p class="muted">Interactive network visualization of your genetic connections</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:dna_match_list' %}" class="btn btn-outline">
+          <i class="bi bi-list"></i> View List
+        </a>
+      </div>
+    </div>
+    
+    {% if has_data %}
+    <!-- Stats Bar -->
+    <div class="network-stats">
+      <div class="stat"><strong>{{ total_kits }}</strong> DNA kits connected</div>
+      <div class="stat"><strong>{{ total_matches }}</strong> genetic connections</div>
+    </div>
+    
+    <!-- Network Visualization -->
+    <div class="network-container" id="networkContainer">
+      <svg class="network-svg" id="networkSvg"></svg>
+      
+      <!-- Controls -->
+      <div class="network-controls">
+        <button onclick="zoomIn()" title="Zoom In"><i class="bi bi-plus-lg"></i></button>
+        <button onclick="zoomOut()" title="Zoom Out"><i class="bi bi-dash-lg"></i></button>
+        <button onclick="resetZoom()" title="Reset"><i class="bi bi-arrows-fullscreen"></i></button>
+        <button onclick="toggleLegend()" title="Legend"><i class="bi bi-info-circle"></i></button>
+      </div>
+      
+      <!-- Legend -->
+      <div class="network-legend" id="networkLegend">
+        <div class="legend-title">Legend</div>
+        <div class="legend-section">
+          <small class="muted">Connection Strength</small>
+          <div class="legend-item">
+            <div class="legend-line close"></div>
+            <span>Close (900+ cM)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-line extended"></div>
+            <span>Extended (200-900 cM)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-line distant"></div>
+            <span>Distant (&lt;200 cM)</span>
+          </div>
+        </div>
+        <div class="legend-section" style="margin-top: 0.75rem;">
+          <small class="muted">Nodes</small>
+          <div class="legend-item">
+            <div class="legend-circle own"></div>
+            <span>Your kits</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-circle other"></div>
+            <span>Other users' kits</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Info Panel (shown on click) -->
+      <div class="info-panel" id="infoPanel">
+        <div class="info-panel-header">
+          <h4 id="infoPanelTitle">Connection Details</h4>
+          <button class="info-panel-close" onclick="closeInfoPanel()">×</button>
+        </div>
+        <div class="info-panel-body" id="infoPanelBody">
+          <!-- Populated by JS -->
+        </div>
+        <div class="info-panel-actions" id="infoPanelActions">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+    
+    {% else %}
+    <!-- Empty State -->
+    <div class="card">
+      <div class="card-body empty-state">
+        <i class="bi bi-diagram-3"></i>
+        <h3>No Connections Yet</h3>
+        <p class="muted">
+          Register DNA kits and add matches to see your genetic network visualization.
+        </p>
+        <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center;">
+          <a href="{% url 'families:dna_kit_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Register DNA Kit
+          </a>
+          <a href="{% url 'families:dna_kit_list' %}" class="btn btn-outline">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+{% if has_data %}
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+// Data from Django
+const nodes = {{ nodes_json|safe }};
+const links = {{ links_json|safe }};
+
+// SVG setup
+const container = document.getElementById('networkContainer');
+const svg = d3.select('#networkSvg');
+const width = container.clientWidth;
+const height = container.clientHeight;
+
+// Create groups for proper layering
+const g = svg.append('g');
+const linkGroup = g.append('g').attr('class', 'links');
+const nodeGroup = g.append('g').attr('class', 'nodes');
+
+// Zoom behavior
+const zoom = d3.zoom()
+  .scaleExtent([0.1, 4])
+  .on('zoom', (event) => {
+    g.attr('transform', event.transform);
+  });
+
+svg.call(zoom);
+
+// Force simulation
+const simulation = d3.forceSimulation(nodes)
+  .force('link', d3.forceLink(links)
+    .id(d => d.id)
+    .distance(d => {
+      // Closer relatives = shorter links
+      if (d.shared_cm >= 900) return 100;
+      if (d.shared_cm >= 200) return 150;
+      return 200;
+    })
+  )
+  .force('charge', d3.forceManyBody().strength(-400))
+  .force('center', d3.forceCenter(width / 2, height / 2))
+  .force('collision', d3.forceCollide().radius(50));
+
+// Draw links
+const link = linkGroup.selectAll('.link')
+  .data(links)
+  .enter()
+  .append('line')
+  .attr('class', d => `link ${d.strength} ${d.is_confirmed ? 'confirmed' : 'unconfirmed'}`)
+  .attr('stroke-width', d => d.width)
+  .on('click', (event, d) => showLinkInfo(d))
+  .on('mouseover', function(event, d) {
+    d3.select(this).attr('stroke-opacity', 1);
+    showTooltip(event, `${d.shared_cm} cM - ${d.predicted_relationship}`);
+  })
+  .on('mouseout', function() {
+    d3.select(this).attr('stroke-opacity', 0.6);
+    hideTooltip();
+  });
+
+// Draw nodes
+const node = nodeGroup.selectAll('.node')
+  .data(nodes)
+  .enter()
+  .append('g')
+  .attr('class', d => `node ${d.is_own ? 'own' : 'other'}`)
+  .call(d3.drag()
+    .on('start', dragstarted)
+    .on('drag', dragged)
+    .on('end', dragended)
+  )
+  .on('click', (event, d) => showNodeInfo(d));
+
+// Node circles
+const nodeRadius = 30;
+node.append('circle')
+  .attr('r', nodeRadius);
+
+// Node labels
+node.append('text')
+  .attr('class', 'node-label')
+  .attr('dy', -5)
+  .text(d => {
+    const name = d.name || d.display_name;
+    return name.length > 15 ? name.substring(0, 12) + '...' : name;
+  });
+
+// Node sublabels (provider)
+node.append('text')
+  .attr('class', 'node-sublabel')
+  .attr('dy', 10)
+  .text(d => d.provider);
+
+// Simulation tick
+simulation.on('tick', () => {
+  link
+    .attr('x1', d => d.source.x)
+    .attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x)
+    .attr('y2', d => d.target.y);
+  
+  node.attr('transform', d => `translate(${d.x},${d.y})`);
+});
+
+// Drag functions
+function dragstarted(event, d) {
+  if (!event.active) simulation.alphaTarget(0.3).restart();
+  d.fx = d.x;
+  d.fy = d.y;
+}
+
+function dragged(event, d) {
+  d.fx = event.x;
+  d.fy = event.y;
+}
+
+function dragended(event, d) {
+  if (!event.active) simulation.alphaTarget(0);
+  d.fx = null;
+  d.fy = null;
+}
+
+// Zoom controls
+function zoomIn() {
+  svg.transition().duration(300).call(zoom.scaleBy, 1.5);
+}
+
+function zoomOut() {
+  svg.transition().duration(300).call(zoom.scaleBy, 0.67);
+}
+
+function resetZoom() {
+  svg.transition().duration(500).call(
+    zoom.transform,
+    d3.zoomIdentity.translate(width / 2, height / 2).scale(1).translate(-width / 2, -height / 2)
+  );
+}
+
+// Legend toggle
+function toggleLegend() {
+  const legend = document.getElementById('networkLegend');
+  legend.style.display = legend.style.display === 'none' ? 'block' : 'none';
+}
+
+// Info panel functions
+function showNodeInfo(d) {
+  const panel = document.getElementById('infoPanel');
+  const title = document.getElementById('infoPanelTitle');
+  const body = document.getElementById('infoPanelBody');
+  const actions = document.getElementById('infoPanelActions');
+  
+  title.textContent = d.name || d.display_name;
+  
+  body.innerHTML = `
+    <div class="info-stat">
+      <span class="info-stat-label">Kit</span>
+      <span class="info-stat-value">${d.display_name}</span>
+    </div>
+    <div class="info-stat">
+      <span class="info-stat-label">Provider</span>
+      <span class="info-stat-value">${d.provider}</span>
+    </div>
+    <div class="info-stat">
+      <span class="info-stat-label">Owner</span>
+      <span class="info-stat-value">${d.is_own ? 'You' : d.user_name}</span>
+    </div>
+    ${d.linked_person_id ? `
+    <div class="info-stat">
+      <span class="info-stat-label">Linked to</span>
+      <span class="info-stat-value">${d.name}</span>
+    </div>
+    ` : ''}
+  `;
+  
+  let actionsHtml = '';
+  if (d.is_own) {
+    actionsHtml += `<a href="/families/dna/kits/${d.kit_id}/" class="btn btn-primary">View Kit</a>`;
+  }
+  if (d.linked_person_id && d.linked_person_family_id) {
+    actionsHtml += `<a href="/families/${d.linked_person_family_id}/people/${d.linked_person_id}/" class="btn btn-outline">View Person</a>`;
+  }
+  actions.innerHTML = actionsHtml || '<span class="muted">No actions available</span>';
+  
+  panel.classList.add('active');
+}
+
+function showLinkInfo(d) {
+  const panel = document.getElementById('infoPanel');
+  const title = document.getElementById('infoPanelTitle');
+  const body = document.getElementById('infoPanelBody');
+  const actions = document.getElementById('infoPanelActions');
+  
+  title.textContent = 'DNA Connection';
+  
+  const cmClass = d.shared_cm >= 900 ? 'close' : (d.shared_cm >= 200 ? 'extended' : 'distant');
+  
+  body.innerHTML = `
+    <div class="cm-display ${cmClass}">
+      ${d.shared_cm.toFixed(1)} cM
+      <small>shared DNA</small>
+    </div>
+    <div class="info-stat">
+      <span class="info-stat-label">Relationship</span>
+      <span class="info-stat-value">${d.predicted_relationship}</span>
+    </div>
+    <div class="info-stat">
+      <span class="info-stat-label">Status</span>
+      <span class="info-stat-value">${d.is_confirmed ? '✓ Confirmed' : 'Pending confirmation'}</span>
+    </div>
+  `;
+  
+  actions.innerHTML = `
+    <a href="/families/dna/matches/${d.match_id}/" class="btn btn-primary">View Match Details</a>
+  `;
+  
+  panel.classList.add('active');
+}
+
+function closeInfoPanel() {
+  document.getElementById('infoPanel').classList.remove('active');
+}
+
+// Tooltip
+let tooltip = null;
+
+function showTooltip(event, text) {
+  if (!tooltip) {
+    tooltip = d3.select('body').append('div')
+      .attr('class', 'tooltip')
+      .style('position', 'absolute')
+      .style('background', 'var(--fl-card)')
+      .style('padding', '0.5rem 0.75rem')
+      .style('border-radius', 'var(--fl-radius)')
+      .style('box-shadow', '0 2px 8px rgba(0,0,0,0.15)')
+      .style('font-size', '0.85rem')
+      .style('pointer-events', 'none')
+      .style('z-index', '1000');
+  }
+  
+  tooltip
+    .style('display', 'block')
+    .style('left', (event.pageX + 10) + 'px')
+    .style('top', (event.pageY - 10) + 'px')
+    .html(text);
+}
+
+function hideTooltip() {
+  if (tooltip) {
+    tooltip.style('display', 'none');
+  }
+}
+
+// Initial zoom to fit
+setTimeout(() => {
+  const bounds = g.node().getBBox();
+  const scale = Math.min(width / bounds.width, height / bounds.height) * 0.8;
+  const tx = (width - bounds.width * scale) / 2 - bounds.x * scale;
+  const ty = (height - bounds.height * scale) / 2 - bounds.y * scale;
+  
+  svg.transition()
+    .duration(750)
+    .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+}, 1000);
+</script>
+{% endif %}
+{% endblock %}

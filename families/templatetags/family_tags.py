@@ -139,3 +139,16 @@ def gender_color(person):
         'U': 'var(--fl-muted)',
     }
     return colors.get(person.gender, 'var(--fl-muted)')
+
+
+@register.filter
+def get_online_status(online_status_dict, person_id):
+    """
+    Get online status for a person from the status dictionary.
+    
+    Usage: {{ online_status|get_online_status:person.id }}
+    Returns: True if online, False otherwise
+    """
+    if not online_status_dict:
+        return False
+    return online_status_dict.get(person_id, False)

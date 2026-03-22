@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load family_tags %}
 
 {% block title %}People – {{ family.name }} | FamilyLinx{% endblock %}
 
@@ -44,6 +45,13 @@
             <i class="bi bi-person"></i>
           </div>
           {% endif %}
+          {% if person.linked_user %}
+            {% with is_online=online_status|get_online_status:person.id %}
+            <span class="online-badge {% if is_online %}online{% else %}offline{% endif %}" 
+                  title="{% if is_online %}Online{% else %}Offline{% endif %}">
+            </span>
+            {% endwith %}
+          {% endif %}
         </div>
         <div class="person-card-info">
           <strong>{{ person.full_name }}</strong>
@@ -52,6 +60,11 @@
             {% if person.birth_date and person.death_date %} – {% endif %}
             {% if person.death_date %}{{ person.death_date|date:"Y" }}{% endif %}
           </span>
+          {% if person.linked_user %}
+          <span class="linked-user-indicator" title="Linked to user account">
+            <i class="bi bi-link-45deg"></i>
+          </span>
+          {% endif %}
         </div>
       </a>
       {% endfor %}

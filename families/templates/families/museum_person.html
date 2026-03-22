@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ person.full_name }} - Living Museum{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Person Header -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-2 text-center">
+                    {% if person.photo %}
+                    <img src="{{ person.photo.url }}" class="rounded-circle" style="width: 120px; height: 120px; object-fit: cover;">
+                    {% else %}
+                    <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mx-auto" style="width: 120px; height: 120px;">
+                        <i class="bi bi-person-fill text-white" style="font-size: 3rem;"></i>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="col-md-7">
+                    <h2 class="mb-1">{{ person.full_name }}</h2>
+                    <p class="text-muted mb-2">
+                        {% if person.birth_date %}
+                        <i class="bi bi-calendar"></i> {{ person.birth_date }}
+                        {% if person.death_date %} - {{ person.death_date }}{% endif %}
+                        {% endif %}
+                        {% if person.birth_place %}
+                        <span class="ms-3"><i class="bi bi-geo-alt"></i> {{ person.birth_place }}</span>
+                        {% endif %}
+                    </p>
+                    <p class="mb-0">
+                        <span class="badge bg-primary">{{ memories.count }} Memories</span>
+                        <span class="badge bg-secondary ms-2">{{ total_media }} Media Files</span>
+                    </p>
+                </div>
+                <div class="col-md-3 text-end">
+                    <a href="{% url 'families:memory_create_for_person' family.id person.id %}" class="btn btn-primary">
+                        <i class="bi bi-plus-lg"></i> Add Memory
+                    </a>
+                    <a href="{% url 'families:museum_share_create_object' family.id 'person' person.id %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-share"></i> Share
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'families:family_detail' family.id %}">{{ family.name }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'families:museum_home' family.id %}">Living Museum</a></li>
+            <li class="breadcrumb-item active">{{ person.full_name }}</li>
+        </ol>
+    </nav>
+
+    <!-- Story Type Tabs -->
+    <ul class="nav nav-tabs mb-4" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" href="#all" data-bs-toggle="tab">
+                All <span class="badge bg-secondary">{{ memories.count }}</span>
+            </a>
+        </li>
+        {% for type_code, type_name, count in story_type_counts %}
+        {% if count > 0 %}
+        <li class="nav-item">
+            <a class="nav-link" href="#{{ type_code|lower }}" data-bs-toggle="tab">
+                {{ type_name }} <span class="badge bg-secondary">{{ count }}</span>
+            </a>
+        </li>
+        {% endif %}
+        {% endfor %}
+    </ul>
+
+    <!-- Memories Grid -->
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="all">
+            {% if memories %}
+            <div class="row">
+                {% for memory in memories %}
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="row g-0">
+                            {% if memory.media.first %}
+                            <div class="col-4">
+                                <img src="{{ memory.media.first.file.url }}" class="img-fluid rounded-start h-100" style="object-fit: cover;" alt="{{ memory.title }}">
+                            </div>
+                            <div class="col-8">
+                            {% else %}
+                            <div class="col-12">
+                            {% endif %}
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <span class="badge bg-{{ memory.story_type|lower|default:'secondary' }}">
+                                            {{ memory.get_story_type_display }}
+                                        </span>
+                                        {% if memory.is_featured %}
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                        {% endif %}
+                                    </div>
+                                    <h5 class="card-title mt-2">{{ memory.title }}</h5>
+                                    {% if memory.date_of_memory %}
+                                    <p class="text-muted small mb-2">
+                                        <i class="bi bi-calendar"></i> {{ memory.date_of_memory }}
+                                    </p>
+                                    {% endif %}
+                                    <p class="card-text small">{{ memory.content|truncatewords:20 }}</p>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">
+                                            <i class="bi bi-heart"></i> {{ memory.reactions.count }}
+                                            <i class="bi bi-chat ms-2"></i> {{ memory.comments.count }}
+                                        </small>
+                                        <a href="{% url 'families:memory_detail' family.id memory.id %}" class="btn btn-sm btn-outline-primary">Read</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-book display-1 text-muted"></i>
+                <h4 class="mt-3">No memories yet for {{ person.first_name }}</h4>
+                <p class="text-muted">Share stories, memories, or tributes about {{ person.first_name }}.</p>
+                <a href="{% url 'families:memory_create_for_person' family.id person.id %}" class="btn btn-primary">
+                    <i class="bi bi-plus-lg"></i> Add First Memory
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Timeline View (Optional) -->
+    {% if memories %}
+    <div class="mt-5">
+        <h4><i class="bi bi-clock-history"></i> Timeline</h4>
+        <div class="timeline mt-4">
+            {% for memory in memories %}
+            <div class="timeline-item">
+                <div class="timeline-marker bg-{{ memory.story_type|lower|default:'secondary' }}"></div>
+                <div class="timeline-content">
+                    <h6 class="mb-1">
+                        <a href="{% url 'families:memory_detail' family.id memory.id %}">{{ memory.title }}</a>
+                    </h6>
+                    <small class="text-muted">
+                        {% if memory.date_of_memory %}{{ memory.date_of_memory }}{% else %}{{ memory.created_at|date:"M d, Y" }}{% endif %}
+                        &bull; {{ memory.get_story_type_display }}
+                    </small>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.badge.bg-memory { background-color: #6f42c1 !important; }
+.badge.bg-story { background-color: #0d6efd !important; }
+.badge.bg-tribute { background-color: #dc3545 !important; }
+.badge.bg-biography { background-color: #198754 !important; }
+.badge.bg-milestone { background-color: #ffc107 !important; color: #000; }
+.badge.bg-tradition { background-color: #fd7e14 !important; }
+.badge.bg-recipe { background-color: #20c997 !important; }
+.badge.bg-lesson { background-color: #0dcaf0 !important; }
+
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+.timeline-item {
+    position: relative;
+    padding-bottom: 20px;
+}
+.timeline-marker {
+    position: absolute;
+    left: -26px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+}
+.timeline-content {
+    padding-left: 10px;
+}
+</style>
+{% endblock %}

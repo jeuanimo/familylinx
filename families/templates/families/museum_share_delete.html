@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}Revoke Share - Living Museum{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Revoke Share</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">Are you sure you want to revoke this share?</p>
+                    
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <span class="badge bg-{% if share.share_type == 'MUSEUM' %}primary{% elif share.share_type == 'PERSON' %}success{% else %}info{% endif %}">
+                                {{ share.get_share_type_display }}
+                            </span>
+                            
+                            <h5 class="mt-2">
+                                {% if share.memory %}
+                                {{ share.memory.title }}
+                                {% elif share.person %}
+                                {{ share.person.full_name }}'s Museum
+                                {% else %}
+                                {{ family.name }} Museum
+                                {% endif %}
+                            </h5>
+                            
+                            <p class="text-muted small mb-2">
+                                {% if share.is_public_link %}
+                                <i class="bi bi-globe"></i> Public link
+                                {% elif share.shared_with_user %}
+                                Shared with {{ share.shared_with_user.email }}
+                                {% elif share.shared_with_email %}
+                                Shared with {{ share.shared_with_email }}
+                                {% endif %}
+                            </p>
+                            
+                            <p class="text-muted small mb-0">
+                                Created {{ share.created_at|date:"M d, Y" }} &bull; {{ share.view_count }} views
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        After revoking, anyone with the share link will no longer be able to access the content.
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-x-lg"></i> Yes, Revoke Share
+                            </button>
+                            <a href="{% url 'families:museum_share_list' family.id %}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

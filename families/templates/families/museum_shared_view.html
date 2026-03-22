@@ -1,0 +1,206 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+{% if share.share_type == 'MEMORY' and share.memory %}
+{{ share.memory.title }}
+{% elif share.share_type == 'PERSON' and share.person %}
+{{ share.person.full_name }} - Living Museum
+{% else %}
+{{ share.family.name }} Living Museum
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Shared Content Notice -->
+    <div class="alert alert-info d-flex align-items-center mb-4">
+        <i class="bi bi-share me-2"></i>
+        <div>
+            <strong>Shared with you by {{ share.shared_by.get_full_name|default:share.shared_by.username }}</strong>
+            {% if share.message %}
+            <br><em>"{{ share.message }}"</em>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if share.share_type == 'MEMORY' and share.memory %}
+    <!-- Single Memory View -->
+    <article class="card mb-4">
+        <div class="card-body">
+            <span class="badge bg-{{ share.memory.story_type|lower|default:'secondary' }} mb-2">
+                {{ share.memory.get_story_type_display }}
+            </span>
+            
+            <h1 class="h2 mb-3">{{ share.memory.title }}</h1>
+            
+            <!-- Meta Info -->
+            <div class="d-flex flex-wrap gap-3 mb-4 text-muted small">
+                <span><i class="bi bi-person"></i> About {{ share.memory.person.full_name }}</span>
+                {% if share.memory.date_of_memory %}
+                <span><i class="bi bi-calendar"></i> {{ share.memory.date_of_memory }}</span>
+                {% endif %}
+                {% if share.memory.location %}
+                <span><i class="bi bi-geo-alt"></i> {{ share.memory.location }}</span>
+                {% endif %}
+            </div>
+
+            <!-- Media Gallery -->
+            {% if share.memory.media.all %}
+            <div class="mb-4">
+                <div class="row g-2">
+                    {% for media in share.memory.media.all %}
+                    <div class="col-{% if forloop.first and share.memory.media.count == 1 %}12{% elif share.memory.media.count == 2 %}6{% else %}4{% endif %}">
+                        {% if media.media_type == 'PHOTO' %}
+                        <img src="{{ media.file.url }}" class="img-fluid rounded" alt="{{ media.caption }}" style="{% if forloop.first and share.memory.media.count == 1 %}max-height: 500px;{% else %}height: 200px;{% endif %} width: 100%; object-fit: cover;">
+                        {% elif media.media_type == 'VIDEO' %}
+                        <video controls class="w-100 rounded" style="max-height: 400px;">
+                            <source src="{{ media.file.url }}" type="video/mp4">
+                        </video>
+                        {% elif media.media_type == 'AUDIO' %}
+                        <div class="p-3 bg-light rounded">
+                            <audio controls class="w-100">
+                                <source src="{{ media.file.url }}" type="audio/mpeg">
+                            </audio>
+                        </div>
+                        {% endif %}
+                        {% if media.caption %}
+                        <small class="text-muted d-block mt-1">{{ media.caption }}</small>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Content -->
+            <div class="memory-content">
+                {{ share.memory.content|linebreaks }}
+            </div>
+
+            <!-- Author -->
+            <div class="border-top pt-3 mt-4">
+                <small class="text-muted">
+                    Shared by {% if share.memory.author %}{{ share.memory.author.get_full_name|default:share.memory.author.username }}{% else %}Someone{% endif %}
+                    on {{ share.memory.created_at|date:"F j, Y" }}
+                </small>
+            </div>
+        </div>
+    </article>
+
+    {% elif share.share_type == 'PERSON' and share.person %}
+    <!-- Person Museum View -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-2 text-center">
+                    {% if share.person.photo %}
+                    <img src="{{ share.person.photo.url }}" class="rounded-circle" style="width: 100px; height: 100px; object-fit: cover;">
+                    {% else %}
+                    <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mx-auto" style="width: 100px; height: 100px;">
+                        <i class="bi bi-person-fill text-white" style="font-size: 2.5rem;"></i>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="col-md-10">
+                    <h2 class="mb-1">{{ share.person.full_name }}</h2>
+                    {% if share.person.birth_date %}
+                    <p class="text-muted mb-0">
+                        {{ share.person.birth_date }} {% if share.person.death_date %}- {{ share.person.death_date }}{% endif %}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if memories %}
+    <div class="row">
+        {% for memory in memories %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                {% if memory.media.first %}
+                <img src="{{ memory.media.first.file.url }}" class="card-img-top" style="height: 200px; object-fit: cover;">
+                {% endif %}
+                <div class="card-body">
+                    <span class="badge bg-{{ memory.story_type|lower|default:'secondary' }}">{{ memory.get_story_type_display }}</span>
+                    <h5 class="card-title mt-2">{{ memory.title }}</h5>
+                    {% if memory.date_of_memory %}
+                    <p class="text-muted small mb-2"><i class="bi bi-calendar"></i> {{ memory.date_of_memory }}</p>
+                    {% endif %}
+                    <p class="card-text">{{ memory.content|truncatewords:30 }}</p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <p class="text-muted">No public memories available.</p>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- Full Museum View -->
+    <h2 class="mb-4"><i class="bi bi-book"></i> {{ share.family.name }} Living Museum</h2>
+
+    {% if memories %}
+    <div class="row">
+        {% for memory in memories %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                {% if memory.media.first %}
+                <img src="{{ memory.media.first.file.url }}" class="card-img-top" style="height: 180px; object-fit: cover;">
+                {% endif %}
+                <div class="card-body">
+                    <span class="badge bg-{{ memory.story_type|lower|default:'secondary' }}">{{ memory.get_story_type_display }}</span>
+                    <h5 class="card-title mt-2">{{ memory.title }}</h5>
+                    <p class="text-muted small mb-2">
+                        <i class="bi bi-person"></i> {{ memory.person.full_name }}
+                    </p>
+                    <p class="card-text">{{ memory.content|truncatewords:25 }}</p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <p class="text-muted">No public memories available in this museum.</p>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="text-center mt-5 py-4 border-top">
+        <p class="text-muted mb-2">
+            Powered by <strong>FamilyLinx</strong> Living Museum
+        </p>
+        {% if user.is_authenticated %}
+        <a href="{% url 'families:museum_my_shares' %}" class="btn btn-sm btn-outline-primary">
+            View My Shares
+        </a>
+        {% else %}
+        <a href="{% url 'account_login' %}" class="btn btn-sm btn-outline-primary">
+            Sign in to create your own family museum
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.badge.bg-memory { background-color: #6f42c1 !important; }
+.badge.bg-story { background-color: #0d6efd !important; }
+.badge.bg-tribute { background-color: #dc3545 !important; }
+.badge.bg-biography { background-color: #198754 !important; }
+.badge.bg-milestone { background-color: #ffc107 !important; color: #000; }
+.badge.bg-tradition { background-color: #fd7e14 !important; }
+.badge.bg-recipe { background-color: #20c997 !important; }
+.badge.bg-lesson { background-color: #0dcaf0 !important; }
+
+.memory-content {
+    font-size: 1.1rem;
+    line-height: 1.8;
+}
+</style>
+{% endblock %}

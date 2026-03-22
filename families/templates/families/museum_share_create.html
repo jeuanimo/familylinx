@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+
+{% block title %}Share - Living Museum{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'families:family_detail' family.id %}">{{ family.name }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'families:museum_home' family.id %}">Living Museum</a></li>
+            <li class="breadcrumb-item active">Create Share</li>
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="bi bi-share"></i> Share 
+                        {% if share_type == 'memory' and memory %}
+                        Memory: "{{ memory.title }}"
+                        {% elif share_type == 'person' and person %}
+                        {{ person.full_name }}'s Museum
+                        {% else %}
+                        Living Museum
+                        {% endif %}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- What will be shared -->
+                    <div class="alert alert-info mb-4">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>What will be shared:</strong>
+                        {% if share_type == 'memory' and memory %}
+                        <br>The memory "{{ memory.title }}" about {{ memory.person.full_name }}, including all photos and media.
+                        {% elif share_type == 'person' and person %}
+                        <br>All public memories about {{ person.full_name }} in the Living Museum.
+                        {% else %}
+                        <br>All public memories in the {{ family.name }} Living Museum.
+                        {% endif %}
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <!-- Share Type Selection -->
+                        {% if not share_type %}
+                        <div class="mb-4">
+                            <label class="form-label">What do you want to share?</label>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <input type="radio" class="btn-check" name="share_type" id="type_museum" value="museum" checked>
+                                    <label class="btn btn-outline-primary w-100 py-3" for="type_museum">
+                                        <i class="bi bi-book display-6 d-block mb-2"></i>
+                                        Entire Museum
+                                    </label>
+                                </div>
+                                <div class="col-md-4">
+                                    <input type="radio" class="btn-check" name="share_type" id="type_person" value="person">
+                                    <label class="btn btn-outline-primary w-100 py-3" for="type_person">
+                                        <i class="bi bi-person display-6 d-block mb-2"></i>
+                                        Person's Memories
+                                    </label>
+                                </div>
+                                <div class="col-md-4">
+                                    <input type="radio" class="btn-check" name="share_type" id="type_memory" value="memory">
+                                    <label class="btn btn-outline-primary w-100 py-3" for="type_memory">
+                                        <i class="bi bi-heart display-6 d-block mb-2"></i>
+                                        Single Memory
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Person Selection (shown when person type selected) -->
+                        <div class="mb-3" id="person-select" style="display: none;">
+                            <label for="person_id" class="form-label">Select Person</label>
+                            <select name="person_id" id="person_id" class="form-select">
+                                <option value="">Select a person...</option>
+                                {% for p in people %}
+                                <option value="{{ p.id }}">{{ p.full_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Memory Selection (shown when memory type selected) -->
+                        <div class="mb-3" id="memory-select" style="display: none;">
+                            <label for="memory_id" class="form-label">Select Memory</label>
+                            <select name="memory_id" id="memory_id" class="form-select">
+                                <option value="">Select a memory...</option>
+                                {% for m in memories %}
+                                <option value="{{ m.id }}">{{ m.title }} ({{ m.person.full_name }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% else %}
+                        <input type="hidden" name="share_type" value="{{ share_type }}">
+                        {% if memory %}
+                        <input type="hidden" name="memory_id" value="{{ memory.id }}">
+                        {% endif %}
+                        {% if person %}
+                        <input type="hidden" name="person_id" value="{{ person.id }}">
+                        {% endif %}
+                        {% endif %}
+
+                        <hr class="my-4">
+
+                        <!-- Share Method -->
+                        <div class="mb-4">
+                            <label class="form-label">How do you want to share?</label>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <input type="radio" class="btn-check" name="share_method" id="method_link" value="link" checked>
+                                    <label class="btn btn-outline-secondary w-100" for="method_link">
+                                        <i class="bi bi-link-45deg"></i> Public Link
+                                        <br><small class="text-muted">Anyone with the link can view</small>
+                                    </label>
+                                </div>
+                                <div class="col-md-6">
+                                    <input type="radio" class="btn-check" name="share_method" id="method_user" value="user">
+                                    <label class="btn btn-outline-secondary w-100" for="method_user">
+                                        <i class="bi bi-person-plus"></i> Specific User
+                                        <br><small class="text-muted">Only they can view</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- User Email (shown when user method selected) -->
+                        <div class="mb-3" id="user-email" style="display: none;">
+                            <label for="shared_with_email" class="form-label">Recipient Email</label>
+                            <input type="email" class="form-control" id="shared_with_email" name="shared_with_email" placeholder="Enter email address">
+                            <div class="form-text">If they have an account, the share will appear in their dashboard.</div>
+                        </div>
+
+                        <!-- Personal Message -->
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Personal Message (optional)</label>
+                            <textarea class="form-control" id="message" name="message" rows="3" placeholder="Add a personal note to accompany the share..."></textarea>
+                        </div>
+
+                        <!-- Expiration -->
+                        <div class="mb-4">
+                            <label for="expires_in" class="form-label">Link Expiration</label>
+                            <select name="expires_in" id="expires_in" class="form-select">
+                                <option value="">Never expires</option>
+                                <option value="1">1 day</option>
+                                <option value="7">7 days</option>
+                                <option value="30">30 days</option>
+                                <option value="90">90 days</option>
+                            </select>
+                        </div>
+
+                        <!-- Submit -->
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-share"></i> Create Share Link
+                            </button>
+                            <a href="{% url 'families:museum_home' family.id %}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('input[name="share_type"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        document.getElementById('person-select').style.display = this.value === 'person' ? 'block' : 'none';
+        document.getElementById('memory-select').style.display = this.value === 'memory' ? 'block' : 'none';
+    });
+});
+
+document.querySelectorAll('input[name="share_method"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        document.getElementById('user-email').style.display = this.value === 'user' ? 'block' : 'none';
+    });
+});
+</script>
+{% endblock %}

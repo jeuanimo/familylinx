@@ -26,9 +26,69 @@
       </div>
     </div>
     
-    <div class="chat-container">
-      <!-- Chat Messages -->
-      <div class="chat-messages" id="chat-messages">
+    <div class="chat-layout">
+      <!-- Online Members Sidebar -->
+      <aside class="chat-sidebar">
+        <div class="chat-members-panel">
+          <h3><i class="bi bi-people"></i> Members</h3>
+          
+          {% if online_members %}
+          <div class="members-section">
+            <h4 class="members-section-title">
+              <span class="online-dot"></span> Online ({{ online_members|length }})
+            </h4>
+            <ul class="members-list">
+              {% for member in online_members %}
+              <li class="member-item">
+                <div class="member-avatar">
+                  {% if member.profile_picture %}
+                  <img src="{{ member.profile_picture }}" alt="{{ member.display_name }}">
+                  {% else %}
+                  <div class="avatar-placeholder"><i class="bi bi-person"></i></div>
+                  {% endif %}
+                  <span class="member-status online"></span>
+                </div>
+                <div class="member-info">
+                  <span class="member-name">{{ member.display_name }}{% if member.user == request.user %} (you){% endif %}</span>
+                  <span class="member-role">{{ member.role }}</span>
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+          
+          {% if offline_members %}
+          <div class="members-section">
+            <h4 class="members-section-title">
+              <span class="offline-dot"></span> Offline ({{ offline_members|length }})
+            </h4>
+            <ul class="members-list">
+              {% for member in offline_members %}
+              <li class="member-item offline">
+                <div class="member-avatar">
+                  {% if member.profile_picture %}
+                  <img src="{{ member.profile_picture }}" alt="{{ member.display_name }}">
+                  {% else %}
+                  <div class="avatar-placeholder"><i class="bi bi-person"></i></div>
+                  {% endif %}
+                  <span class="member-status offline"></span>
+                </div>
+                <div class="member-info">
+                  <span class="member-name">{{ member.display_name }}{% if member.user == request.user %} (you){% endif %}</span>
+                  <span class="member-role">{{ member.role }}</span>
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+        </div>
+      </aside>
+      
+      <div class="chat-container">
+        <!-- Chat Messages -->
+        <div class="chat-messages" id="chat-messages">
         {% if chat_messages %}
           {% for message in chat_messages %}
           <div class="chat-message {% if message.author == request.user %}chat-message-own{% endif %}" data-message-id="{{ message.id }}">
@@ -85,6 +145,7 @@
       </div>
       {% endif %}
     </div>
+    </div><!-- end chat-layout -->
   </div>
 </main>
 
@@ -115,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  // Optional: Poll for new messages (simple real-time without WebSockets)
+  // Real-time polling for new messages
   let lastMessageId = 0;
   const messages = document.querySelectorAll('.chat-message');
   if (messages.length > 0) {
@@ -127,16 +188,43 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(response => response.json())
       .then(data => {
         if (data.messages && data.messages.length > 0) {
-          // New messages arrived - reload page for simplicity
-          // In production, you'd append messages dynamically
-          location.reload();
+          // Append new messages dynamically
+          const container = document.getElementById('chat-messages');
+          const emptyState = container.querySelector('.chat-empty');
+          if (emptyState) {
+            emptyState.remove();
+          }
+          
+          data.messages.forEach(msg => {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-message' + (msg.is_own ? ' chat-message-own' : '');
+            msgDiv.dataset.messageId = msg.id;
+            
+            const time = new Date(msg.created_at);
+            const timeStr = time.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+            
+            msgDiv.innerHTML = `
+              <div class="chat-message-header">
+                <span class="chat-author">${msg.is_own ? 'You' : msg.author}</span>
+                <span class="chat-time">${timeStr}</span>
+              </div>
+              <div class="chat-message-body">
+                <p>${msg.content.replace(/\n/g, '<br>')}</p>
+              </div>
+            `;
+            container.appendChild(msgDiv);
+            lastMessageId = msg.id;
+          });
+          
+          // Scroll to bottom
+          container.scrollTop = container.scrollHeight;
         }
       })
       .catch(err => console.log('Poll error:', err));
   }
   
-  // Poll every 10 seconds (optional - comment out to disable)
-  // setInterval(pollMessages, 10000);
+  // Poll every 3 seconds for near real-time messaging
+  setInterval(pollMessages, 3000);
 });
 </script>
 {% endblock %}

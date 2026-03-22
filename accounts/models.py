@@ -101,6 +101,13 @@ class UserProfile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    # Online status tracking
+    last_activity = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last time the user was active on the site"
+    )
+    
     class Meta:
         verbose_name = "User Profile"
         verbose_name_plural = "User Profiles"
@@ -125,6 +132,24 @@ class UserProfile(models.Model):
         if self.cover_photo:
             return self.cover_photo.url
         return None
+    
+    def is_online(self, threshold_minutes=5):
+        """
+        Check if user is currently online.
+        
+        Args:
+            threshold_minutes: Number of minutes of inactivity before
+                             considering user offline (default: 5)
+        
+        Returns:
+            bool: True if user was active within threshold, False otherwise
+        """
+        if not self.last_activity:
+            return False
+        from django.utils import timezone
+        from datetime import timedelta
+        threshold = timezone.now() - timedelta(minutes=threshold_minutes)
+        return self.last_activity >= threshold
 
 
 class ProfilePost(models.Model):

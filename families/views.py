@@ -30,10 +30,15 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.http import JsonResponse
 from django.contrib import messages
-from django.db.models import Q
+from django.db.models import Q, Count
 from datetime import date
 from collections import deque
-from .models import FamilySpace, Membership, Invite, Post, Comment, Event, RSVP, Person, Relationship, Album, Photo, Notification, ChatMessage, create_notification, AuditLog, DeletionRequest
+from .models import (
+    FamilySpace, Membership, Invite, Post, Comment, Event, RSVP, Person, 
+    Relationship, Album, Photo, Notification, ChatMessage, create_notification, 
+    AuditLog, DeletionRequest, MemoryStory, MemoryMedia, MemoryComment, 
+    MemoryReaction, MuseumShare
+)
 from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ChatMessageForm
 from utils.image_utils import process_cropped_image
 
@@ -2033,17 +2038,27 @@ def relationship_delete(request, family_id, relationship_id):
 def person_list(request, family_id):
     """
     List all persons in the family tree (excluding deleted).
+    Includes online status for persons linked to user accounts.
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
         return render(request, "families/no_access.html", {"family": None})
     
-    persons = Person.objects.filter(family=family, is_deleted=False).order_by('last_name', 'first_name')
+    persons = Person.objects.filter(
+        family=family, is_deleted=False
+    ).select_related('linked_user__profile').order_by('last_name', 'first_name')
+    
+    # Build online status map for linked users
+    online_status = {}
+    for person in persons:
+        if person.linked_user and hasattr(person.linked_user, 'profile'):
+            online_status[person.id] = person.linked_user.profile.is_online()
     
     return render(request, "families/person_list.html", {
         "family": family,
         "membership": membership,
         "persons": persons,
+        "online_status": online_status,
     })
 
 
@@ -2349,6 +2364,664 @@ def photo_set_cover(request, family_id, album_id, photo_id):
 
 
 # =============================================================================
+# Living Museum - Stories, Memories & Tributes Views
+# =============================================================================
+
+@login_required
+def museum_home(request, family_id):
+    """
+    Living Museum home page for a family.
+    
+    Displays featured memories, recent stories, and browse options.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+    
+    from .models import MemoryStory
+    
+    # Get featured memories
+    featured_memories = MemoryStory.objects.filter(
+        person__family=family,
+        is_featured=True
+    ).select_related('person', 'author').order_by('-created_at')[:6]
+    
+    # Get recent memories
+    recent_memories = MemoryStory.objects.filter(
+        person__family=family
+    ).select_related('person', 'author').order_by('-created_at')[:12]
+    
+    # Get persons with memories
+    persons_with_memories = Person.objects.filter(
+        family=family,
+        is_deleted=False,
+        memories__isnull=False
+    ).distinct().annotate(
+        memory_count=Count('memories')
+    ).order_by('-memory_count')[:10]
+    
+    # Memory type counts
+    memory_type_counts = MemoryStory.objects.filter(
+        person__family=family
+    ).values('story_type').annotate(count=Count('id'))
+    
+    return render(request, "families/museum_home.html", {
+        "family": family,
+        "membership": membership,
+        "featured_memories": featured_memories,
+        "recent_memories": recent_memories,
+        "persons_with_memories": persons_with_memories,
+        "memory_type_counts": {m['story_type']: m['count'] for m in memory_type_counts},
+        "total_memories": MemoryStory.objects.filter(person__family=family).count(),
+    })
+
+
+@login_required
+def museum_person(request, family_id, person_id):
+    """
+    View all memories/stories for a specific person.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+    
+    from .models import MemoryStory
+    
+    person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+    
+    # Get all memories for this person
+    memories = MemoryStory.objects.filter(
+        person=person
+    ).select_related('author').prefetch_related('media', 'reactions').order_by('-is_featured', '-created_at')
+    
+    # Filter by type if requested
+    story_type = request.GET.get('type')
+    if story_type:
+        memories = memories.filter(story_type=story_type)
+    
+    return render(request, "families/museum_person.html", {
+        "family": family,
+        "membership": membership,
+        "person": person,
+        "memories": memories,
+        "story_types": MemoryStory.StoryType.choices,
+        "current_type": story_type,
+    })
+
+
+@login_required
+def memory_detail(request, family_id, memory_id):
+    """
+    View a single memory story with all media and comments.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+    
+    from .models import MemoryStory, MemoryComment, MemoryReaction
+    
+    memory = get_object_or_404(
+        MemoryStory.objects.select_related('person', 'author').prefetch_related('media', 'comments__author', 'reactions'),
+        id=memory_id,
+        person__family=family
+    )
+    
+    # Increment view count
+    memory.view_count += 1
+    memory.save(update_fields=['view_count'])
+    
+    # Check if user has reacted
+    user_reaction = MemoryReaction.objects.filter(memory=memory, user=request.user).first()
+    
+    # Get reaction counts
+    reaction_counts = memory.reactions.values('reaction_type').annotate(count=models.Count('id'))
+    
+    return render(request, "families/memory_detail.html", {
+        "family": family,
+        "membership": membership,
+        "memory": memory,
+        "user_reaction": user_reaction,
+        "reaction_counts": {r['reaction_type']: r['count'] for r in reaction_counts},
+        "reaction_types": MemoryReaction.ReactionType.choices,
+    })
+
+
+@login_required
+def memory_create(request, family_id, person_id):
+    """
+    Create a new memory/story for a person.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+    
+    # Viewers cannot create memories
+    if membership.role == Membership.Role.VIEWER:
+        return render(request, "families/no_access.html", {"family": family})
+    
+    from .models import MemoryStory, MemoryMedia
+    
+    person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+    
+    if request.method == "POST":
+        title = request.POST.get('title', '').strip()
+        content = request.POST.get('content', '').strip()
+        story_type = request.POST.get('story_type', MemoryStory.StoryType.MEMORY)
+        date_of_memory = request.POST.get('date_of_memory') or None
+        location = request.POST.get('location', '').strip()
+        is_featured = request.POST.get('is_featured') == 'on'
+        is_public = request.POST.get('is_public') == 'on'
+        
+        if title and content:
+            memory = MemoryStory.objects.create(
+                person=person,
+                title=title,
+                content=content,
+                story_type=story_type,
+                author=request.user,
+                date_of_memory=date_of_memory if date_of_memory else None,
+                location=location,
+                is_featured=is_featured,
+                is_public=is_public,
+            )
+            
+            # Handle file uploads
+            files = request.FILES.getlist('media')
+            for i, f in enumerate(files):
+                # Determine media type from file
+                content_type = f.content_type
+                if content_type.startswith('image/'):
+                    media_type = MemoryMedia.MediaType.PHOTO
+                elif content_type.startswith('video/'):
+                    media_type = MemoryMedia.MediaType.VIDEO
+                elif content_type.startswith('audio/'):
+                    media_type = MemoryMedia.MediaType.AUDIO
+                else:
+                    media_type = MemoryMedia.MediaType.DOCUMENT
+                
+                MemoryMedia.objects.create(
+                    memory=memory,
+                    media_type=media_type,
+                    file=f,
+                    order=i,
+                    uploaded_by=request.user,
+                )
+            
+            messages.success(request, f"Memory '{title}' has been added to {person.full_name}'s story.")
+            return redirect("families:memory_detail", family_id=family.id, memory_id=memory.id)
+        else:
+            messages.error(request, "Please provide a title and content for the memory.")
+    
+    return render(request, "families/memory_create.html", {
+        "family": family,
+        "membership": membership,
+        "person": person,
+        "story_types": MemoryStory.StoryType.choices,
+    })
+
+
+@login_required
+def memory_edit(request, family_id, memory_id):
+    """
+    Edit an existing memory/story.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+    
+    from .models import MemoryStory, MemoryMedia
+    
+    memory = get_object_or_404(MemoryStory, id=memory_id, person__family=family)
+    
+    # Only author or admin can edit
+    can_edit = (
+        memory.author == request.user or
+        membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN]
+    )
+    if not can_edit:
+        return render(request, "families/no_access.html", {"family": family})
+    
+    if request.method == "POST":
+        memory.title = request.POST.get('title', memory.title).strip()
+        memory.content = request.POST.get('content', memory.content).strip()
+        memory.story_type = request.POST.get('story_type', memory.story_type)
+        date_of_memory = request.POST.get('date_of_memory')
+        memory.date_of_memory = date_of_memory if date_of_memory else None
+        memory.location = request.POST.get('location', '').strip()
+        memory.is_featured = request.POST.get('is_featured') == 'on'
+        memory.is_public = request.POST.get('is_public') == 'on'
+        memory.save()
+        
+        # Handle new file uploads
+        files = request.FILES.getlist('media')
+        existing_count = memory.media.count()
+        for i, f in enumerate(files):
+            content_type = f.content_type
+            if content_type.startswith('image/'):
+                media_type = MemoryMedia.MediaType.PHOTO
+            elif content_type.startswith('video/'):
+                media_type = MemoryMedia.MediaType.VIDEO
+            elif content_type.startswith('audio/'):
+                media_type = MemoryMedia.MediaType.AUDIO
+            else:
+                media_type = MemoryMedia.MediaType.DOCUMENT
+            
+            MemoryMedia.objects.create(
+                memory=memory,
+                media_type=media_type,
+                file=f,
+                order=existing_count + i,
+                uploaded_by=request.user,
+            )
+        
+        messages.success(request, "Memory has been updated.")
+        return redirect("families:memory_detail", family_id=family.id, memory_id=memory.id)
+    
+    return render(request, "families/memory_edit.html", {
+        "family": family,
+        "membership": membership,
+        "memory": memory,
+        "story_types": MemoryStory.StoryType.choices,
+    })
+
+
+@login_required
+def memory_delete(request, family_id, memory_id):
+    """
+    Delete a memory/story.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+    
+    from .models import MemoryStory
+    
+    memory = get_object_or_404(MemoryStory, id=memory_id, person__family=family)
+    person = memory.person
+    
+    # Only author or admin can delete
+    can_delete = (
+        memory.author == request.user or
+        membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN]
+    )
+    if not can_delete:
+        return render(request, "families/no_access.html", {"family": family})
+    
+    if request.method == "POST":
+        memory.delete()
+        messages.success(request, "Memory has been deleted.")
+        return redirect("families:museum_person", family_id=family.id, person_id=person.id)
+    
+    return render(request, "families/memory_delete.html", {
+        "family": family,
+        "membership": membership,
+        "memory": memory,
+    })
+
+
+@login_required
+def memory_react(request, family_id, memory_id):
+    """
+    Add or change reaction to a memory.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"error": "Access denied"}, status=403)
+    
+    from .models import MemoryStory, MemoryReaction
+    
+    memory = get_object_or_404(MemoryStory, id=memory_id, person__family=family)
+    
+    if request.method == "POST":
+        reaction_type = request.POST.get('reaction_type')
+        
+        if reaction_type == 'remove':
+            # Remove existing reaction
+            MemoryReaction.objects.filter(memory=memory, user=request.user).delete()
+        elif reaction_type in dict(MemoryReaction.ReactionType.choices):
+            # Add or update reaction
+            reaction, created = MemoryReaction.objects.update_or_create(
+                memory=memory,
+                user=request.user,
+                defaults={'reaction_type': reaction_type}
+            )
+        
+        # Return via AJAX or redirect
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            reaction_counts = memory.reactions.values('reaction_type').annotate(count=models.Count('id'))
+            return JsonResponse({
+                "success": True,
+                "reaction_counts": {r['reaction_type']: r['count'] for r in reaction_counts},
+                "total": memory.reactions.count(),
+            })
+        
+        return redirect("families:memory_detail", family_id=family.id, memory_id=memory.id)
+    
+    return JsonResponse({"error": "POST required"}, status=405)
+
+
+@login_required
+def memory_comment(request, family_id, memory_id):
+    """
+    Add a comment to a memory.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+    
+    # Viewers cannot comment
+    if membership.role == Membership.Role.VIEWER:
+        return redirect("families:memory_detail", family_id=family.id, memory_id=memory_id)
+    
+    from .models import MemoryStory, MemoryComment
+    
+    memory = get_object_or_404(MemoryStory, id=memory_id, person__family=family)
+    
+    if request.method == "POST":
+        content = request.POST.get('content', '').strip()
+        if content:
+            MemoryComment.objects.create(
+                memory=memory,
+                author=request.user,
+                content=content,
+            )
+            messages.success(request, "Your comment has been added.")
+    
+    return redirect("families:memory_detail", family_id=family.id, memory_id=memory.id)
+
+
+@login_required
+def memory_media_delete(request, family_id, memory_id, media_id):
+    """
+    Delete media from a memory.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"error": "Access denied"}, status=403)
+    
+    from .models import MemoryStory, MemoryMedia
+    
+    memory = get_object_or_404(MemoryStory, id=memory_id, person__family=family)
+    media = get_object_or_404(MemoryMedia, id=media_id, memory=memory)
+    
+    # Only author or admin can delete media
+    can_delete = (
+        memory.author == request.user or
+        media.uploaded_by == request.user or
+        membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN]
+    )
+    if not can_delete:
+        return JsonResponse({"error": "Permission denied"}, status=403)
+    
+    if request.method == "POST":
+        media.delete()
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({"success": True})
+        
+        messages.success(request, "Media has been removed.")
+        return redirect("families:memory_edit", family_id=family.id, memory_id=memory.id)
+    
+    return JsonResponse({"error": "POST required"}, status=405)
+
+
+# =============================================================================
+# Museum Sharing Views
+# =============================================================================
+
+@login_required
+def museum_share_create(request, family_id):
+    """
+    Create a share link for the museum or specific content.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+    
+    from .models import MuseumShare, MemoryStory
+    
+    if request.method == "POST":
+        share_type = request.POST.get('share_type', MuseumShare.ShareType.MUSEUM)
+        memory_id = request.POST.get('memory_id')
+        person_id = request.POST.get('person_id')
+        shared_with_email = request.POST.get('email', '').strip()
+        is_public_link = request.POST.get('is_public') == 'on'
+        message = request.POST.get('message', '').strip()
+        expires_days = request.POST.get('expires_days')
+        
+        # Calculate expiration
+        expires_at = None
+        if expires_days and expires_days.isdigit():
+            from django.utils import timezone
+            from datetime import timedelta
+            expires_at = timezone.now() + timedelta(days=int(expires_days))
+        
+        share = MuseumShare(
+            share_type=share_type,
+            shared_by=request.user,
+            shared_with_email=shared_with_email,
+            is_public_link=is_public_link,
+            message=message,
+            expires_at=expires_at,
+        )
+        
+        # Set what is being shared
+        if share_type == MuseumShare.ShareType.MEMORY and memory_id:
+            memory = get_object_or_404(MemoryStory, id=memory_id, person__family=family)
+            share.memory = memory
+        elif share_type == MuseumShare.ShareType.PERSON and person_id:
+            person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+            share.person = person
+        else:
+            share.share_type = MuseumShare.ShareType.MUSEUM
+            share.family = family
+        
+        share.save()
+        
+        # If shared with email, try to find user
+        if shared_with_email:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                recipient = User.objects.get(email__iexact=shared_with_email)
+                share.shared_with_user = recipient
+                share.save()
+                
+                # Create notification for recipient
+                create_notification(
+                    recipient=recipient,
+                    notification_type=Notification.NotificationType.SYSTEM,
+                    title=f"Museum shared with you",
+                    message=f"{request.user.email} shared memories with you",
+                    link=share.get_share_url(),
+                    family=family
+                )
+            except User.DoesNotExist:
+                pass
+        
+        messages.success(request, "Share link created successfully!")
+        
+        # Return share URL for copying
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                "success": True,
+                "share_url": request.build_absolute_uri(share.get_share_url()),
+                "share_token": share.share_token,
+            })
+        
+        return redirect("families:museum_share_list", family_id=family.id)
+    
+    # Get persons and memories for the form
+    persons = Person.objects.filter(family=family, is_deleted=False).order_by('last_name', 'first_name')
+    memories = MemoryStory.objects.filter(person__family=family).select_related('person')[:50]
+    
+    return render(request, "families/museum_share_create.html", {
+        "family": family,
+        "membership": membership,
+        "persons": persons,
+        "memories": memories,
+        "share_types": MuseumShare.ShareType.choices,
+    })
+
+
+@login_required
+def museum_share_list(request, family_id):
+    """
+    List all shares created by the user for this family's museum.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, "families/no_access.html", {"family": None})
+    
+    from .models import MuseumShare
+    
+    # Get shares created by this user or for this family (if admin)
+    if membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        shares = MuseumShare.objects.filter(
+            models.Q(family=family) | 
+            models.Q(person__family=family) | 
+            models.Q(memory__person__family=family)
+        ).select_related('shared_by', 'shared_with_user', 'memory', 'person')
+    else:
+        shares = MuseumShare.objects.filter(
+            shared_by=request.user
+        ).filter(
+            models.Q(family=family) | 
+            models.Q(person__family=family) | 
+            models.Q(memory__person__family=family)
+        ).select_related('shared_with_user', 'memory', 'person')
+    
+    return render(request, "families/museum_share_list.html", {
+        "family": family,
+        "membership": membership,
+        "shares": shares,
+    })
+
+
+@login_required
+def museum_share_delete(request, family_id, share_id):
+    """
+    Delete/revoke a share.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"error": "Access denied"}, status=403)
+    
+    from .models import MuseumShare
+    
+    share = get_object_or_404(MuseumShare, id=share_id)
+    
+    # Check permission
+    can_delete = (
+        share.shared_by == request.user or
+        membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN]
+    )
+    if not can_delete:
+        return JsonResponse({"error": "Permission denied"}, status=403)
+    
+    if request.method == "POST":
+        share.delete()
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({"success": True})
+        
+        messages.success(request, "Share has been revoked.")
+        return redirect("families:museum_share_list", family_id=family.id)
+    
+    return JsonResponse({"error": "POST required"}, status=405)
+
+
+def museum_shared_view(request, share_token):
+    """
+    Public view for shared museum content.
+    
+    No login required if share is a public link.
+    """
+    from .models import MuseumShare, MemoryStory
+    
+    share = get_object_or_404(MuseumShare, share_token=share_token)
+    
+    # Check if share is valid
+    if not share.is_valid():
+        return render(request, "families/museum_share_expired.html", {
+            "share": share,
+        })
+    
+    # Check access
+    user = request.user if request.user.is_authenticated else None
+    if not share.can_access(user):
+        if not user:
+            # Redirect to login
+            from django.contrib.auth.views import redirect_to_login
+            return redirect_to_login(request.get_full_path())
+        return render(request, "families/museum_share_denied.html", {
+            "share": share,
+        })
+    
+    # Record view
+    share.record_view()
+    
+    # Get content based on share type
+    context = {
+        "share": share,
+        "is_shared_view": True,
+    }
+    
+    if share.share_type == MuseumShare.ShareType.MEMORY and share.memory:
+        context["memory"] = share.memory
+        context["memory"].view_count += 1
+        context["memory"].save(update_fields=['view_count'])
+        return render(request, "families/museum_shared_memory.html", context)
+    
+    elif share.share_type == MuseumShare.ShareType.PERSON and share.person:
+        context["person"] = share.person
+        context["memories"] = MemoryStory.objects.filter(
+            person=share.person,
+            is_public=True  # Only show public memories
+        ).select_related('author').prefetch_related('media')
+        return render(request, "families/museum_shared_person.html", context)
+    
+    elif share.share_type == MuseumShare.ShareType.MUSEUM and share.family:
+        context["family"] = share.family
+        context["memories"] = MemoryStory.objects.filter(
+            person__family=share.family,
+            is_public=True
+        ).select_related('person', 'author').prefetch_related('media')[:50]
+        context["persons_with_memories"] = Person.objects.filter(
+            family=share.family,
+            is_deleted=False,
+            memories__is_public=True
+        ).distinct()
+        return render(request, "families/museum_shared_home.html", context)
+    
+    return render(request, "families/museum_share_error.html", context)
+
+
+@login_required
+def museum_my_shares(request):
+    """
+    View all shares the current user has received or created.
+    """
+    from .models import MuseumShare
+    
+    # Shares received
+    received_shares = MuseumShare.objects.filter(
+        models.Q(shared_with_user=request.user) |
+        models.Q(shared_with_email__iexact=request.user.email)
+    ).filter(is_active=True).select_related('shared_by', 'memory', 'person', 'family')
+    
+    # Shares created
+    created_shares = MuseumShare.objects.filter(
+        shared_by=request.user
+    ).select_related('shared_with_user', 'memory', 'person', 'family')[:50]
+    
+    return render(request, "families/museum_my_shares.html", {
+        "received_shares": received_shares,
+        "created_shares": created_shares,
+    })
+
+
+# =============================================================================
 # Phase 6: Notifications & Messaging Views
 # =============================================================================
 
@@ -2450,6 +3123,7 @@ def chat_room(request, family_id):
     
     Displays chat messages and allows posting new messages.
     Members can view and send messages; viewers can only view.
+    Shows online status for family members.
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
@@ -2459,10 +3133,30 @@ def chat_room(request, family_id):
     chat_messages = ChatMessage.objects.filter(
         family=family,
         is_deleted=False
-    ).select_related('author').order_by('-created_at')[:100]
+    ).select_related('author', 'author__profile').order_by('-created_at')[:100]
     
     # Reverse to show oldest first in display
     chat_messages = list(reversed(chat_messages))
+    
+    # Get all family members with their online status
+    members = Membership.objects.filter(
+        family=family
+    ).select_related('user', 'user__profile').order_by('user__email')
+    
+    # Build online members list
+    online_members = []
+    offline_members = []
+    for m in members:
+        member_info = {
+            'user': m.user,
+            'role': m.role,
+            'display_name': m.user.profile.get_display_name() if hasattr(m.user, 'profile') else m.user.email.split('@')[0],
+            'profile_picture': m.user.profile.get_profile_picture_url() if hasattr(m.user, 'profile') else None,
+        }
+        if hasattr(m.user, 'profile') and m.user.profile.is_online():
+            online_members.append(member_info)
+        else:
+            offline_members.append(member_info)
     
     form = ChatMessageForm()
     
@@ -2497,6 +3191,8 @@ def chat_room(request, family_id):
         "membership": membership,
         "chat_messages": chat_messages,
         "form": form,
+        "online_members": online_members,
+        "offline_members": offline_members,
     })
 
 
@@ -3429,6 +4125,127 @@ def dna_link_to_person(request, kit_id, family_id):
         "family": family,
         "people": people,
         "selected_person_id": selected_person_id,
+    })
+
+
+@login_required
+def dna_connections(request):
+    """
+    Interactive network visualization of DNA connections.
+    
+    Shows a force-directed graph of DNA matches between kits,
+    with nodes representing people/kits and edges representing
+    genetic connections (weighted by cM).
+    """
+    from .models import DNAKit, DNAMatch, Person
+    import json
+    
+    # Get user's kits
+    user_kits = DNAKit.objects.filter(user=request.user)
+    user_kit_ids = set(user_kits.values_list('id', flat=True))
+    
+    if not user_kits.exists():
+        return render(request, "families/dna_connections.html", {
+            "nodes_json": "[]",
+            "links_json": "[]",
+            "has_data": False,
+        })
+    
+    # Get all matches involving user's kits
+    matches = DNAMatch.objects.filter(
+        Q(kit1_id__in=user_kit_ids) | Q(kit2_id__in=user_kit_ids)
+    ).select_related(
+        'kit1', 'kit2', 'kit1__user', 'kit2__user',
+        'kit1__linked_person', 'kit2__linked_person'
+    )
+    
+    # Build nodes and links for D3.js
+    nodes = {}
+    links = []
+    
+    # Add user's own kits as nodes
+    for kit in user_kits:
+        node_id = f"kit_{kit.id}"
+        person_name = kit.linked_person.full_name if kit.linked_person else None
+        nodes[node_id] = {
+            "id": node_id,
+            "kit_id": kit.id,
+            "name": person_name or kit.display_name,
+            "display_name": kit.display_name,
+            "provider": kit.get_provider_display(),
+            "is_own": True,
+            "linked_person_id": kit.linked_person.id if kit.linked_person else None,
+            "linked_person_family_id": kit.linked_person.family_id if kit.linked_person else None,
+            "user_name": kit.user.get_full_name() or kit.user.username,
+        }
+    
+    # Add matches and connected kits
+    for match in matches:
+        kit1_id = f"kit_{match.kit1_id}"
+        kit2_id = f"kit_{match.kit2_id}"
+        
+        # Add kit1 if not already present
+        if kit1_id not in nodes:
+            kit = match.kit1
+            person_name = kit.linked_person.full_name if kit.linked_person else None
+            nodes[kit1_id] = {
+                "id": kit1_id,
+                "kit_id": kit.id,
+                "name": person_name or kit.display_name,
+                "display_name": kit.display_name,
+                "provider": kit.get_provider_display(),
+                "is_own": kit.id in user_kit_ids,
+                "linked_person_id": kit.linked_person.id if kit.linked_person else None,
+                "linked_person_family_id": kit.linked_person.family_id if kit.linked_person else None,
+                "user_name": kit.user.get_full_name() or kit.user.username,
+            }
+        
+        # Add kit2 if not already present
+        if kit2_id not in nodes:
+            kit = match.kit2
+            person_name = kit.linked_person.full_name if kit.linked_person else None
+            nodes[kit2_id] = {
+                "id": kit2_id,
+                "kit_id": kit.id,
+                "name": person_name or kit.display_name,
+                "display_name": kit.display_name,
+                "provider": kit.get_provider_display(),
+                "is_own": kit.id in user_kit_ids,
+                "linked_person_id": kit.linked_person.id if kit.linked_person else None,
+                "linked_person_family_id": kit.linked_person.family_id if kit.linked_person else None,
+                "user_name": kit.user.get_full_name() or kit.user.username,
+            }
+        
+        # Calculate link strength based on cM (closer = stronger)
+        # cM ranges: 3400+ parent/sibling, 200-900 extended, <200 distant
+        cm = match.shared_cm
+        if cm >= 900:
+            strength = "close"
+            width = 6
+        elif cm >= 200:
+            strength = "extended"
+            width = 4
+        else:
+            strength = "distant"
+            width = 2
+        
+        links.append({
+            "source": kit1_id,
+            "target": kit2_id,
+            "match_id": match.id,
+            "shared_cm": match.shared_cm,
+            "predicted_relationship": match.predicted_relationship,
+            "is_confirmed": match.is_confirmed,
+            "strength": strength,
+            "width": width,
+        })
+    
+    return render(request, "families/dna_connections.html", {
+        "nodes_json": json.dumps(list(nodes.values())),
+        "links_json": json.dumps(links),
+        "has_data": len(links) > 0,
+        "total_kits": len(nodes),
+        "total_matches": len(links),
     })
 
 

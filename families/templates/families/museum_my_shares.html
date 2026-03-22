@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+
+{% block title %}My Shares - Living Museum{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4"><i class="bi bi-share"></i> My Museum Shares</h2>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#received">
+                <i class="bi bi-inbox"></i> Shared With Me
+                {% if received_shares %}<span class="badge bg-primary">{{ received_shares.count }}</span>{% endif %}
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#created">
+                <i class="bi bi-send"></i> Created By Me
+                {% if created_shares %}<span class="badge bg-secondary">{{ created_shares.count }}</span>{% endif %}
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Received Shares -->
+        <div class="tab-pane fade show active" id="received">
+            {% if received_shares %}
+            <div class="row">
+                {% for share in received_shares %}
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <span class="badge bg-{% if share.share_type == 'MUSEUM' %}primary{% elif share.share_type == 'PERSON' %}success{% else %}info{% endif %}">
+                                    {{ share.get_share_type_display }}
+                                </span>
+                                {% if share.is_valid %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">Expired</span>
+                                {% endif %}
+                            </div>
+
+                            <h5 class="card-title">
+                                {% if share.memory %}
+                                {{ share.memory.title }}
+                                {% elif share.person %}
+                                {{ share.person.full_name }}'s Museum
+                                {% elif share.family %}
+                                {{ share.family.name }} Museum
+                                {% endif %}
+                            </h5>
+
+                            <p class="text-muted small mb-2">
+                                Shared by <strong>{{ share.shared_by.get_full_name|default:share.shared_by.username }}</strong>
+                                on {{ share.created_at|date:"M d, Y" }}
+                            </p>
+
+                            {% if share.message %}
+                            <p class="fst-italic text-muted">"{{ share.message|truncatewords:20 }}"</p>
+                            {% endif %}
+
+                            {% if share.expires_at %}
+                            <p class="small text-muted mb-0">
+                                <i class="bi bi-clock"></i> 
+                                {% if share.expires_at < now %}
+                                Expired {{ share.expires_at|date:"M d, Y" }}
+                                {% else %}
+                                Expires {{ share.expires_at|date:"M d, Y" }}
+                                {% endif %}
+                            </p>
+                            {% endif %}
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            {% if share.is_valid %}
+                            <a href="{% url 'families:museum_shared_view' share.share_token %}" class="btn btn-primary btn-sm">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                            {% else %}
+                            <button class="btn btn-secondary btn-sm" disabled>Expired</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-inbox display-1 text-muted"></i>
+                <h4 class="mt-3">No shares received yet</h4>
+                <p class="text-muted">When someone shares their Living Museum with you, it will appear here.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Created Shares -->
+        <div class="tab-pane fade" id="created">
+            {% if created_shares %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Content</th>
+                            <th>Shared With</th>
+                            <th>Created</th>
+                            <th>Expires</th>
+                            <th>Views</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for share in created_shares %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-{% if share.share_type == 'MUSEUM' %}primary{% elif share.share_type == 'PERSON' %}success{% else %}info{% endif %}">
+                                    {{ share.get_share_type_display }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if share.memory %}
+                                {{ share.memory.title|truncatewords:5 }}
+                                {% elif share.person %}
+                                {{ share.person.full_name }}
+                                {% elif share.family %}
+                                {{ share.family.name }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if share.is_public_link %}
+                                <i class="bi bi-globe"></i> Public
+                                {% elif share.shared_with_user %}
+                                {{ share.shared_with_user.email }}
+                                {% elif share.shared_with_email %}
+                                {{ share.shared_with_email }}
+                                {% endif %}
+                            </td>
+                            <td>{{ share.created_at|date:"M d, Y" }}</td>
+                            <td>
+                                {% if share.expires_at %}
+                                {{ share.expires_at|date:"M d, Y" }}
+                                {% else %}
+                                Never
+                                {% endif %}
+                            </td>
+                            <td>{{ share.view_count }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="copyShareLink('{{ share.share_token }}')" title="Copy Link">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                    <a href="{% url 'families:museum_shared_view' share.share_token %}" class="btn btn-outline-primary" target="_blank" title="View">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-send display-1 text-muted"></i>
+                <h4 class="mt-3">No shares created yet</h4>
+                <p class="text-muted">Visit a Living Museum and create a share to send to family and friends.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function copyShareLink(token) {
+    const url = window.location.origin + '{% url "families:museum_shared_view" "TOKEN" %}'.replace('TOKEN', token);
+    navigator.clipboard.writeText(url).then(() => {
+        alert('Link copied to clipboard!');
+    }).catch(err => {
+        prompt('Copy this link:', url);
+    });
+}
+</script>
+{% endblock %}

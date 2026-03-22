@@ -191,6 +191,9 @@ urlpatterns = [
     path("dna/suggestions/", views.relationship_suggestion_list, name="relationship_suggestion_list"),
     path("dna/suggestions/<int:suggestion_id>/", views.relationship_suggestion_review, name="relationship_suggestion_review"),
     
+    # DNA Connections Visualization
+    path("dna/connections/", views.dna_connections, name="dna_connections"),
+    
     # ==========================================================================
     # Phase 9: Trash Bin, Audit Trail & Data Protection URLs
     # ==========================================================================
@@ -210,4 +213,46 @@ urlpatterns = [
     path("<int:family_id>/my-deletion-requests/", views.my_deletion_requests, name="my_deletion_requests"),
     path("<int:family_id>/request-deletion/<str:object_type>/<int:object_id>/", views.deletion_request_create, name="deletion_request_create"),
     path("<int:family_id>/deletion-requests/<int:request_id>/review/", views.deletion_request_review, name="deletion_request_review"),
+    
+    # ==========================================================================
+    # Phase 10: Living Museum URLs
+    # ==========================================================================
+    
+    # Museum home - browse all memories for a family
+    path("<int:family_id>/museum/", views.museum_home, name="museum_home"),
+    
+    # Museum for a specific person
+    path("<int:family_id>/museum/person/<int:person_id>/", views.museum_person, name="museum_person"),
+    
+    # Memory CRUD
+    path("<int:family_id>/museum/memory/new/", views.memory_create, name="memory_create"),
+    path("<int:family_id>/museum/memory/new/<int:person_id>/", views.memory_create, name="memory_create_for_person"),
+    path("<int:family_id>/museum/memory/<int:memory_id>/", views.memory_detail, name="memory_detail"),
+    path("<int:family_id>/museum/memory/<int:memory_id>/edit/", views.memory_edit, name="memory_edit"),
+    path("<int:family_id>/museum/memory/<int:memory_id>/delete/", views.memory_delete, name="memory_delete"),
+    
+    # Memory interactions
+    path("<int:family_id>/museum/memory/<int:memory_id>/react/", views.memory_react, name="memory_react"),
+    path("<int:family_id>/museum/memory/<int:memory_id>/comment/", views.memory_comment, name="memory_comment"),
+    path("<int:family_id>/museum/memory/<int:memory_id>/media/<int:media_id>/delete/", views.memory_media_delete, name="memory_media_delete"),
+    
+    # ==========================================================================
+    # Museum Sharing URLs
+    # ==========================================================================
+    
+    # Create a share link
+    path("<int:family_id>/museum/share/create/", views.museum_share_create, name="museum_share_create"),
+    path("<int:family_id>/museum/share/create/<str:share_type>/<int:object_id>/", views.museum_share_create, name="museum_share_create_object"),
+    
+    # List shares (for admins)
+    path("<int:family_id>/museum/shares/", views.museum_share_list, name="museum_share_list"),
+    
+    # Delete/revoke a share
+    path("<int:family_id>/museum/share/<int:share_id>/delete/", views.museum_share_delete, name="museum_share_delete"),
+    
+    # View shared content (public - no login required)
+    path("shared/<str:share_token>/", views.museum_shared_view, name="museum_shared_view"),
+    
+    # My shares dashboard
+    path("museum/my-shares/", views.museum_my_shares, name="museum_my_shares"),
 ]
