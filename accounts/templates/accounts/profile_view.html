@@ -612,9 +612,16 @@
                 <i class="bi bi-pencil"></i> Edit Profile
             </a>
             {% else %}
-            <a href="{% url 'accounts:message_compose_to' recipient_id=profile_user.id %}" class="btn btn-primary">
-                <i class="bi bi-chat-dots"></i> Message
-            </a>
+            <div class="grid-2" style="gap: 0.5rem;">
+              <a href="{% url 'accounts:message_compose_to' recipient_id=profile_user.id %}" class="btn btn-outline">
+                  <i class="bi bi-envelope"></i> Message
+              </a>
+              {% if chat_family_id %}
+              <a href="{% url 'families:direct_conversation_start' family_id=chat_family_id user_id=profile_user.id %}" class="btn btn-primary">
+                  <i class="bi bi-chat-dots"></i> Live Chat
+              </a>
+              {% endif %}
+            </div>
             {% endif %}
         </div>
     </div>
@@ -750,6 +757,19 @@
     
     <!-- Right Column - Wall -->
     <div class="wall-section">
+        <!-- Inline Messenger -->
+        {% if chat_family_id %}
+        <div class="card" style="margin-bottom: 1rem;">
+          <div class="card-header flex-between">
+            <span class="card-title"><i class="bi bi-chat-dots"></i> Chat with {{ profile.get_display_name }}</span>
+            <a href="{% url 'families:direct_conversation_start' family_id=chat_family_id user_id=profile_user.id %}" class="btn btn-outline btn-sm">Open Full</a>
+          </div>
+          <div class="card-body">
+            <iframe src="{% url 'families:direct_conversation_start' family_id=chat_family_id user_id=profile_user.id %}"
+                    style="width: 100%; height: 420px; border: 1px solid var(--fl-border); border-radius: var(--fl-radius);"></iframe>
+          </div>
+        </div>
+        {% endif %}
         <!-- Post Composer (own profile only) -->
         {% if is_own_profile %}
         <div class="post-composer">

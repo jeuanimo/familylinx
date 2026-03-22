@@ -69,6 +69,11 @@ def profile_view(request, user_id):
     user_families = set(Membership.objects.filter(user=request.user).values_list('family_id', flat=True))
     profile_families = set(Membership.objects.filter(user=profile_user).values_list('family_id', flat=True))
     shared_families = user_families & profile_families
+    chat_family_id = None
+    if shared_families:
+        chat_family_id = next(iter(shared_families))
+    elif is_own_profile and user_families:
+        chat_family_id = next(iter(user_families))
     
     # Get DNA kits for this user (only visible on own profile or if public)
     dna_kits = []
@@ -91,6 +96,7 @@ def profile_view(request, user_id):
         'comment_form': comment_form,
         'shared_families': shared_families,
         'dna_kits': dna_kits,
+        'chat_family_id': chat_family_id,
     }
     
     return render(request, 'accounts/profile_view.html', context)
