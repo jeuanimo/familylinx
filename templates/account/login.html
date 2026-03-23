@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Sign In - FamilyLinx{% endblock %}
+{% block title %}Sign In - FamilyLinx{% endblock title %}
 
 {% block content %}
 <div class="auth-page">
     <div class="auth-card">
         <div class="auth-header">
             <div class="auth-logo">
-                <span class="brand-badge" style="width: 56px; height: 56px; font-size: 1.5rem;">FL</span>
+                <span class="brand-badge brand-badge-lg">FL</span>
             </div>
             <h1>Welcome Back</h1>
             <p class="muted">Sign in to continue to FamilyLinx</p>
@@ -81,7 +81,7 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}
 
 {% block extra_css %}
 <style>
@@ -179,4 +179,4 @@
     font-weight: 600;
 }
 </style>
-{% endblock %}
+{% endblock extra_css %}

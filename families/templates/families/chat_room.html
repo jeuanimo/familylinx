@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Chat – {{ family.name }} | FamilyLinx{% endblock %}
+{% block title %}Chat – {{ family.name }} | FamilyLinx{% endblock title %}
 
 {% block content %}
 <main>
@@ -42,7 +42,7 @@
               <li class="member-item">
                 <div class="member-avatar">
                   {% if member.profile_picture %}
-                  <img src="{{ member.profile_picture }}" alt="{{ member.display_name }}">
+                  <img src="{{ member.profile_picture }}" alt="{{ member.display_name }}" width="32" height="32">
                   {% else %}
                   <div class="avatar-placeholder"><i class="bi bi-person"></i></div>
                   {% endif %}
@@ -68,7 +68,7 @@
               <li class="member-item offline">
                 <div class="member-avatar">
                   {% if member.profile_picture %}
-                  <img src="{{ member.profile_picture }}" alt="{{ member.display_name }}">
+                  <img src="{{ member.profile_picture }}" alt="{{ member.display_name }}" width="32" height="32">
                   {% else %}
                   <div class="avatar-placeholder"><i class="bi bi-person"></i></div>
                   {% endif %}
@@ -108,7 +108,7 @@
             {% if message.author == request.user or membership.role in 'OWNER,ADMIN' %}
             <div class="chat-message-actions">
               <form method="post" action="{% url 'families:chat_delete_message' family_id=family.id message_id=message.id %}" 
-                    onsubmit="return confirm('Delete this message?');" style="display: inline;">
+                    onsubmit="return confirm('Delete this message?');" class="d-inline-form">
                 {% csrf_token %}
                 <button type="submit" class="btn-icon" title="Delete message">
                   <i class="bi bi-trash"></i>
@@ -227,4 +227,4 @@ document.addEventListener('DOMContentLoaded', function() {
   setInterval(pollMessages, 3000);
 });
 </script>
-{% endblock %}
+{% endblock content %}

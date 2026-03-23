@@ -1,7 +1,7 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ person.full_name }} - Living Museum{% endblock %}
+{% block title %}{{ person.full_name }} - Living Museum{% endblock title %}
 
 {% block content %}
 <div class="container py-4">
@@ -11,10 +11,10 @@
             <div class="row align-items-center">
                 <div class="col-md-2 text-center">
                     {% if person.photo %}
-                    <img src="{{ person.photo.url }}" class="rounded-circle" style="width: 120px; height: 120px; object-fit: cover;">
+                    <img src="{{ person.photo.url }}" class="rounded-circle person-avatar" alt="{{ person.full_name }}" width="120" height="120">
                     {% else %}
-                    <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mx-auto" style="width: 120px; height: 120px;">
-                        <i class="bi bi-person-fill text-white" style="font-size: 3rem;"></i>
+                    <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mx-auto avatar-placeholder-lg">
+                        <i class="bi bi-person-fill text-white icon-3rem"></i>
                     </div>
                     {% endif %}
                 </div>
@@ -78,7 +78,7 @@
                 <div class="row g-0">
                     {% if memory.media.first %}
                     <div class="col-4">
-                        <img src="{{ memory.media.first.file.url }}" class="img-fluid rounded-start h-100" style="object-fit: cover;" alt="{{ memory.title }}">
+                        <img src="{{ memory.media.first.file.url }}" class="img-fluid rounded-start h-100 img-cover" alt="{{ memory.title }}" width="200" height="auto">
                     </div>
                     <div class="col-8">
                     {% else %}
@@ -139,7 +139,7 @@
                     </h6>
                     <small class="text-muted">
                         {% if memory.date_of_memory %}{{ memory.date_of_memory }}{% else %}{{ memory.created_at|date:"M d, Y" }}{% endif %}
-                        &bull; {{ memory.get_story_type_display }}
+                        • {{ memory.get_story_type_display }}
                     </small>
                 </div>
             </div>
@@ -188,4 +188,4 @@
     padding-left: 10px;
 }
 </style>
-{% endblock %}
+{% endblock content %}

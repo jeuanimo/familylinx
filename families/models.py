@@ -938,6 +938,16 @@ class Person(models.Model):
         ).select_related('person1')
         return [rel.person1 for rel in parent_rels]
     
+    @staticmethod
+    def _get_generation_label(gen_num):
+        """Get the label for a generation number (2=Grandparents, 3=Great-GP, etc.)."""
+        if gen_num == 2:
+            return "Grandparents"
+        if gen_num == 3:
+            return "Great-Grandparents"
+        prefix = "Great-" * (gen_num - 2)
+        return f"{prefix}Grandparents"
+
     @property
     def ancestors(self):
         """
@@ -948,35 +958,19 @@ class Person(models.Model):
         current_gen = self.parents
         gen_num = 2  # Start at grandparents (parents are handled separately)
         
-        while current_gen:
-            # Get parents of current generation
+        while current_gen and gen_num <= 20:
             next_gen = []
             for person in current_gen:
-                for parent in person.parents:
-                    if parent not in next_gen:
-                        next_gen.append(parent)
+                next_gen.extend(p for p in person.parents if p not in next_gen)
             
             if next_gen:
-                # Generate label
-                if gen_num == 2:
-                    label = "Grandparents"
-                elif gen_num == 3:
-                    label = "Great-Grandparents"
-                else:
-                    prefix = "Great-" * (gen_num - 2)
-                    label = f"{prefix}Grandparents"
-                
                 result.append({
-                    'label': label,
+                    'label': self._get_generation_label(gen_num),
                     'persons': next_gen,
                 })
             
             current_gen = next_gen
             gen_num += 1
-            
-            # Safety limit
-            if gen_num > 20:
-                break
         
         return result
     
@@ -2979,21 +2973,27 @@ class PersonClaim(models.Model):
         
         for parent in parents:
             parent_full_name = f"{parent.first_name} {parent.last_name}".lower()
-            
-            if parent.gender == Person.Gender.MALE and self.provided_father_name:
-                checks += 1
-                if self.provided_father_name.lower() in parent_full_name or \
-                   parent_full_name in self.provided_father_name.lower():
-                    matches += 1
-            elif parent.gender == Person.Gender.FEMALE and self.provided_mother_name:
-                checks += 1
-                if self.provided_mother_name.lower() in parent_full_name or \
-                   parent_full_name in self.provided_mother_name.lower():
-                    matches += 1
+            provided_name = self._get_provided_parent_name(parent.gender)
+            if not provided_name:
+                continue
+            checks += 1
+            if self._names_match(provided_name.lower(), parent_full_name):
+                matches += 1
         
-        if checks == 0:
-            return None
-        return matches / checks
+        return matches / checks if checks > 0 else None
+    
+    def _get_provided_parent_name(self, gender):
+        """Get the provided parent name based on gender."""
+        if gender == Person.Gender.MALE:
+            return self.provided_father_name
+        if gender == Person.Gender.FEMALE:
+            return self.provided_mother_name
+        return None
+    
+    @staticmethod
+    def _names_match(name1, name2):
+        """Check if two names match (either contains the other)."""
+        return name1 in name2 or name2 in name1
     
     def calculate_verification_score(self):
         """
@@ -3055,6 +3055,67 @@ class PersonClaim(models.Model):
         return False
 
 
+def _extract_user_name_from_model(user):
+    """Extract first and last name from user model fields."""
+    return (
+        (user.first_name or '').lower().strip(),
+        (user.last_name or '').lower().strip()
+    )
+
+
+def _extract_user_name_from_profile(user):
+    """Extract first and last name from user profile display_name."""
+    try:
+        profile = user.profile
+        if profile and profile.display_name:
+            name_parts = profile.display_name.strip().split()
+            if len(name_parts) >= 2:
+                return name_parts[0].lower(), name_parts[-1].lower()
+            if len(name_parts) == 1:
+                return name_parts[0].lower(), ''
+    except Exception:
+        pass
+    return '', ''
+
+
+def _extract_user_name_from_email(user):
+    """Extract first and last name from user email prefix."""
+    email_prefix = user.email.split('@')[0] if user.email else ''
+    if '.' in email_prefix:
+        parts = email_prefix.split('.')
+        return parts[0].lower(), parts[-1].lower()
+    if '_' in email_prefix:
+        parts = email_prefix.split('_')
+        return parts[0].lower(), parts[-1].lower()
+    return email_prefix.lower(), ''
+
+
+def _get_user_name(user):
+    """Get user's first and last name from various sources."""
+    user_first, user_last = _extract_user_name_from_model(user)
+    if not user_first and not user_last:
+        user_first, user_last = _extract_user_name_from_profile(user)
+    if not user_first and not user_last:
+        user_first, user_last = _extract_user_name_from_email(user)
+    return user_first, user_last
+
+
+def _calculate_name_match_score(user_first, user_last, person_first, person_last):
+    """Calculate a weighted name similarity score."""
+    from difflib import SequenceMatcher
+    
+    first_score = SequenceMatcher(None, user_first, person_first).ratio() if user_first and person_first else 0
+    last_score = SequenceMatcher(None, user_last, person_last).ratio() if user_last and person_last else 0
+    
+    if user_first and user_last:
+        return first_score * 0.4 + last_score * 0.6
+    if user_last:
+        return last_score * 0.8
+    if user_first:
+        return first_score * 0.6
+    return 0
+
+
 def find_matching_persons(user, family):
     """
     Find Person records that might match a user based on name.
@@ -3066,76 +3127,25 @@ def find_matching_persons(user, family):
     Returns:
         List of (Person, match_score) tuples, sorted by score descending
     """
-    from difflib import SequenceMatcher
-    
-    # Get user's name (from profile or user model)
-    user_first = (user.first_name or '').lower().strip()
-    user_last = (user.last_name or '').lower().strip()
-    
-    # If User model names are empty, try to parse from profile display_name
-    if not user_first and not user_last:
-        try:
-            profile = user.profile
-            if profile and profile.display_name:
-                name_parts = profile.display_name.strip().split()
-                if len(name_parts) >= 2:
-                    user_first = name_parts[0].lower()
-                    user_last = name_parts[-1].lower()
-                elif len(name_parts) == 1:
-                    user_first = name_parts[0].lower()
-        except Exception:
-            pass
-    
-    # Also fallback to email prefix if still no name
-    if not user_first and not user_last:
-        email_prefix = user.email.split('@')[0] if user.email else ''
-        # Try to split email prefix (e.g., john.smith -> john, smith)
-        if '.' in email_prefix:
-            parts = email_prefix.split('.')
-            user_first = parts[0].lower()
-            user_last = parts[-1].lower()
-        elif '_' in email_prefix:
-            parts = email_prefix.split('_')
-            user_first = parts[0].lower()
-            user_last = parts[-1].lower()
-        else:
-            user_first = email_prefix.lower()
+    user_first, user_last = _get_user_name(user)
     
     if not user_first and not user_last:
         return []
     
     matches = []
-    persons = Person.objects.filter(family=family, is_deleted=False)
-    
-    for person in persons:
-        # Skip if already linked to someone
+    for person in Person.objects.filter(family=family, is_deleted=False):
         if hasattr(person, 'linked_membership') and person.linked_membership.exists():
             continue
         
         person_first = (person.first_name or '').lower().strip()
         person_last = (person.last_name or '').lower().strip()
         
-        # Calculate name similarity
-        first_score = SequenceMatcher(None, user_first, person_first).ratio() if user_first and person_first else 0
-        last_score = SequenceMatcher(None, user_last, person_last).ratio() if user_last and person_last else 0
-        
-        # Weighted: last name more important for matching
-        if user_first and user_last:
-            combined_score = (first_score * 0.4 + last_score * 0.6)
-        elif user_last:
-            combined_score = last_score * 0.8
-        elif user_first:
-            combined_score = first_score * 0.6
-        else:
-            combined_score = 0
-        
-        # Only include if reasonably close match (>70%)
-        if combined_score >= 0.7:
-            matches.append((person, combined_score))
+        score = _calculate_name_match_score(user_first, user_last, person_first, person_last)
+        if score >= 0.7:
+            matches.append((person, score))
     
-    # Sort by score descending
     matches.sort(key=lambda x: x[1], reverse=True)
-    return matches[:5]  # Return top 5 matches
+    return matches[:5]
 
 
 def create_auto_claim_for_user(user, family):

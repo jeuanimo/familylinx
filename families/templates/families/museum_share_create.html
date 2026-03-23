@@ -1,6 +1,6 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block title %}Share - Living Museum{% endblock %}
+{% block title %}Share - Living Museum{% endblock title %}
 
 {% block content %}
 <div class="container py-4">
@@ -47,7 +47,7 @@
                         <!-- Share Type Selection -->
                         {% if not share_type %}
                         <div class="mb-4">
-                            <label class="form-label">What do you want to share?</label>
+                            <span class="form-label">What do you want to share?</span>
                             <div class="row g-2">
                                 <div class="col-md-4">
                                     <input type="radio" class="btn-check" name="share_type" id="type_museum" value="museum" checked>
@@ -74,7 +74,7 @@
                         </div>
 
                         <!-- Person Selection (shown when person type selected) -->
-                        <div class="mb-3" id="person-select" style="display: none;">
+                        <div class="mb-3 js-hidden" id="person-select">
                             <label for="person_id" class="form-label">Select Person</label>
                             <select name="person_id" id="person_id" class="form-select">
                                 <option value="">Select a person...</option>
@@ -85,7 +85,7 @@
                         </div>
 
                         <!-- Memory Selection (shown when memory type selected) -->
-                        <div class="mb-3" id="memory-select" style="display: none;">
+                        <div class="mb-3 js-hidden" id="memory-select">
                             <label for="memory_id" class="form-label">Select Memory</label>
                             <select name="memory_id" id="memory_id" class="form-select">
                                 <option value="">Select a memory...</option>
@@ -108,7 +108,7 @@
 
                         <!-- Share Method -->
                         <div class="mb-4">
-                            <label class="form-label">How do you want to share?</label>
+                            <span class="form-label">How do you want to share?</span>
                             <div class="row g-2">
                                 <div class="col-md-6">
                                     <input type="radio" class="btn-check" name="share_method" id="method_link" value="link" checked>
@@ -128,7 +128,7 @@
                         </div>
 
                         <!-- User Email (shown when user method selected) -->
-                        <div class="mb-3" id="user-email" style="display: none;">
+                        <div class="mb-3 js-hidden" id="user-email">
                             <label for="shared_with_email" class="form-label">Recipient Email</label>
                             <input type="email" class="form-control" id="shared_with_email" name="shared_with_email" placeholder="Enter email address">
                             <div class="form-text">If they have an account, the share will appear in their dashboard.</div>
@@ -180,4 +180,4 @@ document.querySelectorAll('input[name="share_method"]').forEach(radio => {
     });
 });
 </script>
-{% endblock %}
+{% endblock content %}

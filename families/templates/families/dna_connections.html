@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}DNA Connections | FamilyLinx{% endblock %}
+{% block title %}DNA Connections | FamilyLinx{% endblock title %}
 
 {% block extra_css %}
 <style>
@@ -305,8 +305,23 @@
   .empty-state h3 {
     margin: 1rem 0 0.5rem;
   }
+  
+  .dna-header-icon {
+    color: var(--fl-blue);
+  }
+  
+  .legend-section-spacing {
+    margin-top: 0.75rem;
+  }
+  
+  .empty-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+  }
 </style>
-{% endblock %}
+{% endblock extra_css %}
 
 {% block content %}
 <main>
@@ -322,7 +337,7 @@
     
     <div class="page-header">
       <div class="page-header-content">
-        <h1><i class="bi bi-diagram-3" style="color: var(--fl-blue);"></i> DNA Connections</h1>
+        <h1><i class="bi bi-diagram-3 dna-header-icon"></i> DNA Connections</h1>
         <p class="muted">Interactive network visualization of your genetic connections</p>
       </div>
       <div class="page-actions">
@@ -369,7 +384,7 @@
             <span>Distant (&lt;200 cM)</span>
           </div>
         </div>
-        <div class="legend-section" style="margin-top: 0.75rem;">
+        <div class="legend-section legend-section-spacing">
           <small class="muted">Nodes</small>
           <div class="legend-item">
             <div class="legend-circle own"></div>
@@ -406,7 +421,7 @@
         <p class="muted">
           Register DNA kits and add matches to see your genetic network visualization.
         </p>
-        <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center;">
+        <div class="empty-actions">
           <a href="{% url 'families:dna_kit_create' %}" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i> Register DNA Kit
           </a>
@@ -419,7 +434,7 @@
     {% endif %}
   </div>
 </main>
-{% endblock %}
+{% endblock content %}
 
 {% block extra_js %}
 {% if has_data %}
@@ -686,4 +701,4 @@ setTimeout(() => {
 }, 1000);
 </script>
 {% endif %}
-{% endblock %}
+{% endblock extra_js %}

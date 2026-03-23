@@ -2,7 +2,7 @@
 {% load static %}
 {% load family_tags %}
 
-{% block title %}People – {{ family.name }} | FamilyLinx{% endblock %}
+{% block title %}People – {{ family.name }} | FamilyLinx{% endblock title %}
 
 {% block content %}
 <main>
@@ -39,7 +39,7 @@
       <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" class="person-card">
         <div class="person-card-photo">
           {% if person.photo %}
-          <img src="{{ person.photo.url }}" alt="{{ person.full_name }}">
+          <img src="{{ person.photo.url }}" alt="{{ person.full_name }}" width="80" height="80">
           {% else %}
           <div class="person-photo-placeholder">
             <i class="bi bi-person"></i>
@@ -88,11 +88,11 @@
     </div>
     {% endif %}
     
-    <div style="margin-top: 1.5rem;">
+    <div class="mt-4">
       <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline">
         <i class="bi bi-arrow-left"></i> Back to Family
       </a>
     </div>
   </div>
 </main>
-{% endblock %}
+{% endblock content %}

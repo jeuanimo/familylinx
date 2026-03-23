@@ -33,10 +33,18 @@ load_dotenv(BASE_DIR / '.env')
 # SECURITY WARNING: keep the secret key used in production secret!
 # In production, set this via environment variable:
 # export SECRET_KEY='your-production-key-here'
-SECRET_KEY = os.environ.get(
-    'SECRET_KEY',
-    'django-insecure-ngw%eelq8_$kx_tu+q)ex2vfkvic-o!efc$(zpt4l8dj#pj_7e'
-)
+
+def _get_secret_key():
+    """Get the SECRET_KEY from environment or generate a development-only key."""
+    key = os.environ.get('SECRET_KEY')
+    if key:
+        return key
+    # Development-only: generate a random key
+    # This means a new key each time the server restarts!
+    import secrets
+    return secrets.token_urlsafe(50)
+
+SECRET_KEY = _get_secret_key()
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
@@ -245,18 +253,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # =============================================================================
 # SECURITY SETTINGS FOR PRODUCTION
 # =============================================================================
-# Uncomment these for production deployment:
-
-# if not DEBUG:
-#     SECURE_SSL_REDIRECT = True
-#     SESSION_COOKIE_SECURE = True
-#     CSRF_COOKIE_SECURE = True
-#     SECURE_BROWSER_XSS_FILTER = True
-#     SECURE_CONTENT_TYPE_NOSNIFF = True
-#     X_FRAME_OPTIONS = 'DENY'
-#     SECURE_HSTS_SECONDS = 31536000
-#     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-#     SECURE_HSTS_PRELOAD = True
+# These settings are automatically enabled when DEBUG is False
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 
 # =============================================================================

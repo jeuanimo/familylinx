@@ -1,6 +1,6 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block title %}Revoke Share - Living Museum{% endblock %}
+{% block title %}Revoke Share - Living Museum{% endblock title %}
 
 {% block content %}
 <div class="container py-4">
@@ -40,7 +40,7 @@
                             </p>
                             
                             <p class="text-muted small mb-0">
-                                Created {{ share.created_at|date:"M d, Y" }} &bull; {{ share.view_count }} views
+                                Created {{ share.created_at|date:"M d, Y" }} • {{ share.view_count }} views
                             </p>
                         </div>
                     </div>
@@ -64,4 +64,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}

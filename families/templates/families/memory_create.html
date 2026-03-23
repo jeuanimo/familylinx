@@ -1,7 +1,7 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 {% load static %}
 
-{% block title %}Add Memory - Living Museum{% endblock %}
+{% block title %}Add Memory - Living Museum{% endblock title %}
 
 {% block content %}
 <div class="container py-4">
@@ -26,7 +26,7 @@
                         
                         <!-- Story Type -->
                         <div class="mb-4">
-                            <label class="form-label">What type of memory is this?</label>
+                            <span class="form-label">What type of memory is this?</span>
                             <div class="row g-2">
                                 {% for value, label in story_types %}
                                 <div class="col-6 col-md-3">
@@ -92,7 +92,7 @@
 
                         <!-- Media Upload -->
                         <div class="mb-4">
-                            <label class="form-label">Add Photos, Videos, or Documents (optional)</label>
+                            <label class="form-label" for="media_files">Add Photos, Videos, or Documents (optional)</label>
                             <div class="border rounded p-4 text-center bg-light" id="media-upload-zone">
                                 <i class="bi bi-cloud-upload display-4 text-muted"></i>
                                 <p class="text-muted mb-2">Drag and drop files here, or click to select</p>
@@ -171,4 +171,4 @@ document.getElementById('media_files').addEventListener('change', function(e) {
     });
 });
 </script>
-{% endblock %}
+{% endblock content %}

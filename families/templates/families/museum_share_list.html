@@ -1,6 +1,6 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block title %}Museum Shares - {{ family.name }}{% endblock %}
+{% block title %}Museum Shares - {{ family.name }}{% endblock title %}
 
 {% block content %}
 <div class="container py-4">
@@ -173,4 +173,4 @@ function copyShareLink(token) {
     });
 }
 </script>
-{% endblock %}
+{% endblock content %}

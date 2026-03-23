@@ -116,6 +116,12 @@ a:hover { text-decoration: underline; }
   color: var(--fl-gold);
 }
 
+.brand-badge-lg {
+  width: 56px;
+  height: 56px;
+  font-size: 1.5rem;
+}
+
 .nav-links {
   display: flex;
   align-items: center;
@@ -2083,4 +2089,157 @@ main {
   .chat-message {
     max-width: 90%;
   }
+}
+
+/* =========================================================
+   Museum/Memory Styles (extracted from inline styles)
+   ========================================================= */
+
+/* Museum card image */
+.museum-card-img {
+  height: 200px;
+  object-fit: cover;
+  width: 100%;
+}
+
+.museum-card-img-sm {
+  height: 180px;
+  object-fit: cover;
+  width: 100%;
+}
+
+.museum-card-img-full {
+  max-height: 500px;
+  width: 100%;
+  object-fit: cover;
+}
+
+.museum-media-img {
+  height: 200px;
+  width: 100%;
+  object-fit: cover;
+}
+
+/* Memory detail image */
+.memory-gallery-img {
+  height: 200px;
+  width: 100%;
+  object-fit: cover;
+}
+
+.memory-gallery-img-full {
+  max-height: 500px;
+  width: 100%;
+  object-fit: cover;
+}
+
+/* Person avatar circle */
+.person-avatar-lg {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+}
+
+.person-avatar-md {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+}
+
+.avatar-placeholder-lg {
+  width: 120px;
+  height: 120px;
+  font-size: 3rem;
+}
+
+.avatar-placeholder-md {
+  width: 100px;
+  height: 100px;
+  font-size: 2.5rem;
+}
+
+/* Comment avatar */
+.comment-avatar {
+  width: 40px;
+  height: 40px;
+}
+
+/* Media preview */
+.media-preview-sm {
+  height: 100px;
+  width: 100%;
+  object-fit: cover;
+}
+
+.media-preview-container {
+  height: 100px;
+}
+
+/* Video max height */
+.video-max-height {
+  max-height: 400px;
+}
+
+/* Object fit cover for row images */
+.img-cover {
+  object-fit: cover;
+}
+
+/* Display inline for forms */
+.d-inline-form {
+  display: inline;
+}
+
+/* Icon sizes */
+.icon-3rem {
+  font-size: 3rem;
+}
+
+.icon-2-5rem {
+  font-size: 2.5rem;
+}
+
+/* JS toggle visibility */
+.js-hidden {
+  display: none;
+}
+
+/* Gap utilities */
+.gap-xs { gap: 0.4rem; }
+.gap-sm { gap: 0.5rem; }
+.gap-md { gap: 0.75rem; }
+.gap-lg { gap: 1rem; }
+
+/* Font-size utilities */
+.fs-xs { font-size: 0.7rem; }
+.fs-sm { font-size: 0.85rem; }
+.fs-md { font-size: 0.9rem; }
+.fs-lg { font-size: 1.5rem; }
+.fs-xl { font-size: 2rem; }
+
+/* Flex alignment utilities */
+.align-start { align-items: flex-start; }
+.align-center { align-items: center; }
+.flex-wrap-yes { flex-wrap: wrap; }
+
+/* Grid layout utilities */
+.grid-2-1 { grid-template-columns: 2fr 1fr; }
+
+/* Padding utilities */
+.pt-0 { padding-top: 0; }
+.p-md { padding: 1.5rem; }
+
+/* Text utilities */
+.text-break { word-break: break-all; }
+
+/* Color utilities */
+.text-danger { color: var(--fl-red); }
+.border-danger { border-color: var(--fl-red); }
+.text-muted-icon { font-size: 1.5rem; color: var(--fl-muted); }
+
+/* Video utilities */
+.video-responsive {
+  width: 100%;
+  border-radius: 12px;
+  margin-top: 0.75rem;
 }

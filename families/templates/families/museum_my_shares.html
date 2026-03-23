@@ -1,13 +1,13 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block title %}My Shares - Living Museum{% endblock %}
+{% block title %}My Shares - Living Museum{% endblock title %}
 
 {% block content %}
 <div class="container py-4">
     <h2 class="mb-4"><i class="bi bi-share"></i> My Museum Shares</h2>
 
     <!-- Tabs -->
-    <ul class="nav nav-tabs mb-4" role="tablist">
+    <ul class="nav nav-tabs mb-4">
         <li class="nav-item">
             <a class="nav-link active" data-bs-toggle="tab" href="#received">
                 <i class="bi bi-inbox"></i> Shared With Me
@@ -181,4 +181,4 @@ function copyShareLink(token) {
     });
 }
 </script>
-{% endblock %}
+{% endblock content %}

@@ -1,7 +1,7 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 {% load static %}
 
-{% block title %}Living Museum - {{ family.name }}{% endblock %}
+{% block title %}Living Museum - {{ family.name }}{% endblock title %}
 
 {% block content %}
 <div class="container py-4">
@@ -26,8 +26,8 @@
         <div class="card-body">
             <form method="get" class="row g-3 align-items-end">
                 <div class="col-md-3">
-                    <label class="form-label">Story Type</label>
-                    <select name="story_type" class="form-select">
+                    <label class="form-label" for="story_type">Story Type</label>
+                    <select name="story_type" id="story_type" class="form-select">
                         <option value="">All Types</option>
                         {% for value, label in story_types %}
                         <option value="{{ value }}" {% if current_story_type == value %}selected{% endif %}>{{ label }}</option>
@@ -35,8 +35,8 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Person</label>
-                    <select name="person" class="form-select">
+                    <label class="form-label" for="person">Person</label>
+                    <select name="person" id="person" class="form-select">
                         <option value="">All People</option>
                         {% for person in people %}
                         <option value="{{ person.id }}" {% if current_person_id == person.id|stringformat:"s" %}selected{% endif %}>{{ person.full_name }}</option>
@@ -44,8 +44,8 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Search</label>
-                    <input type="text" name="q" class="form-control" placeholder="Search memories..." value="{{ search_query }}">
+                    <label class="form-label" for="search_q">Search</label>
+                    <input type="text" name="q" id="search_q" class="form-control" placeholder="Search memories..." value="{{ search_query }}">
                 </div>
                 <div class="col-md-3">
                     <button type="submit" class="btn btn-secondary w-100">
@@ -65,7 +65,7 @@
             <div class="col-md-4 mb-3">
                 <div class="card h-100 border-warning">
                     {% if memory.media.first %}
-                    <img src="{{ memory.media.first.file.url }}" class="card-img-top" alt="{{ memory.title }}" style="height: 200px; object-fit: cover;">
+                    <img src="{{ memory.media.first.file.url }}" class="card-img-top museum-card-img" alt="{{ memory.title }}" width="400" height="200">
                     {% endif %}
                     <div class="card-body">
                         <span class="badge bg-{{ memory.story_type|lower }}">{{ memory.get_story_type_display }}</span>
@@ -104,7 +104,7 @@
             <div class="card h-100 memory-card">
                 {% if memory.media.first %}
                 <div class="memory-media-preview">
-                    <img src="{{ memory.media.first.file.url }}" class="card-img-top" alt="{{ memory.title }}" style="height: 180px; object-fit: cover;">
+                    <img src="{{ memory.media.first.file.url }}" class="card-img-top museum-card-img-sm" alt="{{ memory.title }}" width="300" height="180">
                     {% if memory.media.count > 1 %}
                     <span class="badge bg-dark position-absolute top-0 end-0 m-2">
                         <i class="bi bi-images"></i> {{ memory.media.count }}
@@ -201,4 +201,4 @@
 .badge.bg-recipe { background-color: #20c997 !important; }
 .badge.bg-lesson { background-color: #0dcaf0 !important; }
 </style>
-{% endblock %}
+{% endblock content %}

@@ -32,6 +32,7 @@ from django.http import JsonResponse
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.core.mail import send_mail
+from django.conf import settings
 from django.db import models
 from django.db.models import Q, Count
 from datetime import date, timedelta
@@ -41,10 +42,56 @@ from .models import (
     Relationship, Album, Photo, Notification, ChatMessage, create_notification, 
     AuditLog, DeletionRequest, MemoryStory, MemoryMedia, MemoryComment, 
     MemoryReaction, MuseumShare, ChatConversation, ChatConversationParticipant,
-    ChatConversationMessage, ChatMessageReadReceipt, EventReminderLog
+    ChatConversationMessage, ChatMessageReadReceipt, EventReminderLog,
+    LifeStory, TimeCapsule, FamilyMilestone
 )
-from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ChatMessageForm, ConversationMessageForm, LifeStorySectionForm, TimeCapsuleForm
+from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ChatMessageForm, ConversationMessageForm, LifeStorySectionForm, TimeCapsuleForm, FamilyMilestoneForm
 from utils.image_utils import process_cropped_image
+
+
+# =============================================================================
+# Constants - URL Names and Templates (to avoid string duplication)
+# =============================================================================
+
+# URL pattern names
+URL_FAMILY_DETAIL = "families:family_detail"
+URL_POST_DETAIL = "families:post_detail"
+URL_EVENT_DETAIL = "families:event_detail"
+URL_FAMILY_TREE_INTERACTIVE = "families:family_tree_interactive"
+URL_PERSON_DETAIL = "families:person_detail"
+URL_TRASH_BIN = "families:trash_bin"
+URL_ALBUM_DETAIL = "families:album_detail"
+URL_MEMORY_DETAIL = "families:memory_detail"
+URL_CONVERSATION_ROOM = "families:conversation_room"
+URL_MILESTONE_LIST = "families:milestone_list"
+URL_GEDCOM_IMPORT_REPORT = "families:gedcom_import_report"
+URL_GEDCOM_IMPORT_HISTORY = "families:gedcom_import_history"
+URL_DNA_KIT_LIST = "families:dna_kit_list"
+URL_DNA_MATCH_DETAIL = "families:dna_match_detail"
+URL_RELATIONSHIP_SUGGESTION_LIST = "families:relationship_suggestion_list"
+
+# Template paths
+TEMPLATE_NO_ACCESS = "families/no_access.html"
+TEMPLATE_MUSEUM_SHARED_VIEW = "families/museum_shared_view.html"
+TEMPLATE_GEDCOM_IMPORT = "families/gedcom_import.html"
+TEMPLATE_MEMORY_CREATE = "families/memory_create.html"
+
+# Error messages
+ERROR_ACCESS_DENIED = "Access denied"
+ERROR_PERMISSION_DENIED = "Permission denied"
+ERROR_POST_REQUIRED = "POST required"
+
+# Ancestor generation labels
+GENERATION_LABELS = {
+    1: "Parent",
+    2: "Grandparent",
+    3: "Great-grandparent",
+    4: "2x Great-grandparent",
+    5: "3x Great-grandparent",
+    6: "4x Great-grandparent",
+    7: "5x Great-grandparent",
+    8: "6x Great-grandparent",
+}
 
 
 @login_required
@@ -97,7 +144,7 @@ def family_create(request):
                 role=Membership.Role.OWNER
             )
             
-            return redirect("families:family_detail", family_id=fam.id)
+            return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
     else:
         form = FamilySpaceCreateForm()
     
@@ -149,7 +196,7 @@ def family_detail(request, family_id):
     membership = Membership.objects.filter(family=fam, user=request.user).first()
     if not membership:
         # User is not a member - show access denied page
-        return render(request, "families/no_access.html", {"family": fam})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": fam})
 
     # Fetch related data for display
     # Limit invites to prevent excessive data loading
@@ -252,6 +299,39 @@ def family_delete(request, family_id):
     })
 
 
+def _send_invite_email(invite, request):
+    """
+    Send an email invitation to join a FamilySpace.
+    
+    Silently fails if email sending is not configured or fails,
+    as the invite is still valid via direct link.
+    """
+    try:
+        invite_url = request.build_absolute_uri(f"/families/invite/{invite.token}/")
+        subject = f"You're invited to join {invite.family.name} on FamilyLinx"
+        message = (
+            f"Hello,\n\n"
+            f"You have been invited to join the '{invite.family.name}' family space "
+            f"on FamilyLinx by {invite.created_by.email}.\n\n"
+            f"Click the link below to accept your invitation:\n"
+            f"{invite_url}\n\n"
+            f"This invitation expires on {invite.expires_at.strftime('%B %d, %Y')}.\n\n"
+            f"If you did not expect this invitation, you can safely ignore this email.\n\n"
+            f"Best regards,\n"
+            f"The FamilyLinx Team"
+        )
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@familylinx.com'),
+            recipient_list=[invite.email],
+            fail_silently=True,
+        )
+    except Exception:
+        # Email sending is optional - invite is still valid via direct link
+        pass
+
+
 @login_required
 def invite_create(request, family_id):
     """
@@ -306,7 +386,7 @@ def invite_create(request, family_id):
     membership = Membership.objects.filter(family=fam, user=request.user).first()
     if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
         # User doesn't have permission to create invites
-        return render(request, "families/no_access.html", {"family": fam})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": fam})
 
     if request.method == "POST":
         form = InviteCreateForm(request.POST)
@@ -318,10 +398,10 @@ def invite_create(request, family_id):
             inv.expires_at = timezone.now() + timezone.timedelta(days=14)
             inv.save()  # Token is auto-generated in model save()
             
-            # TODO: Send email with invite link
-            # send_invite_email(inv)
+            # Send email with invite link
+            _send_invite_email(inv, request)
             
-            return redirect("families:family_detail", family_id=fam.id)
+            return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
     else:
         form = InviteCreateForm()
     
@@ -379,7 +459,7 @@ def invite_accept(request, token):
 
     # Create membership if user doesn't already have one
     # If user is already a member, their existing role is preserved
-    membership, created = Membership.objects.get_or_create(
+    _, _ = Membership.objects.get_or_create(
         family=inv.family,
         user=request.user,
         defaults={"role": inv.role}
@@ -395,10 +475,10 @@ def invite_accept(request, token):
     
     if claim:
         # Redirect to claim verification page
-        messages.info(request, f"Welcome! We found a potential match for you in the family tree. Please verify your identity.")
+        messages.info(request, "Welcome! We found a potential match for you in the family tree. Please verify your identity.")
         return redirect("families:verify_identity", family_id=inv.family.id, claim_id=claim.id)
     
-    return redirect("families:family_detail", family_id=inv.family.id)
+    return redirect(URL_FAMILY_DETAIL, family_id=inv.family.id)
 
 
 # =============================================================================
@@ -494,6 +574,55 @@ def _next_annual_date(month, day, today):
     return occurrence
 
 
+def _build_birthday_milestone(person, today, cutoff):
+    """Build a birthday milestone for a living person if within cutoff."""
+    if not (person.birth_date and person.is_living):
+        return None
+    next_birthday = _next_annual_date(person.birth_date.month, person.birth_date.day, today)
+    if next_birthday > cutoff:
+        return None
+    return {
+        "kind": "birthday",
+        "icon": "bi-cake2",
+        "title": f"{person.full_name}'s birthday",
+        "subtitle": f"Turns {next_birthday.year - person.birth_date.year}",
+        "date": next_birthday,
+        "person": person,
+    }
+
+
+def _build_memorial_milestone(person, today, cutoff):
+    """Build a memorial milestone for a deceased person if within cutoff."""
+    if not person.death_date:
+        return None
+    next_memorial = _next_annual_date(person.death_date.month, person.death_date.day, today)
+    if next_memorial > cutoff:
+        return None
+    return {
+        "kind": "memorial",
+        "icon": "bi-flower1",
+        "title": f"Memorial for {person.full_name}",
+        "subtitle": f"{next_memorial.year - person.death_date.year} year remembrance",
+        "date": next_memorial,
+        "person": person,
+    }
+
+
+def _build_anniversary_milestone(rel, today, cutoff):
+    """Build an anniversary milestone for a spouse relationship."""
+    next_anniversary = _next_annual_date(rel.start_date.month, rel.start_date.day, today)
+    if next_anniversary > cutoff:
+        return None
+    return {
+        "kind": "anniversary",
+        "icon": "bi-heart",
+        "title": f"{rel.person1.full_name} and {rel.person2.full_name}",
+        "subtitle": f"{next_anniversary.year - rel.start_date.year} year anniversary",
+        "date": next_anniversary,
+        "relationship": rel,
+    }
+
+
 def _build_family_milestones(family, days_ahead=45):
     """Return upcoming birthdays, anniversaries, memorials, plus custom milestones."""
     today = timezone.localdate()
@@ -501,45 +630,21 @@ def _build_family_milestones(family, days_ahead=45):
     milestones = []
 
     for person in family.persons.filter(is_deleted=False).order_by("first_name", "last_name"):
-        if person.birth_date and person.is_living:
-            next_birthday = _next_annual_date(person.birth_date.month, person.birth_date.day, today)
-            if next_birthday <= cutoff:
-                milestones.append({
-                    "kind": "birthday",
-                    "icon": "bi-cake2",
-                    "title": f"{person.full_name}'s birthday",
-                    "subtitle": f"Turns {next_birthday.year - person.birth_date.year}",
-                    "date": next_birthday,
-                    "person": person,
-                })
-
-        if person.death_date:
-            next_memorial = _next_annual_date(person.death_date.month, person.death_date.day, today)
-            if next_memorial <= cutoff:
-                milestones.append({
-                    "kind": "memorial",
-                    "icon": "bi-flower1",
-                    "title": f"Memorial for {person.full_name}",
-                    "subtitle": f"{next_memorial.year - person.death_date.year} year remembrance",
-                    "date": next_memorial,
-                    "person": person,
-                })
+        birthday = _build_birthday_milestone(person, today, cutoff)
+        if birthday:
+            milestones.append(birthday)
+        memorial = _build_memorial_milestone(person, today, cutoff)
+        if memorial:
+            milestones.append(memorial)
 
     for rel in family.relationships.filter(
         relationship_type=Relationship.Type.SPOUSE,
         is_deleted=False,
         start_date__isnull=False,
     ).select_related("person1", "person2"):
-        next_anniversary = _next_annual_date(rel.start_date.month, rel.start_date.day, today)
-        if next_anniversary <= cutoff:
-            milestones.append({
-                "kind": "anniversary",
-                "icon": "bi-heart",
-                "title": f"{rel.person1.full_name} and {rel.person2.full_name}",
-                "subtitle": f"{next_anniversary.year - rel.start_date.year} year anniversary",
-                "date": next_anniversary,
-                "relationship": rel,
-            })
+        anniversary = _build_anniversary_milestone(rel, today, cutoff)
+        if anniversary:
+            milestones.append(anniversary)
 
     # Custom milestones
     for m in family.milestones.filter(date__gte=today, date__lte=cutoff).order_by("date"):
@@ -692,9 +797,18 @@ def _serialize_conversation_message(message, current_user):
         message.read_receipts.select_related("user", "user__profile").exclude(user=message.author)
     )
     read_by = [_display_name_for_user(receipt.user) for receipt in receipts]
+    
+    # Extract nested conditional to make it more readable
+    if message.author_id == current_user.id:
+        author_label = "You"
+    elif message.author:
+        author_label = _display_name_for_user(message.author)
+    else:
+        author_label = "Deleted User"
+    
     return {
         "id": message.id,
-        "author_label": "You" if message.author_id == current_user.id else _display_name_for_user(message.author) if message.author else "Deleted User",
+        "author_label": author_label,
         "author_id": message.author_id,
         "content": message.content,
         "created_at": message.created_at,
@@ -746,7 +860,7 @@ def _dispatch_due_event_reminders(family, request=None):
         reminder_date = event.start_datetime.date()
         memberships = Membership.objects.filter(family=family).select_related("user")
         for membership in memberships:
-            log, created = EventReminderLog.objects.get_or_create(
+            _, created = EventReminderLog.objects.get_or_create(
                 event=event,
                 user=membership.user,
                 reminder_for_date=reminder_date,
@@ -782,9 +896,9 @@ def post_create(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     if request.method == "POST":
         form = PostCreateForm(request.POST, request.FILES, family=family)
@@ -816,23 +930,33 @@ def post_create(request, family_id):
                 request=request,
             )
 
-            return redirect("families:family_detail", family_id=family.id)
+            return redirect(URL_FAMILY_DETAIL, family_id=family.id)
 
         messages.error(request, "Please add some text and check any media uploads before posting.")
 
-    return redirect("families:family_detail", family_id=family.id)
+    return redirect(URL_FAMILY_DETAIL, family_id=family.id)
+
+
+def _collect_post_comment_recipients(post, current_user):
+    """Collect users who should be notified of a new comment on a post."""
+    recipients = set()
+    if post.author_id and post.author_id != current_user.id:
+        recipients.add(post.author)
+    for comment in post.comments.exclude(author=current_user).select_related("author"):
+        if comment.author:
+            recipients.add(comment.author)
+    for person in post.tagged_people.all():
+        if person.linked_user and person.linked_user_id != current_user.id:
+            recipients.add(person.linked_user)
+    return list(recipients)
 
 
 @login_required
 def post_detail(request, family_id, post_id):
-    """
-    View a single post with its comments.
-    
-    Also handles comment submission via POST.
-    """
+    """View a single post with its comments. Handles comment submission via POST."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     post = get_object_or_404(
         Post.objects.select_related("author", "author__profile").prefetch_related("liked_by", "tagged_people"),
@@ -842,7 +966,6 @@ def post_detail(request, family_id, post_id):
     )
     comments = post.comments.filter(is_hidden=False).select_related("author", "author__profile")
     
-    # Handle comment submission
     if request.method == "POST":
         comment_form = CommentForm(request.POST)
         if comment_form.is_valid():
@@ -851,27 +974,16 @@ def post_detail(request, family_id, post_id):
             comment.author = request.user
             comment.save()
 
-            recipients = set()
-            if post.author_id and post.author_id != request.user.id:
-                recipients.add(post.author)
-            for c in post.comments.exclude(author=request.user).select_related("author"):
-                if c.author:
-                    recipients.add(c.author)
-            for person in post.tagged_people.all():
-                if person.linked_user and person.linked_user_id != request.user.id:
-                    recipients.add(person.linked_user)
-
-            commenter_name = _display_name_for_user(request.user)
             _notify_users(
-                recipients=list(recipients),
+                recipients=_collect_post_comment_recipients(post, request.user),
                 notification_type=Notification.NotificationType.COMMENT,
                 title=f"New comment on a post in {family.name}",
-                message=f"{commenter_name}: {comment.content[:120]}",
+                message=f"{_display_name_for_user(request.user)}: {comment.content[:120]}",
                 link=f"/families/{family.id}/posts/{post.id}/",
                 family=family,
                 request=request,
             )
-            return redirect("families:post_detail", family_id=family.id, post_id=post.id)
+            return redirect(URL_POST_DETAIL, family_id=family.id, post_id=post.id)
     else:
         comment_form = CommentForm()
     
@@ -889,9 +1001,9 @@ def post_like_toggle(request, family_id, post_id):
     """Toggle the current user's like on a family post."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     if membership.role == Membership.Role.VIEWER:
-        return redirect("families:post_detail", family_id=family.id, post_id=post_id)
+        return redirect(URL_POST_DETAIL, family_id=family.id, post_id=post_id)
 
     post = get_object_or_404(Post, id=post_id, family=family, is_hidden=False)
     if request.method == "POST":
@@ -903,7 +1015,7 @@ def post_like_toggle(request, family_id, post_id):
     next_url = request.POST.get("next")
     if next_url:
         return redirect(next_url)
-    return redirect("families:family_detail", family_id=family.id)
+    return redirect(URL_FAMILY_DETAIL, family_id=family.id)
 
 
 @login_required
@@ -913,7 +1025,7 @@ def post_delete(request, family_id, post_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     post = get_object_or_404(Post, id=post_id, family=family)
     
@@ -924,11 +1036,11 @@ def post_delete(request, family_id, post_id):
     )
     
     if not can_delete:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     if request.method == "POST":
         post.delete()
-        return redirect("families:family_detail", family_id=family.id)
+        return redirect(URL_FAMILY_DETAIL, family_id=family.id)
     
     return render(request, "families/post_delete.html", {
         "family": family,
@@ -943,16 +1055,16 @@ def post_hide(request, family_id, post_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     post = get_object_or_404(Post, id=post_id, family=family)
     
     if request.method == "POST":
         post.is_hidden = not post.is_hidden
         post.save(update_fields=["is_hidden"])
-        return redirect("families:family_detail", family_id=family.id)
+        return redirect(URL_FAMILY_DETAIL, family_id=family.id)
     
-    return redirect("families:family_detail", family_id=family.id)
+    return redirect(URL_FAMILY_DETAIL, family_id=family.id)
 
 
 @login_required
@@ -962,7 +1074,7 @@ def comment_delete(request, family_id, post_id, comment_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     comment = get_object_or_404(Comment, id=comment_id, post__family=family)
     
@@ -975,7 +1087,7 @@ def comment_delete(request, family_id, post_id, comment_id):
     if can_delete and request.method == "POST":
         comment.delete()
     
-    return redirect("families:post_detail", family_id=family_id, post_id=post_id)
+    return redirect(URL_POST_DETAIL, family_id=family_id, post_id=post_id)
 
 
 # =============================================================================
@@ -991,11 +1103,11 @@ def event_create(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Viewers cannot create events
     if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     if request.method == "POST":
         form = EventCreateForm(request.POST, request.FILES)
@@ -1019,7 +1131,7 @@ def event_create(request, family_id):
                     request=request,
                 )
             
-            return redirect("families:event_detail", family_id=family.id, event_id=event.id)
+            return redirect(URL_EVENT_DETAIL, family_id=family.id, event_id=event.id)
     else:
         form = EventCreateForm()
     
@@ -1037,7 +1149,7 @@ def event_detail(request, family_id, event_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     event = get_object_or_404(Event, id=event_id, family=family)
     _dispatch_due_event_reminders(family, request=request)
@@ -1071,7 +1183,7 @@ def event_edit(request, family_id, event_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     event = get_object_or_404(Event, id=event_id, family=family)
     
@@ -1082,7 +1194,7 @@ def event_edit(request, family_id, event_id):
     )
     
     if not can_edit:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     if request.method == "POST":
         form = EventCreateForm(request.POST, request.FILES, instance=event)
@@ -1103,7 +1215,7 @@ def event_edit(request, family_id, event_id):
                     request=request,
                 )
             
-            return redirect("families:event_detail", family_id=family.id, event_id=event.id)
+            return redirect(URL_EVENT_DETAIL, family_id=family.id, event_id=event.id)
     else:
         form = EventCreateForm(instance=event)
     
@@ -1124,7 +1236,7 @@ def event_delete(request, family_id, event_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     event = get_object_or_404(Event, id=event_id, family=family)
     
@@ -1135,11 +1247,11 @@ def event_delete(request, family_id, event_id):
     )
     
     if not can_delete:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     if request.method == "POST":
         event.delete()
-        return redirect("families:family_detail", family_id=family.id)
+        return redirect(URL_FAMILY_DETAIL, family_id=family.id)
     
     return render(request, "families/event_delete.html", {
         "family": family,
@@ -1157,7 +1269,7 @@ def event_rsvp(request, family_id, event_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     event = get_object_or_404(Event, id=event_id, family=family)
     
@@ -1179,7 +1291,7 @@ def event_rsvp(request, family_id, event_id):
                     family=family,
                 )
     
-    return redirect("families:event_detail", family_id=family.id, event_id=event.id)
+    return redirect(URL_EVENT_DETAIL, family_id=family.id, event_id=event.id)
 
 
 @login_required
@@ -1189,7 +1301,7 @@ def event_list(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     show = request.GET.get("show", "upcoming")
     event_type = request.GET.get("type", "")
@@ -1227,7 +1339,7 @@ def family_search(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     query = request.GET.get("q", "").strip()
     person_id = request.GET.get("person", "").strip()
@@ -1387,30 +1499,8 @@ def family_search(request, family_id):
 # Phase 4: Family Tree Views
 # =============================================================================
 
-@login_required
-def family_tree(request, family_id):
-    """
-    Display the family tree visualization centered on ME (logged-in user's linked person).
-    
-    Generations are relative to ME:
-    - Negative numbers = ancestors (parents=-1, grandparents=-2, etc.)
-    - 0 = ME and my generation (siblings, spouse)
-    - Positive numbers = descendants (children=1, grandchildren=2, etc.)
-    """
-    family, membership = _get_membership_or_deny(request, family_id)
-    if not membership:
-        return render(request, "families/no_access.html", {"family": None})
-    
-    # Get all persons and relationships
-    all_persons = list(Person.objects.filter(family=family, is_deleted=False)
-                       .select_related('linked_user'))
-    relationships = list(Relationship.objects.filter(family=family, is_deleted=False)
-                        .select_related('person1', 'person2'))
-    
-    # Build lookup structures
-    person_by_id = {p.id: p for p in all_persons}
-    
-    # Build parent/child/spouse maps
+def _build_relationship_maps(relationships):
+    """Build parent/child/spouse lookup dictionaries from relationships."""
     children_of = {}  # parent_id -> [child_ids]
     parents_of = {}   # child_id -> [parent_ids]
     spouses_of = {}   # person_id -> [spouse_ids]
@@ -1423,138 +1513,160 @@ def family_tree(request, family_id):
             spouses_of.setdefault(rel.person1_id, []).append(rel.person2_id)
             spouses_of.setdefault(rel.person2_id, []).append(rel.person1_id)
     
-    # Get linked person (ME)
-    linked_person_id = None
-    me_person = None
-    if membership.linked_person:
-        linked_person_id = membership.linked_person_id
-        me_person = person_by_id.get(linked_person_id)
+    return children_of, parents_of, spouses_of
+
+
+def _trace_ancestors(me_id, parents_of, spouses_of, direct_lineage_ids):
+    """Trace direct ancestors (parents, grandparents, etc.) and add to lineage set."""
+    ancestors_to_process = list(parents_of.get(me_id, []))
+    while ancestors_to_process:
+        ancestor_id = ancestors_to_process.pop(0)
+        if ancestor_id in direct_lineage_ids:
+            continue
+        direct_lineage_ids.add(ancestor_id)
+        # Add ancestor's spouse (to show both parents/grandparents)
+        for spouse_id in spouses_of.get(ancestor_id, []):
+            if spouse_id not in direct_lineage_ids:
+                direct_lineage_ids.add(spouse_id)
+                # Include that spouse's parents too (full lineage)
+                ancestors_to_process.extend(parents_of.get(spouse_id, []))
+        # Continue up to next generation
+        ancestors_to_process.extend(parents_of.get(ancestor_id, []))
+
+
+def _trace_descendants(me_id, children_of, spouses_of, direct_lineage_ids):
+    """Trace direct descendants (children, grandchildren, etc.) and add to lineage set."""
+    descendants_to_process = list(children_of.get(me_id, []))
+    # Also include children from spouse
+    for spouse_id in spouses_of.get(me_id, []):
+        descendants_to_process.extend(children_of.get(spouse_id, []))
     
-    # If user has a linked person, build tree centered on them
-    # For static view: ONLY show direct lineage (ancestors, descendants, their spouses)
-    # This removes siblings, cousins, aunts/uncles, etc.
-    if me_person:
-        direct_lineage_ids = set()
-        direct_lineage_ids.add(me_person.id)
-        
-        # Add ME's spouse(s)
-        for spouse_id in spouses_of.get(me_person.id, []):
-            direct_lineage_ids.add(spouse_id)
-        
-        # Trace direct ancestors UP (parents, grandparents, etc.)
-        ancestors_to_process = list(parents_of.get(me_person.id, []))
-        while ancestors_to_process:
-            ancestor_id = ancestors_to_process.pop(0)
-            if ancestor_id in direct_lineage_ids:
-                continue
-            direct_lineage_ids.add(ancestor_id)
-            # Add ancestor's spouse (to show both parents/grandparents)
-            for spouse_id in spouses_of.get(ancestor_id, []):
-                if spouse_id not in direct_lineage_ids:
-                    direct_lineage_ids.add(spouse_id)
-                    # Include that spouse's parents too (full lineage)
-                    ancestors_to_process.extend(parents_of.get(spouse_id, []))
-            # Continue up to next generation
-            ancestors_to_process.extend(parents_of.get(ancestor_id, []))
-        
-        # Trace direct descendants DOWN (children, grandchildren, etc.)
-        descendants_to_process = list(children_of.get(me_person.id, []))
-        # Also include children from spouse
-        for spouse_id in spouses_of.get(me_person.id, []):
-            descendants_to_process.extend(children_of.get(spouse_id, []))
-        
-        while descendants_to_process:
-            desc_id = descendants_to_process.pop(0)
-            if desc_id in direct_lineage_ids:
-                continue
-            direct_lineage_ids.add(desc_id)
-            # Add descendant's spouse
-            for spouse_id in spouses_of.get(desc_id, []):
-                if spouse_id not in direct_lineage_ids:
-                    direct_lineage_ids.add(spouse_id)
-            # Continue down to next generation
-            descendants_to_process.extend(children_of.get(desc_id, []))
-        
-        # Filter to only direct lineage
-        persons = [p for p in all_persons if p.id in direct_lineage_ids]
-        
-        # Assign generations relative to ME using BFS
-        # ME = generation 0, parents = -1, children = +1, etc.
-        generation = {me_person.id: 0}
-        gen_queue = deque([me_person.id])
-        processed = set()
-        
-        while gen_queue:
-            pid = gen_queue.popleft()
-            if pid in processed:
-                continue
-            processed.add(pid)
-            my_gen = generation[pid]
-            
-            # Parents are one generation above (lower number)
-            for parent_id in parents_of.get(pid, []):
-                if parent_id in direct_lineage_ids and parent_id not in generation:
-                    generation[parent_id] = my_gen - 1
-                    gen_queue.append(parent_id)
-            
-            # Children are one generation below (higher number)
-            for child_id in children_of.get(pid, []):
-                if child_id in direct_lineage_ids and child_id not in generation:
-                    generation[child_id] = my_gen + 1
-                    gen_queue.append(child_id)
-            
-            # Spouses are same generation
-            for spouse_id in spouses_of.get(pid, []):
-                if spouse_id in direct_lineage_ids and spouse_id not in generation:
-                    generation[spouse_id] = my_gen
-                    gen_queue.append(spouse_id)
-        
-        # Normalize spouse generations (they must match)
-        changed = True
-        iterations = 0
-        while changed and iterations < 20:
-            changed = False
-            iterations += 1
-            for pid, spouse_ids in spouses_of.items():
-                if pid not in generation:
-                    continue
-                for spouse_id in spouse_ids:
-                    if spouse_id in generation:
-                        if generation[pid] != generation[spouse_id]:
-                            # Use the max (further from ancestors)
-                            max_gen = max(generation[pid], generation[spouse_id])
-                            if generation[pid] != max_gen or generation[spouse_id] != max_gen:
-                                generation[pid] = max_gen
-                                generation[spouse_id] = max_gen
-                                changed = True
-            
-            # Ensure children are always below parents
-            for parent_id, child_ids in children_of.items():
-                if parent_id not in generation:
-                    continue
-                parent_gen = generation[parent_id]
-                for child_id in child_ids:
-                    if child_id in generation and generation[child_id] <= parent_gen:
-                        generation[child_id] = parent_gen + 1
-                        changed = True
-    else:
-        # No linked person - show all persons with generation 0
-        persons = all_persons
-        generation = {p.id: 0 for p in persons}
+    while descendants_to_process:
+        desc_id = descendants_to_process.pop(0)
+        if desc_id in direct_lineage_ids:
+            continue
+        direct_lineage_ids.add(desc_id)
+        # Add descendant's spouse
+        for spouse_id in spouses_of.get(desc_id, []):
+            if spouse_id not in direct_lineage_ids:
+                direct_lineage_ids.add(spouse_id)
+        # Continue down to next generation
+        descendants_to_process.extend(children_of.get(desc_id, []))
+
+
+def _get_direct_lineage_ids(me_person, parents_of, children_of, spouses_of):
+    """Get set of person IDs in direct lineage (ancestors, descendants, their spouses)."""
+    direct_lineage_ids = {me_person.id}
     
-    # Handle any persons without generation assignment
-    for p in persons:
-        if p.id not in generation:
-            generation[p.id] = 0
+    # Add ME's spouse(s)
+    for spouse_id in spouses_of.get(me_person.id, []):
+        direct_lineage_ids.add(spouse_id)
     
-    # Group persons by generation
-    generations_dict = {}
-    for p in persons:
-        gen = generation.get(p.id, 0)
-        generations_dict.setdefault(gen, []).append(p)
+    _trace_ancestors(me_person.id, parents_of, spouses_of, direct_lineage_ids)
+    _trace_descendants(me_person.id, children_of, spouses_of, direct_lineage_ids)
     
-    # Build tree structure with proper labels
-    # Sort by generation number (lowest/most negative first = oldest ancestors)
+    return direct_lineage_ids
+
+
+def _process_generation_relatives(pid, my_gen, direct_lineage_ids, generation, gen_queue,
+                                   parents_of, children_of, spouses_of):
+    """Process parents, children, and spouses for generation assignment."""
+    # Parents are one generation above (lower number)
+    for parent_id in parents_of.get(pid, []):
+        if parent_id in direct_lineage_ids and parent_id not in generation:
+            generation[parent_id] = my_gen - 1
+            gen_queue.append(parent_id)
+    
+    # Children are one generation below (higher number)
+    for child_id in children_of.get(pid, []):
+        if child_id in direct_lineage_ids and child_id not in generation:
+            generation[child_id] = my_gen + 1
+            gen_queue.append(child_id)
+    
+    # Spouses are same generation
+    for spouse_id in spouses_of.get(pid, []):
+        if spouse_id in direct_lineage_ids and spouse_id not in generation:
+            generation[spouse_id] = my_gen
+            gen_queue.append(spouse_id)
+
+
+def _assign_generations_bfs(me_person, direct_lineage_ids, parents_of, children_of, spouses_of):
+    """Assign generation numbers using BFS. ME=0, parents=-1, children=+1, etc."""
+    generation = {me_person.id: 0}
+    gen_queue = deque([me_person.id])
+    processed = set()
+    
+    while gen_queue:
+        pid = gen_queue.popleft()
+        if pid in processed:
+            continue
+        processed.add(pid)
+        my_gen = generation[pid]
+        _process_generation_relatives(
+            pid, my_gen, direct_lineage_ids, generation, gen_queue,
+            parents_of, children_of, spouses_of
+        )
+    
+    return generation
+
+
+def _normalize_spouse_pair(pid, spouse_id, generation):
+    """Normalize generation for a spouse pair. Returns True if changed."""
+    if spouse_id not in generation or generation[pid] == generation[spouse_id]:
+        return False
+    max_gen = max(generation[pid], generation[spouse_id])
+    if generation[pid] == max_gen and generation[spouse_id] == max_gen:
+        return False
+    generation[pid] = max_gen
+    generation[spouse_id] = max_gen
+    return True
+
+
+def _ensure_children_below_parent(parent_id, child_ids, generation):
+    """Ensure children are always one generation below parent. Returns True if changed."""
+    if parent_id not in generation:
+        return False
+    parent_gen = generation[parent_id]
+    changed = False
+    for child_id in child_ids:
+        if child_id in generation and generation[child_id] <= parent_gen:
+            generation[child_id] = parent_gen + 1
+            changed = True
+    return changed
+
+
+def _normalize_all_spouses(generation, spouses_of):
+    """Ensure all spouse pairs have matching generations."""
+    changed = False
+    for pid, spouse_ids in spouses_of.items():
+        if pid not in generation:
+            continue
+        for spouse_id in spouse_ids:
+            if _normalize_spouse_pair(pid, spouse_id, generation):
+                changed = True
+    return changed
+
+
+def _normalize_all_children(generation, children_of):
+    """Ensure all children are below their parents."""
+    changed = False
+    for parent_id, child_ids in children_of.items():
+        if _ensure_children_below_parent(parent_id, child_ids, generation):
+            changed = True
+    return changed
+
+
+def _normalize_spouse_generations(generation, spouses_of, children_of):
+    """Normalize generations so spouses match and children are below parents."""
+    for _ in range(20):  # Max iterations
+        spouse_changed = _normalize_all_spouses(generation, spouses_of)
+        child_changed = _normalize_all_children(generation, children_of)
+        if not spouse_changed and not child_changed:
+            break
+
+
+def _build_tree_units(generations_dict, linked_person_id, parents_of, children_of, spouses_of, person_by_id, generation):
+    """Build tree structure with units (person + spouse) grouped by generation."""
     tree_generations = []
     seen_ids = set()
     unit_order = {}
@@ -1564,39 +1676,16 @@ def family_tree(request, family_id):
         gen_units = []
         
         # Sort persons within generation
-        def get_sort_key(p):
-            # Linked person (ME) should be first in their generation
-            if p.id == linked_person_id:
-                return (0, 0, p.first_name)
-            # Then sort by parent position, then birth year
-            parent_ids = parents_of.get(p.id, [])
-            if parent_ids:
-                orders = [unit_order.get(pid, 9999) for pid in parent_ids]
-                return (1, min(orders), p.birth_date.year if p.birth_date else 9999)
-            return (2, 9999, p.birth_date.year if p.birth_date else 9999)
-        
-        gen_persons_sorted = sorted(gen_persons, key=get_sort_key)
+        gen_persons_sorted = sorted(gen_persons, key=lambda p: _get_person_sort_key(
+            p, linked_person_id, parents_of, unit_order
+        ))
         
         for p in gen_persons_sorted:
             if p.id in seen_ids:
                 continue
             seen_ids.add(p.id)
             
-            # Build unit with spouse
-            unit = {
-                'persons': [p],
-                'children_ids': set(children_of.get(p.id, [])),
-            }
-            
-            # Add spouse(s)
-            for spouse_id in spouses_of.get(p.id, []):
-                if spouse_id not in seen_ids:
-                    spouse = person_by_id.get(spouse_id)
-                    if spouse and spouse.id in generation and generation[spouse.id] == gen_num:
-                        unit['persons'].append(spouse)
-                        unit['children_ids'].update(children_of.get(spouse_id, []))
-                        seen_ids.add(spouse_id)
-            
+            unit = _build_family_unit(p, spouses_of, children_of, person_by_id, generation, gen_num, seen_ids)
             gen_units.append(unit)
         
         # Assign order for child positioning
@@ -1604,34 +1693,95 @@ def family_tree(request, family_id):
             for person in unit['persons']:
                 unit_order[person.id] = idx
         
-        # Create generation label
-        if gen_num < 0:
-            if gen_num == -1:
-                label = "Parents"
-            elif gen_num == -2:
-                label = "Grandparents"
-            elif gen_num == -3:
-                label = "Great-Grandparents"
-            else:
-                prefix = "Great-" * (abs(gen_num) - 2)
-                label = f"{prefix}Grandparents"
-        elif gen_num == 0:
-            label = "Me & My Generation"
-        elif gen_num == 1:
-            label = "Children"
-        elif gen_num == 2:
-            label = "Grandchildren"
-        elif gen_num == 3:
-            label = "Great-Grandchildren"
-        else:
-            prefix = "Great-" * (gen_num - 2)
-            label = f"{prefix}Grandchildren"
-        
         tree_generations.append({
             'generation': gen_num,
-            'label': label,
+            'label': _get_generation_label(gen_num),
             'units': gen_units,
         })
+    
+    return tree_generations
+
+
+def _get_person_sort_key(p, linked_person_id, parents_of, unit_order):
+    """Get sort key for ordering persons within a generation."""
+    # Linked person (ME) should be first in their generation
+    if p.id == linked_person_id:
+        return (0, 0, p.first_name)
+    # Then sort by parent position, then birth year
+    parent_ids = parents_of.get(p.id, [])
+    if parent_ids:
+        orders = [unit_order.get(pid, 9999) for pid in parent_ids]
+        return (1, min(orders), p.birth_date.year if p.birth_date else 9999)
+    return (2, 9999, p.birth_date.year if p.birth_date else 9999)
+
+
+def _build_family_unit(p, spouses_of, children_of, person_by_id, generation, gen_num, seen_ids):
+    """Build a family unit containing a person and their spouse(s)."""
+    unit = {
+        'persons': [p],
+        'children_ids': set(children_of.get(p.id, [])),
+    }
+    
+    # Add spouse(s)
+    for spouse_id in spouses_of.get(p.id, []):
+        if spouse_id not in seen_ids:
+            spouse = person_by_id.get(spouse_id)
+            if spouse and spouse.id in generation and generation[spouse.id] == gen_num:
+                unit['persons'].append(spouse)
+                unit['children_ids'].update(children_of.get(spouse_id, []))
+                seen_ids.add(spouse_id)
+    
+    return unit
+
+
+@login_required
+def family_tree(request, family_id):
+    """
+    Display the family tree visualization centered on ME (logged-in user's linked person).
+    
+    Generations are relative to ME:
+    - Negative numbers = ancestors (parents=-1, grandparents=-2, etc.)
+    - 0 = ME and my generation (siblings, spouse)
+    - Positive numbers = descendants (children=1, grandchildren=2, etc.)
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    # Get all persons and relationships
+    all_persons = list(Person.objects.filter(family=family, is_deleted=False)
+                       .select_related('linked_user'))
+    relationships = list(Relationship.objects.filter(family=family, is_deleted=False)
+                        .select_related('person1', 'person2'))
+    
+    # Build lookup structures
+    person_by_id = {p.id: p for p in all_persons}
+    children_of, parents_of, spouses_of = _build_relationship_maps(relationships)
+    
+    # Get linked person (ME)
+    linked_person_id = None
+    me_person = None
+    if membership.linked_person:
+        linked_person_id = membership.linked_person_id
+        me_person = person_by_id.get(linked_person_id)
+    
+    # Build tree centered on linked person (if any)
+    persons, generation = _build_tree_data(
+        me_person, all_persons,
+        parents_of, children_of, spouses_of
+    )
+    
+    # Group persons by generation
+    generations_dict = {}
+    for p in persons:
+        gen = generation.get(p.id, 0)
+        generations_dict.setdefault(gen, []).append(p)
+    
+    # Build tree structure
+    tree_generations = _build_tree_units(
+        generations_dict, linked_person_id, parents_of,
+        children_of, spouses_of, person_by_id, generation
+    )
     
     return render(request, "families/family_tree.html", {
         "family": family,
@@ -1648,6 +1798,35 @@ def family_tree(request, family_id):
     })
 
 
+def _build_tree_data(me_person, all_persons, parents_of, children_of, spouses_of):
+    """Build person list and generation assignments for the tree."""
+    if me_person:
+        # Get direct lineage only
+        direct_lineage_ids = _get_direct_lineage_ids(
+            me_person, parents_of, children_of, spouses_of
+        )
+        persons = [p for p in all_persons if p.id in direct_lineage_ids]
+        
+        # Assign generations using BFS
+        generation = _assign_generations_bfs(
+            me_person, direct_lineage_ids, parents_of, children_of, spouses_of
+        )
+        
+        # Normalize spouse/child generations
+        _normalize_spouse_generations(generation, spouses_of, children_of)
+    else:
+        # No linked person - show all persons with generation 0
+        persons = all_persons
+        generation = {p.id: 0 for p in persons}
+    
+    # Handle any persons without generation assignment
+    for p in persons:
+        if p.id not in generation:
+            generation[p.id] = 0
+    
+    return persons, generation
+
+
 @login_required
 def family_tree_data(request, family_id):
     """
@@ -1658,7 +1837,7 @@ def family_tree_data(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     # Filter out deleted records
     persons = Person.objects.filter(family=family, is_deleted=False)
@@ -1697,7 +1876,7 @@ def family_tree_interactive(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     can_edit = membership.role in ['OWNER', 'ADMIN', 'EDITOR']
     
@@ -1736,7 +1915,7 @@ def link_to_tree(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     if request.method == "GET":
         # Search for persons
@@ -1802,12 +1981,12 @@ def find_my_match(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Check if already linked via membership
     if membership.linked_person:
         messages.info(request, f"You are already linked to {membership.linked_person}")
-        return redirect("families:family_tree_interactive", family_id=family.id)
+        return redirect(URL_FAMILY_TREE_INTERACTIVE, family_id=family.id)
     
     # Also check if linked via user profile (and sync if so)
     try:
@@ -1817,7 +1996,7 @@ def find_my_match(request, family_id):
             membership.linked_person = profile.linked_person
             membership.save()
             messages.info(request, f"You are already linked to {profile.linked_person}")
-            return redirect("families:family_tree_interactive", family_id=family.id)
+            return redirect(URL_FAMILY_TREE_INTERACTIVE, family_id=family.id)
     except Exception:
         pass
     
@@ -1849,7 +2028,7 @@ def claim_identity(request, family_id, person_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     person = get_object_or_404(Person, id=person_id, family=family)
     
@@ -1858,7 +2037,7 @@ def claim_identity(request, family_id, person_id):
     # Check if already linked
     if membership.linked_person:
         messages.warning(request, "You are already linked to a person in this tree.")
-        return redirect("families:family_tree_interactive", family_id=family.id)
+        return redirect(URL_FAMILY_TREE_INTERACTIVE, family_id=family.id)
     
     # Check if person is already claimed by someone else
     existing_verified = PersonClaim.objects.filter(
@@ -1879,7 +2058,7 @@ def claim_identity(request, family_id, person_id):
             break
     
     # Create or get existing claim
-    claim, created = PersonClaim.objects.get_or_create(
+    claim, _ = PersonClaim.objects.get_or_create(
         user=request.user,
         person=person,
         family=family,
@@ -1892,102 +2071,94 @@ def claim_identity(request, family_id, person_id):
     return redirect("families:verify_identity", family_id=family.id, claim_id=claim.id)
 
 
-@login_required
-def verify_identity(request, family_id, claim_id):
-    """
-    Verify identity by providing personal information that matches the Person record.
-    
-    User provides birth date, parents' names, etc. to prove they are who they claim.
-    """
-    family, membership = _get_membership_or_deny(request, family_id)
-    if not membership:
-        return render(request, "families/no_access.html", {"family": None})
-    
-    from .models import PersonClaim, Relationship
-    
-    claim = get_object_or_404(PersonClaim, id=claim_id, user=request.user, family=family)
-    person = claim.person
-    
-    # Get person's parents for hint display
+def _get_person_parents(person):
+    """Get father and mother for a person from relationships."""
     parent_rels = Relationship.objects.filter(
         person2=person,
         relationship_type=Relationship.Type.PARENT_CHILD
     ).select_related('person1')
     
-    father = None
-    mother = None
+    father, mother = None, None
     for rel in parent_rels:
         if rel.person1.gender == Person.Gender.MALE:
             father = rel.person1
         elif rel.person1.gender == Person.Gender.FEMALE:
             mother = rel.person1
+    return father, mother
+
+
+def _parse_birth_date(birth_date_str):
+    """Parse a birth date string to a date object."""
+    if not birth_date_str:
+        return None
+    try:
+        from datetime import datetime
+        return datetime.strptime(birth_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
+def _handle_verification_result(request, claim, membership, person, family):
+    """Process verification score and return appropriate redirect."""
+    from .models import PersonClaim
+    
+    score = claim.calculate_verification_score()
+    
+    if score >= 0.7:
+        claim.status = PersonClaim.Status.VERIFIED
+        claim.verified_at = timezone.now()
+        claim.save()
+        membership.linked_person = person
+        membership.save()
+        messages.success(request, f"Identity verified! You are now linked to {person} in the family tree.")
+        return redirect(URL_FAMILY_TREE_INTERACTIVE, family_id=family.id)
+    
+    if score >= 0.4:
+        messages.warning(request, "The information didn't match well enough for automatic verification. An admin will review your claim.")
+        return redirect(URL_FAMILY_DETAIL, family_id=family.id)
+    
+    claim.status = PersonClaim.Status.REJECTED
+    claim.notes = "Verification score too low"
+    claim.save()
+    messages.error(request, "The information you provided doesn't match our records. Please try again or contact an admin.")
+    return redirect("families:find_my_match", family_id=family.id)
+
+
+@login_required
+def verify_identity(request, family_id, claim_id):
+    """
+    Verify identity by providing personal information that matches the Person record.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    from .models import PersonClaim
+    
+    claim = get_object_or_404(PersonClaim, id=claim_id, user=request.user, family=family)
+    person = claim.person
+    father, mother = _get_person_parents(person)
     
     if request.method == "POST":
-        # Get submitted data
-        birth_date_str = request.POST.get('birth_date', '')
-        birth_place = request.POST.get('birth_place', '').strip()
-        father_name = request.POST.get('father_name', '').strip()
-        mother_name = request.POST.get('mother_name', '').strip()
-        
-        # Parse birth date
-        birth_date = None
-        if birth_date_str:
-            try:
-                from datetime import datetime
-                birth_date = datetime.strptime(birth_date_str, '%Y-%m-%d').date()
-            except ValueError:
-                pass
-        
-        # Update claim with provided data
-        claim.provided_birth_date = birth_date
-        claim.provided_birth_place = birth_place
-        claim.provided_father_name = father_name
-        claim.provided_mother_name = mother_name
+        claim.provided_birth_date = _parse_birth_date(request.POST.get('birth_date', ''))
+        claim.provided_birth_place = request.POST.get('birth_place', '').strip()
+        claim.provided_father_name = request.POST.get('father_name', '').strip()
+        claim.provided_mother_name = request.POST.get('mother_name', '').strip()
         claim.save()
         
-        # Try auto-verify
         if claim.auto_verify_if_strong_match():
             messages.success(request, f"Identity verified! You are now linked to {person} in the family tree.")
-            return redirect("families:family_tree_interactive", family_id=family.id)
+            return redirect(URL_FAMILY_TREE_INTERACTIVE, family_id=family.id)
         
-        # Calculate score and show result
-        score = claim.calculate_verification_score()
-        
-        if score >= 0.7:
-            # Good enough for manual approval or auto-approve
-            from django.utils import timezone
-            claim.status = PersonClaim.Status.VERIFIED
-            claim.verified_at = timezone.now()
-            claim.save()
-            
-            # Link membership
-            membership.linked_person = person
-            membership.save()
-            
-            messages.success(request, f"Identity verified! You are now linked to {person} in the family tree.")
-            return redirect("families:family_tree_interactive", family_id=family.id)
-        elif score >= 0.4:
-            messages.warning(request, "The information didn't match well enough for automatic verification. An admin will review your claim.")
-            return redirect("families:family_detail", family_id=family.id)
-        else:
-            # Too low - reject
-            claim.status = PersonClaim.Status.REJECTED
-            claim.notes = "Verification score too low"
-            claim.save()
-            messages.error(request, "The information you provided doesn't match our records. Please try again or contact an admin.")
-            return redirect("families:find_my_match", family_id=family.id)
-    
-    # Show hints about what info is needed
-    has_birth_date = person.birth_date is not None
-    has_parents = father is not None or mother is not None
+        return _handle_verification_result(request, claim, membership, person, family)
     
     return render(request, "families/verify_identity.html", {
         "family": family,
         "membership": membership,
         "claim": claim,
         "person": person,
-        "has_birth_date": has_birth_date,
-        "has_parents": has_parents,
+        "has_birth_date": person.birth_date is not None,
+        "has_parents": father is not None or mother is not None,
         "person_birth_year": person.birth_date.year if person.birth_date else None,
     })
 
@@ -1999,7 +2170,7 @@ def my_claims(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     from .models import PersonClaim
     
@@ -2015,113 +2186,152 @@ def my_claims(request, family_id):
     })
 
 
+def _check_existing_gedcom_import(family, file_name):
+    """Check if a file with the same name was already imported."""
+    from .models import GedcomImport
+    return GedcomImport.objects.filter(
+        family=family,
+        file_name=file_name,
+        status__in=[GedcomImport.Status.COMPLETED, GedcomImport.Status.PROCESSING]
+    ).first()
+
+
 @login_required
 def gedcom_import(request, family_id):
-    """
-    Import a GEDCOM file into the family tree.
-    
-    Uses enhanced import with tracking and duplicate detection.
-    Creates a GedcomImport record and redirects to the import report.
-    """
+    """Import a GEDCOM file into the family tree."""
     from .forms import GedcomUploadForm
     from .gedcom import import_gedcom_with_tracking, GedcomParseError
     from .models import GedcomImport, PotentialDuplicate
     
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
-    # Only admin/owner can import
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
-    # Recent imports for display
     recent_imports = GedcomImport.objects.filter(family=family).order_by('-created_at')[:5]
-    
-    # Count pending duplicates for this family
     pending_duplicate_count = PotentialDuplicate.objects.filter(
-        gedcom_import__family=family,
-        status='PENDING'
+        gedcom_import__family=family, status='PENDING'
     ).count()
     
-    if request.method == "POST":
-        form = GedcomUploadForm(request.POST, request.FILES)
-        if form.is_valid():
-            try:
-                # Read file content
-                gedcom_file = form.cleaned_data['gedcom_file']
-                content = gedcom_file.read().decode('utf-8', errors='ignore')
-                file_name = gedcom_file.name
-                file_size = gedcom_file.size
-                
-                # Check if a file with the same name was already imported
-                existing_import = GedcomImport.objects.filter(
-                    family=family,
-                    file_name=file_name,
-                    status__in=[GedcomImport.Status.COMPLETED, GedcomImport.Status.PROCESSING]
-                ).first()
-                
-                if existing_import and not request.POST.get('confirm_duplicate'):
-                    # Store file info in session for re-upload after confirmation
-                    messages.warning(
-                        request, 
-                        f"A file named '{file_name}' was already imported on "
-                        f"{existing_import.created_at.strftime('%b %d, %Y')} "
-                        f"({existing_import.persons_created} people created). "
-                        f"Check the box below to import anyway."
-                    )
-                    return render(request, "families/gedcom_import.html", {
-                        "family": family,
-                        "membership": membership,
-                        "form": form,
-                        "recent_imports": recent_imports,
-                        "pending_duplicate_count": pending_duplicate_count,
-                        "show_duplicate_warning": True,
-                        "duplicate_file_name": file_name,
-                        "existing_import": existing_import,
-                    })
-                
-                # Import with tracking and duplicate detection
-                gedcom_import_record = import_gedcom_with_tracking(
-                    content, family, request.user, file_name, file_size
-                )
-                
-                # Redirect to import report
-                return redirect("families:gedcom_import_report", 
-                               family_id=family.id, 
-                               import_id=gedcom_import_record.id)
-                
-            except GedcomParseError as e:
-                messages.error(request, f"Parse error: {str(e)}")
-            except Exception as e:
-                messages.error(request, f"Import failed: {str(e)}")
-    else:
-        form = GedcomUploadForm()
-    
-    return render(request, "families/gedcom_import.html", {
+    base_context = {
         "family": family,
         "membership": membership,
-        "form": form,
         "recent_imports": recent_imports,
         "pending_duplicate_count": pending_duplicate_count,
-    })
+    }
+    
+    if request.method != "POST":
+        return render(request, TEMPLATE_GEDCOM_IMPORT, {**base_context, "form": GedcomUploadForm()})
+    
+    form = GedcomUploadForm(request.POST, request.FILES)
+    if not form.is_valid():
+        return render(request, TEMPLATE_GEDCOM_IMPORT, {**base_context, "form": form})
+    
+    try:
+        gedcom_file = form.cleaned_data['gedcom_file']
+        content = gedcom_file.read().decode('utf-8', errors='ignore')
+        file_name = gedcom_file.name
+        existing_import = _check_existing_gedcom_import(family, file_name)
+        
+        if existing_import and not request.POST.get('confirm_duplicate'):
+            messages.warning(
+                request, 
+                f"A file named '{file_name}' was already imported on "
+                f"{existing_import.created_at.strftime('%b %d, %Y')} "
+                f"({existing_import.persons_created} people created). "
+                f"Check the box below to import anyway."
+            )
+            return render(request, TEMPLATE_GEDCOM_IMPORT, {
+                **base_context, "form": form,
+                "show_duplicate_warning": True,
+                "duplicate_file_name": file_name,
+                "existing_import": existing_import,
+            })
+        
+        gedcom_import_record = import_gedcom_with_tracking(
+            content, family, request.user, file_name, gedcom_file.size
+        )
+        return redirect(URL_GEDCOM_IMPORT_REPORT, family_id=family.id, import_id=gedcom_import_record.id)
+        
+    except GedcomParseError as e:
+        messages.error(request, f"Parse error: {str(e)}")
+    except Exception as e:
+        messages.error(request, f"Import failed: {str(e)}")
+    
+    return render(request, TEMPLATE_GEDCOM_IMPORT, {**base_context, "form": form})
+
+
+@login_required
+def _create_person_relationships(family, person, father, mother, spouse, children):
+    """Create family relationships for a newly created person."""
+    if father:
+        Relationship.objects.create(
+            family=family,
+            person1=father,
+            person2=person,
+            relationship_type=Relationship.Type.PARENT_CHILD
+        )
+    
+    if mother:
+        Relationship.objects.create(
+            family=family,
+            person1=mother,
+            person2=person,
+            relationship_type=Relationship.Type.PARENT_CHILD
+        )
+    
+    if spouse:
+        Relationship.objects.create(
+            family=family,
+            person1=person,
+            person2=spouse,
+            relationship_type=Relationship.Type.SPOUSE
+        )
+    
+    if children:
+        for child in children:
+            Relationship.objects.create(
+                family=family,
+                person1=person,
+                person2=child,
+                relationship_type=Relationship.Type.PARENT_CHILD
+            )
+
+
+def _notify_new_person(request, family, person):
+    """Notify family members about a new person added."""
+    recipients = [
+        m.user for m in Membership.objects.filter(family=family).select_related("user")
+        if m.user_id != request.user.id
+    ]
+    detail_bits = []
+    if person.birth_date:
+        detail_bits.append(f"b. {person.birth_date.strftime('%Y')}")
+    if person.death_date:
+        detail_bits.append(f"d. {person.death_date.strftime('%Y')}")
+    subtitle = " · ".join(detail_bits)
+    _notify_users(
+        recipients=recipients,
+        notification_type=Notification.NotificationType.PERSON,
+        title=f"New family member added: {person.full_name}",
+        message=subtitle or f"Added by {_display_name_for_user(request.user)}",
+        link=f"/families/{family.id}/people/{person.id}/",
+        family=family,
+        request=request,
+    )
 
 
 @login_required
 def person_create(request, family_id):
-    """
-    Create a new person in the family tree.
-    
-    Also handles creating relationships (father, mother, spouse, children)
-    if specified in the form.
-    """
+    """Create a new person in the family tree."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
-    # Viewers cannot add people
     if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     if request.method == "POST":
         form = PersonForm(request.POST, request.FILES, family=family)
@@ -2131,75 +2341,19 @@ def person_create(request, family_id):
             person.created_by = request.user
             person.save()
             
-            # Handle cropped image if present
             content_file, filename = process_cropped_image(request)
             if content_file and filename:
                 person.photo.save(filename, content_file, save=True)
             
-            # Create relationship records
-            father = form.cleaned_data.get('father')
-            mother = form.cleaned_data.get('mother')
-            spouse = form.cleaned_data.get('spouse')
-            children = form.cleaned_data.get('children')
-            
-            # Father relationship (father is parent, new person is child)
-            if father:
-                Relationship.objects.create(
-                    family=family,
-                    person1=father,
-                    person2=person,
-                    relationship_type=Relationship.Type.PARENT_CHILD
-                )
-            
-            # Mother relationship (mother is parent, new person is child)
-            if mother:
-                Relationship.objects.create(
-                    family=family,
-                    person1=mother,
-                    person2=person,
-                    relationship_type=Relationship.Type.PARENT_CHILD
-                )
-            
-            # Spouse relationship
-            if spouse:
-                Relationship.objects.create(
-                    family=family,
-                    person1=person,
-                    person2=spouse,
-                    relationship_type=Relationship.Type.SPOUSE
-                )
-            
-            # Children relationships (new person is parent, children are children)
-            if children:
-                for child in children:
-                    Relationship.objects.create(
-                        family=family,
-                        person1=person,
-                        person2=child,
-                        relationship_type=Relationship.Type.PARENT_CHILD
-                    )
-
-            recipients = [
-                m.user for m in Membership.objects.filter(family=family).select_related("user")
-                if m.user_id != request.user.id
-            ]
-            detail_bits = []
-            if person.birth_date:
-                detail_bits.append(f"b. {person.birth_date.strftime('%Y')}")
-            if person.death_date:
-                detail_bits.append(f"d. {person.death_date.strftime('%Y')}")
-            subtitle = " · ".join(detail_bits)
-            _notify_users(
-                recipients=recipients,
-                notification_type=Notification.NotificationType.PERSON,
-                title=f"New family member added: {person.full_name}",
-                message=subtitle or f"Added by { _display_name_for_user(request.user) }",
-                link=f"/families/{family.id}/people/{person.id}/",
-                family=family,
-                request=request,
+            _create_person_relationships(
+                family, person,
+                form.cleaned_data.get('father'),
+                form.cleaned_data.get('mother'),
+                form.cleaned_data.get('spouse'),
+                form.cleaned_data.get('children')
             )
-
-            return redirect("families:person_detail", family_id=family.id, person_id=person.id)
+            _notify_new_person(request, family, person)
+            return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id)
     else:
         form = PersonForm(family=family)
     
@@ -2217,7 +2371,7 @@ def person_detail(request, family_id, person_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     person = get_object_or_404(Person, id=person_id, family=family)
     
@@ -2228,20 +2382,94 @@ def person_detail(request, family_id, person_id):
     })
 
 
+def _update_parent_relationship(family, person, parent, gender):
+    """Update a parent (father or mother) relationship for a person."""
+    existing_rel = Relationship.objects.filter(
+        person2=person,
+        relationship_type=Relationship.Type.PARENT_CHILD,
+        person1__gender=gender
+    ).first()
+    
+    if parent and not existing_rel:
+        Relationship.objects.create(
+            family=family, person1=parent, person2=person,
+            relationship_type=Relationship.Type.PARENT_CHILD
+        )
+    elif parent and existing_rel and existing_rel.person1 != parent:
+        existing_rel.person1 = parent
+        existing_rel.save()
+    elif not parent and existing_rel:
+        existing_rel.delete()
+
+
+def _update_spouse_relationship(family, person, spouse):
+    """Update the spouse relationship for a person."""
+    existing_rel = Relationship.objects.filter(
+        person1=person, relationship_type=Relationship.Type.SPOUSE
+    ).first() or Relationship.objects.filter(
+        person2=person, relationship_type=Relationship.Type.SPOUSE
+    ).first()
+    
+    if spouse and not existing_rel:
+        Relationship.objects.create(
+            family=family, person1=person, person2=spouse,
+            relationship_type=Relationship.Type.SPOUSE
+        )
+    elif spouse and existing_rel:
+        current_spouse = existing_rel.person2 if existing_rel.person1 == person else existing_rel.person1
+        if current_spouse != spouse:
+            existing_rel.delete()
+            Relationship.objects.create(
+                family=family, person1=person, person2=spouse,
+                relationship_type=Relationship.Type.SPOUSE
+            )
+    elif not spouse and existing_rel:
+        existing_rel.delete()
+
+
+def _update_children_relationships(family, person, children, other_parent):
+    """Update children relationships for a person."""
+    existing_rels = Relationship.objects.filter(
+        person1=person, relationship_type=Relationship.Type.PARENT_CHILD
+    )
+    existing_ids = {r.person2_id for r in existing_rels}
+    new_ids = {c.id for c in children} if children else set()
+    
+    # Remove children no longer selected
+    for rel in existing_rels:
+        if rel.person2_id not in new_ids:
+            rel.delete()
+    
+    # Add new children
+    for child in (children or []):
+        if child.id not in existing_ids:
+            Relationship.objects.create(
+                family=family, person1=person, person2=child,
+                relationship_type=Relationship.Type.PARENT_CHILD
+            )
+        
+        # Link to other parent if specified
+        if other_parent and other_parent.id != person.id:
+            existing_other_rel = Relationship.objects.filter(
+                person1=other_parent, person2=child,
+                relationship_type=Relationship.Type.PARENT_CHILD
+            ).first()
+            if not existing_other_rel:
+                Relationship.objects.create(
+                    family=family, person1=other_parent, person2=child,
+                    relationship_type=Relationship.Type.PARENT_CHILD
+                )
+
+
 @login_required
 def person_edit(request, family_id, person_id):
-    """
-    Edit a person in the family tree.
-    
-    Also handles updating relationships (father, mother, spouse, children).
-    """
+    """Edit a person in the family tree and their relationships."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
-    # Viewers cannot edit
     if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     person = get_object_or_404(Person, id=person_id, family=family)
     
@@ -2250,113 +2478,20 @@ def person_edit(request, family_id, person_id):
         if form.is_valid():
             person = form.save()
             
-            # Handle cropped image if present
             content_file, filename = process_cropped_image(request)
             if content_file and filename:
                 person.photo.save(filename, content_file, save=True)
             
-            # Update relationships
-            father = form.cleaned_data.get('father')
-            mother = form.cleaned_data.get('mother')
-            spouse = form.cleaned_data.get('spouse')
-            other_parent = form.cleaned_data.get('other_parent')
-            children = form.cleaned_data.get('children')
-            
-            # Update father relationship
-            existing_father_rel = Relationship.objects.filter(
-                person2=person,
-                relationship_type=Relationship.Type.PARENT_CHILD,
-                person1__gender=Person.Gender.MALE
-            ).first()
-            
-            if father and not existing_father_rel:
-                Relationship.objects.create(
-                    family=family, person1=father, person2=person,
-                    relationship_type=Relationship.Type.PARENT_CHILD
-                )
-            elif father and existing_father_rel and existing_father_rel.person1 != father:
-                existing_father_rel.person1 = father
-                existing_father_rel.save()
-            elif not father and existing_father_rel:
-                existing_father_rel.delete()
-            
-            # Update mother relationship
-            existing_mother_rel = Relationship.objects.filter(
-                person2=person,
-                relationship_type=Relationship.Type.PARENT_CHILD,
-                person1__gender=Person.Gender.FEMALE
-            ).first()
-            
-            if mother and not existing_mother_rel:
-                Relationship.objects.create(
-                    family=family, person1=mother, person2=person,
-                    relationship_type=Relationship.Type.PARENT_CHILD
-                )
-            elif mother and existing_mother_rel and existing_mother_rel.person1 != mother:
-                existing_mother_rel.person1 = mother
-                existing_mother_rel.save()
-            elif not mother and existing_mother_rel:
-                existing_mother_rel.delete()
-            
-            # Update spouse relationship
-            existing_spouse_rel = Relationship.objects.filter(
-                person1=person, relationship_type=Relationship.Type.SPOUSE
-            ).first() or Relationship.objects.filter(
-                person2=person, relationship_type=Relationship.Type.SPOUSE
-            ).first()
-            
-            if spouse and not existing_spouse_rel:
-                Relationship.objects.create(
-                    family=family, person1=person, person2=spouse,
-                    relationship_type=Relationship.Type.SPOUSE
-                )
-            elif spouse and existing_spouse_rel:
-                # Update if different spouse
-                current_spouse = existing_spouse_rel.person2 if existing_spouse_rel.person1 == person else existing_spouse_rel.person1
-                if current_spouse != spouse:
-                    existing_spouse_rel.delete()
-                    Relationship.objects.create(
-                        family=family, person1=person, person2=spouse,
-                        relationship_type=Relationship.Type.SPOUSE
-                    )
-            elif not spouse and existing_spouse_rel:
-                existing_spouse_rel.delete()
-            
-            # Update children relationships
-            existing_children_rels = Relationship.objects.filter(
-                person1=person, relationship_type=Relationship.Type.PARENT_CHILD
+            _update_parent_relationship(family, person, form.cleaned_data.get('father'), Person.Gender.MALE)
+            _update_parent_relationship(family, person, form.cleaned_data.get('mother'), Person.Gender.FEMALE)
+            _update_spouse_relationship(family, person, form.cleaned_data.get('spouse'))
+            _update_children_relationships(
+                family, person, 
+                form.cleaned_data.get('children'),
+                form.cleaned_data.get('other_parent')
             )
-            existing_children_ids = set(r.person2_id for r in existing_children_rels)
-            new_children_ids = set(c.id for c in children) if children else set()
             
-            # Remove children no longer selected
-            for rel in existing_children_rels:
-                if rel.person2_id not in new_children_ids:
-                    rel.delete()
-            
-            # Add new children (and link to other parent if specified)
-            for child in (children or []):
-                if child.id not in existing_children_ids:
-                    # Create relationship from this person to child
-                    Relationship.objects.create(
-                        family=family, person1=person, person2=child,
-                        relationship_type=Relationship.Type.PARENT_CHILD
-                    )
-                
-                # If other_parent is specified, create/update that relationship too
-                if other_parent and other_parent.id != person.id:
-                    # Check if other_parent already has a parent relationship with this child
-                    existing_other_rel = Relationship.objects.filter(
-                        person1=other_parent, person2=child,
-                        relationship_type=Relationship.Type.PARENT_CHILD
-                    ).first()
-                    if not existing_other_rel:
-                        Relationship.objects.create(
-                            family=family, person1=other_parent, person2=child,
-                            relationship_type=Relationship.Type.PARENT_CHILD
-                        )
-            
-            return redirect("families:person_detail", family_id=family.id, person_id=person.id)
+            return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id)
     else:
         form = PersonForm(instance=person, family=family)
     
@@ -2377,11 +2512,11 @@ def person_delete(request, family_id, person_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Only admin/owner can delete
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     # Check if person exists but is already deleted
     person = Person.objects.filter(id=person_id, family=family).first()
@@ -2391,7 +2526,7 @@ def person_delete(request, family_id, person_id):
     
     if person.is_deleted:
         messages.info(request, f"{person.full_name} is already in the trash bin.")
-        return redirect("families:trash_bin", family_id=family.id)
+        return redirect(URL_TRASH_BIN, family_id=family.id)
     
     if request.method == "POST":
         # Store data for audit log before deletion
@@ -2437,11 +2572,11 @@ def relationship_add(request, family_id, person_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Viewers cannot add relationships
     if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     person = get_object_or_404(Person, id=person_id, family=family)
     
@@ -2452,7 +2587,7 @@ def relationship_add(request, family_id, person_id):
             rel.family = family
             rel.person1 = person
             rel.save()
-            return redirect("families:person_detail", family_id=family.id, person_id=person.id)
+            return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id)
     else:
         form = RelationshipForm(family=family, exclude_person=person)
     
@@ -2464,118 +2599,94 @@ def relationship_add(request, family_id, person_id):
     })
 
 
+def _get_generation_label(generation):
+    """Get the label for a given generation level."""
+    return GENERATION_LABELS.get(generation, f"{generation-2}x Great-grandparent")
+
+
+def _get_person_ancestors_tree(person, depth=1, max_depth=7):
+    """Recursively get all ancestors up to max_depth generations."""
+    ancestors = []
+    parent_rels = Relationship.objects.filter(
+        person2=person,
+        relationship_type=Relationship.Type.PARENT_CHILD,
+        is_deleted=False
+    ).select_related('person1')
+    
+    for rel in parent_rels:
+        parent = rel.person1
+        ancestors.append({
+            'person': parent,
+            'depth': depth,
+            'label': _get_generation_label(depth)
+        })
+        if depth < max_depth:
+            ancestors.extend(_get_person_ancestors_tree(parent, depth + 1, max_depth))
+    
+    return ancestors
+
+
+def _handle_ancestor_creation(request, family, attach_to, gen_label, person):
+    """Handle POST request to create a new ancestor."""
+    form = PersonForm(request.POST, request.FILES, family=family)
+    if not form.is_valid():
+        return None, form
+    
+    ancestor = form.save(commit=False)
+    ancestor.family = family
+    ancestor.created_by = request.user
+    ancestor.save()
+    
+    content_file, filename = process_cropped_image(request)
+    if content_file and filename:
+        ancestor.photo.save(filename, content_file, save=True)
+    
+    Relationship.objects.create(
+        family=family,
+        person1=ancestor,
+        person2=attach_to,
+        relationship_type=Relationship.Type.PARENT_CHILD
+    )
+    
+    spouse = form.cleaned_data.get('spouse')
+    if spouse:
+        Relationship.objects.create(
+            family=family,
+            person1=ancestor,
+            person2=spouse,
+            relationship_type=Relationship.Type.SPOUSE
+        )
+    
+    messages.success(request, f"Added {ancestor.full_name} as {gen_label.lower()} of {attach_to.full_name}.")
+    return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id), form
+
+
 @login_required
 def add_ancestor(request, family_id, person_id):
-    """
-    Add an ancestor (parent, grandparent, great-grandparent, etc.) to a person.
-    
-    This creates a new person and links them as a parent at the specified
-    generation level. Generation levels:
-        1 = Parent (direct parent)
-        2 = Grandparent
-        3 = Great-grandparent
-        4 = 2x Great-grandparent
-        ...up to 7 = 6x Great-grandparent
-    """
+    """Add an ancestor (parent, grandparent, etc.) to a person."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
-    # Viewers cannot add ancestors
     if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     person = get_object_or_404(Person, id=person_id, family=family)
     
-    # Get generation level from query param (default to 1 = parent)
     generation = int(request.GET.get('generation', 1))
     if generation < 1 or generation > 7:
         generation = 1
     
-    # Determine which existing ancestor to attach to based on generation
-    # We need to traverse up the tree to find where to attach
-    target_person = person
-    
-    # For generation > 1, we need to find/create the chain
-    # But for this initial implementation, user selects existing ancestor to add parent to
     attach_to_id = request.GET.get('attach_to', person_id)
     attach_to = get_object_or_404(Person, id=attach_to_id, family=family)
-    
-    # Determine generation label for display
-    gen_labels = {
-        1: "Parent",
-        2: "Grandparent",
-        3: "Great-grandparent",
-        4: "2x Great-grandparent",
-        5: "3x Great-grandparent",
-        6: "4x Great-grandparent",
-        7: "5x Great-grandparent",
-        8: "6x Great-grandparent",
-    }
-    gen_label = gen_labels.get(generation, f"{generation-2}x Great-grandparent")
+    gen_label = _get_generation_label(generation)
     
     if request.method == "POST":
-        form = PersonForm(request.POST, request.FILES, family=family)
-        if form.is_valid():
-            ancestor = form.save(commit=False)
-            ancestor.family = family
-            ancestor.created_by = request.user
-            ancestor.save()
-            
-            # Handle cropped image if present
-            content_file, filename = process_cropped_image(request)
-            if content_file and filename:
-                ancestor.photo.save(filename, content_file, save=True)
-            
-            # Create parent-child relationship: ancestor is PARENT of attach_to person
-            Relationship.objects.create(
-                family=family,
-                person1=ancestor,  # Parent (the new ancestor)
-                person2=attach_to,  # Child (the person we're attaching to)
-                relationship_type=Relationship.Type.PARENT_CHILD
-            )
-            
-            # If the form specified a spouse for this ancestor, create that too
-            spouse = form.cleaned_data.get('spouse')
-            if spouse:
-                Relationship.objects.create(
-                    family=family,
-                    person1=ancestor,
-                    person2=spouse,
-                    relationship_type=Relationship.Type.SPOUSE
-                )
-            
-            messages.success(request, f"Added {ancestor.full_name} as {gen_label.lower()} of {attach_to.full_name}.")
-            
-            # Redirect back to the original person's detail page
-            return redirect("families:person_detail", family_id=family.id, person_id=person.id)
+        result, form = _handle_ancestor_creation(request, family, attach_to, gen_label, person)
+        if result:
+            return result
     else:
         form = PersonForm(family=family)
-    
-    # Get existing ancestors of the original person for the "attach to" dropdown
-    def get_ancestors(p, depth=1, max_depth=7):
-        """Recursively get all ancestors up to max_depth generations."""
-        ancestors = []
-        parent_rels = Relationship.objects.filter(
-            person2=p,
-            relationship_type=Relationship.Type.PARENT_CHILD,
-            is_deleted=False
-        ).select_related('person1')
-        
-        for rel in parent_rels:
-            parent = rel.person1
-            gen_label_inner = gen_labels.get(depth, f"{depth-2}x Great-grandparent")
-            ancestors.append({
-                'person': parent,
-                'depth': depth,
-                'label': gen_label_inner
-            })
-            if depth < max_depth:
-                ancestors.extend(get_ancestors(parent, depth + 1, max_depth))
-        
-        return ancestors
-    
-    existing_ancestors = get_ancestors(person)
     
     return render(request, "families/add_ancestor.html", {
         "family": family,
@@ -2585,7 +2696,7 @@ def add_ancestor(request, family_id, person_id):
         "generation": generation,
         "gen_label": gen_label,
         "form": form,
-        "existing_ancestors": existing_ancestors,
+        "existing_ancestors": _get_person_ancestors_tree(person),
     })
 
 
@@ -2599,11 +2710,11 @@ def add_child(request, family_id, person_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Viewers cannot add children
     if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     person = get_object_or_404(Person, id=person_id, family=family)
     
@@ -2641,7 +2752,7 @@ def add_child(request, family_id, person_id):
             messages.success(request, f"Added {child.full_name} as child of {person.full_name}.")
             
             # Redirect back to the person's detail page
-            return redirect("families:person_detail", family_id=family.id, person_id=person.id)
+            return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id)
     else:
         form = PersonForm(family=family)
     
@@ -2660,11 +2771,11 @@ def relationship_delete(request, family_id, relationship_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Viewers cannot delete relationships
     if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     rel = get_object_or_404(Relationship, id=relationship_id, family=family, is_deleted=False)
     person_id = rel.person1_id
@@ -2694,7 +2805,7 @@ def relationship_delete(request, family_id, relationship_id):
         
         messages.success(request, "Relationship has been moved to trash.")
     
-    return redirect("families:person_detail", family_id=family_id, person_id=person_id)
+    return redirect(URL_PERSON_DETAIL, family_id=family_id, person_id=person_id)
 
 
 @login_required
@@ -2705,7 +2816,7 @@ def person_list(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     persons = Person.objects.filter(
         family=family, is_deleted=False
@@ -2736,7 +2847,7 @@ def album_list(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     albums = Album.objects.filter(family=family).select_related('event', 'primary_person', 'cover_photo').prefetch_related('photos')
     
@@ -2754,11 +2865,11 @@ def album_create(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Viewers cannot create albums
     if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     if request.method == "POST":
         form = AlbumForm(request.POST, family=family)
@@ -2767,7 +2878,7 @@ def album_create(request, family_id):
             album.family = family
             album.created_by = request.user
             album.save()
-            return redirect("families:album_detail", family_id=family.id, album_id=album.id)
+            return redirect(URL_ALBUM_DETAIL, family_id=family.id, album_id=album.id)
     else:
         form = AlbumForm(family=family)
     
@@ -2785,7 +2896,7 @@ def album_detail(request, family_id, album_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     album = get_object_or_404(Album, id=album_id, family=family)
     photos = album.photos.all().select_related('event', 'primary_person').prefetch_related('tagged_people')
@@ -2810,11 +2921,11 @@ def album_edit(request, family_id, album_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Viewers cannot edit
     if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     album = get_object_or_404(Album, id=album_id, family=family)
     
@@ -2822,7 +2933,7 @@ def album_edit(request, family_id, album_id):
         form = AlbumForm(request.POST, instance=album, family=family)
         if form.is_valid():
             form.save()
-            return redirect("families:album_detail", family_id=family.id, album_id=album.id)
+            return redirect(URL_ALBUM_DETAIL, family_id=family.id, album_id=album.id)
     else:
         form = AlbumForm(instance=album, family=family)
     
@@ -2841,11 +2952,11 @@ def album_delete(request, family_id, album_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Only admin/owner can delete albums
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     album = get_object_or_404(Album, id=album_id, family=family)
     
@@ -2860,53 +2971,49 @@ def album_delete(request, family_id, album_id):
     })
 
 
+def _handle_multi_photo_upload(album, files, user):
+    """Handle quick multi-photo upload with size validation."""
+    max_size = 10 * 1024 * 1024
+    for file in files:
+        if file.size <= max_size:
+            Photo.objects.create(
+                album=album,
+                media_type=Photo.MediaType.PHOTO,
+                image=file,
+                uploaded_by=user,
+                event=album.event,
+                primary_person=album.primary_person,
+            )
+
+
 @login_required
 def photo_upload(request, family_id, album_id):
-    """
-    Upload photos to an album.
-    
-    Supports single and multiple file uploads.
-    """
+    """Upload photos to an album. Supports single and multiple file uploads."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
-    # Viewers cannot upload
     if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     album = get_object_or_404(Album, id=album_id, family=family)
     
     if request.method == "POST":
-        # Handle quick multi-photo upload
         files = request.FILES.getlist('photos')
         if files:
-            for f in files:
-                if f.size > 10 * 1024 * 1024:
-                    continue  # Skip oversized files
-                Photo.objects.create(
-                    album=album,
-                    media_type=Photo.MediaType.PHOTO,
-                    image=f,
-                    uploaded_by=request.user,
-                    event=album.event,
-                    primary_person=album.primary_person,
-                )
-            return redirect("families:album_detail", family_id=family.id, album_id=album.id)
+            _handle_multi_photo_upload(album, files, request.user)
+            return redirect(URL_ALBUM_DETAIL, family_id=family.id, album_id=album.id)
 
-        # Single media upload with metadata
         form = PhotoUploadForm(request.POST, request.FILES, family=family)
         if form.is_valid():
             photo = form.save(commit=False)
             photo.album = album
             photo.uploaded_by = request.user
-            if not photo.event:
-                photo.event = album.event
-            if not photo.primary_person:
-                photo.primary_person = album.primary_person
+            photo.event = photo.event or album.event
+            photo.primary_person = photo.primary_person or album.primary_person
             photo.save()
-            form.save_m2m()  # Save tagged_people
-            return redirect("families:album_detail", family_id=family.id, album_id=album.id)
+            form.save_m2m()
+            return redirect(URL_ALBUM_DETAIL, family_id=family.id, album_id=album.id)
     else:
         form = PhotoUploadForm(family=family, initial={
             "event": album.event_id,
@@ -2928,7 +3035,7 @@ def photo_detail(request, family_id, album_id, photo_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     album = get_object_or_404(Album, id=album_id, family=family)
     photo = get_object_or_404(Photo, id=photo_id, album=album)
@@ -2989,18 +3096,35 @@ def photo_tag_suggestions(request, family_id, album_id, photo_id):
     return JsonResponse({"suggestions": suggestions})
 
 
+def _handle_manual_photo_tag(request, photo, family, manual_tag_name):
+    """Try to find and tag people matching the given name."""
+    if not manual_tag_name:
+        return
+    name_parts = manual_tag_name.split()
+    if not name_parts:
+        return
+    matches = Person.objects.filter(
+        family=family,
+        is_deleted=False,
+        linked_user__isnull=False,
+        death_date__isnull=True,
+        first_name__icontains=name_parts[0]
+    )
+    if matches:
+        photo.tagged_people.add(*list(matches[:5]))
+    else:
+        messages.warning(request, f"No matching family member found for '{manual_tag_name}'.")
+
+
 @login_required
 def photo_edit(request, family_id, album_id, photo_id):
-    """
-    Edit photo details (caption, date, location, tags).
-    """
+    """Edit photo details (caption, date, location, tags)."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
-    # Viewers cannot edit
     if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     album = get_object_or_404(Album, id=album_id, family=family)
     photo = get_object_or_404(Photo, id=photo_id, album=album)
@@ -3009,24 +3133,7 @@ def photo_edit(request, family_id, album_id, photo_id):
         form = PhotoUploadForm(request.POST, request.FILES, instance=photo, family=family)
         if form.is_valid():
             form.save()
-            # Handle optional manual tag by name
-            manual_tag_name = request.POST.get("manual_tag_name", "").strip()
-            if manual_tag_name:
-                # Try to find matching people in this family (case-insensitive contains)
-                matches = Person.objects.filter(
-                    family=family,
-                    is_deleted=False,
-                    linked_user__isnull=False,
-                    death_date__isnull=True,
-                    first_name__icontains=manual_tag_name.split()[0]
-                )
-                if matches:
-                    photo.tagged_people.add(*list(matches[:5]))
-                else:
-                    messages.warning(request, f"No matching family member found for '{manual_tag_name}'.")
-            redirect_to = request.POST.get("redirect_to")
-            if redirect_to == "detail":
-                return redirect("families:photo_detail", family_id=family.id, album_id=album.id, photo_id=photo.id)
+            _handle_manual_photo_tag(request, photo, family, request.POST.get("manual_tag_name", "").strip())
             return redirect("families:photo_detail", family_id=family.id, album_id=album.id, photo_id=photo.id)
     else:
         form = PhotoUploadForm(instance=photo, family=family)
@@ -3047,7 +3154,7 @@ def photo_delete(request, family_id, album_id, photo_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Only admin/owner or uploader can delete
     album = get_object_or_404(Album, id=album_id, family=family)
@@ -3059,11 +3166,11 @@ def photo_delete(request, family_id, album_id, photo_id):
     )
     
     if not can_delete:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     if request.method == "POST":
         photo.delete()
-        return redirect("families:album_detail", family_id=family.id, album_id=album.id)
+        return redirect(URL_ALBUM_DETAIL, family_id=family.id, album_id=album.id)
     
     return render(request, "families/photo_delete.html", {
         "family": family,
@@ -3080,23 +3187,23 @@ def photo_set_cover(request, family_id, album_id, photo_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return redirect("families:album_detail", family_id=family_id, album_id=album_id)
+        return redirect(URL_ALBUM_DETAIL, family_id=family_id, album_id=album_id)
     
     # Viewers cannot set cover
     if membership.role == Membership.Role.VIEWER:
-        return redirect("families:album_detail", family_id=family_id, album_id=album_id)
+        return redirect(URL_ALBUM_DETAIL, family_id=family_id, album_id=album_id)
     
     album = get_object_or_404(Album, id=album_id, family=family)
     photo = get_object_or_404(Photo, id=photo_id, album=album)
 
     if photo.media_type != Photo.MediaType.PHOTO:
         messages.error(request, "Only photos can be used as album covers.")
-        return redirect("families:album_detail", family_id=family_id, album_id=album_id)
+        return redirect(URL_ALBUM_DETAIL, family_id=family_id, album_id=album_id)
     
     album.cover_photo = photo
     album.save()
     
-    return redirect("families:album_detail", family_id=family_id, album_id=album_id)
+    return redirect(URL_ALBUM_DETAIL, family_id=family_id, album_id=album_id)
 
 
 # =============================================================================
@@ -3112,7 +3219,7 @@ def museum_home(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     from .models import MemoryStory
     
@@ -3189,7 +3296,7 @@ def museum_person(request, family_id, person_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     from .models import MemoryStory
     
@@ -3229,7 +3336,7 @@ def memory_detail(request, family_id, memory_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     from .models import MemoryStory, MemoryComment, MemoryReaction
     
@@ -3259,102 +3366,95 @@ def memory_detail(request, family_id, memory_id):
     })
 
 
-@login_required
-def memory_create(request, family_id, person_id=None, *args, **kwargs):
-    """
-    Create a new memory/story for a person.
-    """
-    family, membership = _get_membership_or_deny(request, family_id)
-    if not membership:
-        return render(request, "families/no_access.html", {"family": None})
-    
-    # Viewers cannot create memories
-    if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
-    
+def _get_media_type_from_content_type(content_type):
+    """Determine MemoryMedia type from file content type."""
+    from .models import MemoryMedia
+    if content_type.startswith('image/'):
+        return MemoryMedia.MediaType.PHOTO
+    if content_type.startswith('video/'):
+        return MemoryMedia.MediaType.VIDEO
+    if content_type.startswith('audio/'):
+        return MemoryMedia.MediaType.AUDIO
+    return MemoryMedia.MediaType.DOCUMENT
+
+
+def _create_memory_with_media(request, person, files):
+    """Create a memory story and its associated media files."""
     from .models import MemoryStory, MemoryMedia
     
-    # Get selected person if provided
+    memory = MemoryStory.objects.create(
+        person=person,
+        title=request.POST.get('title', '').strip(),
+        content=request.POST.get('content', '').strip(),
+        story_type=request.POST.get('story_type', MemoryStory.StoryType.MEMORY),
+        author=request.user,
+        date_of_memory=request.POST.get('date_of_memory') or None,
+        location=request.POST.get('location', '').strip(),
+        is_featured=request.POST.get('is_featured') == 'on',
+        is_public=request.POST.get('is_public') == 'on',
+    )
+    
+    for i, f in enumerate(files):
+        MemoryMedia.objects.create(
+            memory=memory,
+            media_type=_get_media_type_from_content_type(f.content_type),
+            file=f,
+            order=i,
+            uploaded_by=request.user,
+        )
+    
+    return memory
+
+
+@login_required
+def memory_create(request, family_id, person_id=None, *args, **kwargs):
+    """Create a new memory/story for a person."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    if membership.role == Membership.Role.VIEWER:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
+    
+    from .models import MemoryStory
+    
     selected_person = None
     if person_id:
         selected_person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
     
-    # Get all people for dropdown
     people = Person.objects.filter(family=family, is_deleted=False).order_by('first_name', 'last_name')
     
-    if request.method == "POST":
-        # Get person from form if not pre-selected
-        if not selected_person:
-            person_form_id = request.POST.get('person')
-            if person_form_id:
-                selected_person = get_object_or_404(Person, id=person_form_id, family=family, is_deleted=False)
-        
-        if not selected_person:
-            messages.error(request, "Please select a person for this memory.")
-            return render(request, "families/memory_create.html", {
-                "family": family,
-                "membership": membership,
-                "people": people,
-                "selected_person": None,
-                "story_types": MemoryStory.StoryType.choices,
-            })
-        
-        title = request.POST.get('title', '').strip()
-        content = request.POST.get('content', '').strip()
-        story_type = request.POST.get('story_type', MemoryStory.StoryType.MEMORY)
-        date_of_memory = request.POST.get('date_of_memory') or None
-        location = request.POST.get('location', '').strip()
-        is_featured = request.POST.get('is_featured') == 'on'
-        is_public = request.POST.get('is_public') == 'on'
-        
-        if title and content:
-            memory = MemoryStory.objects.create(
-                person=selected_person,
-                title=title,
-                content=content,
-                story_type=story_type,
-                author=request.user,
-                date_of_memory=date_of_memory if date_of_memory else None,
-                location=location,
-                is_featured=is_featured,
-                is_public=is_public,
-            )
-            
-            # Handle file uploads
-            files = request.FILES.getlist('media')
-            for i, f in enumerate(files):
-                # Determine media type from file
-                content_type = f.content_type
-                if content_type.startswith('image/'):
-                    media_type = MemoryMedia.MediaType.PHOTO
-                elif content_type.startswith('video/'):
-                    media_type = MemoryMedia.MediaType.VIDEO
-                elif content_type.startswith('audio/'):
-                    media_type = MemoryMedia.MediaType.AUDIO
-                else:
-                    media_type = MemoryMedia.MediaType.DOCUMENT
-                
-                MemoryMedia.objects.create(
-                    memory=memory,
-                    media_type=media_type,
-                    file=f,
-                    order=i,
-                    uploaded_by=request.user,
-                )
-            
-            messages.success(request, f"Memory '{title}' has been added to {selected_person.full_name}'s story.")
-            return redirect("families:memory_detail", family_id=family.id, memory_id=memory.id)
-        else:
-            messages.error(request, "Please provide a title and content for the memory.")
-    
-    return render(request, "families/memory_create.html", {
+    context = {
         "family": family,
         "membership": membership,
         "selected_person": selected_person,
         "people": people,
         "story_types": MemoryStory.StoryType.choices,
         "is_admin": membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN],
-    })
+    }
+    
+    if request.method != "POST":
+        return render(request, TEMPLATE_MEMORY_CREATE, context)
+    
+    if not selected_person:
+        person_form_id = request.POST.get('person')
+        if person_form_id:
+            selected_person = get_object_or_404(Person, id=person_form_id, family=family, is_deleted=False)
+    
+    if not selected_person:
+        messages.error(request, "Please select a person for this memory.")
+        return render(request, TEMPLATE_MEMORY_CREATE, context)
+    
+    title = request.POST.get('title', '').strip()
+    content = request.POST.get('content', '').strip()
+    
+    if not (title and content):
+        messages.error(request, "Please provide a title and content for the memory.")
+        return render(request, TEMPLATE_MEMORY_CREATE, {**context, "selected_person": selected_person})
+    
+    memory = _create_memory_with_media(request, selected_person, request.FILES.getlist('media'))
+    messages.success(request, f"Memory '{title}' has been added to {selected_person.full_name}'s story.")
+    return redirect(URL_MEMORY_DETAIL, family_id=family.id, memory_id=memory.id)
 
 
 @login_required
@@ -3362,7 +3462,7 @@ def life_story(request, family_id, person_id):
     """View and edit a person's life story with ordered sections."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
     life_story = person.life_stories.order_by("-created_at").first()
@@ -3396,7 +3496,7 @@ def time_capsule_list(request, family_id):
     """List time capsules for a family."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     capsules = TimeCapsule.objects.filter(family=family).order_by("open_at")
     return render(request, "families/time_capsule_list.html", {
@@ -3411,7 +3511,7 @@ def time_capsule_detail(request, family_id, capsule_id):
     """View a time capsule; unlock if due."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     capsule = get_object_or_404(TimeCapsule, id=capsule_id, family=family)
     if capsule.is_unlocked and not capsule.is_opened:
@@ -3430,7 +3530,7 @@ def time_capsule_create(request, family_id):
     """Create a new time capsule entry."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     if request.method == "POST":
         form = TimeCapsuleForm(request.POST, request.FILES)
@@ -3450,6 +3550,38 @@ def time_capsule_create(request, family_id):
     })
 
 
+def _build_person_summary(person, memories, story_sections, events):
+    """Build a summary text for a person based on their memories, stories, and events."""
+    parts = [f"{person.full_name} — quick story snapshot:"]
+    if person.birth_date:
+        parts.append(f"- Born: {person.birth_date}")
+    if person.death_date:
+        parts.append(f"- Passed: {person.death_date}")
+    if memories:
+        parts.append(f"- Top memories ({len(memories)}): " + "; ".join(m.title for m in memories[:3]))
+    if story_sections:
+        parts.append("- Life story sections: " + "; ".join(s.heading for s in story_sections[:4]))
+    if events:
+        parts.append("- Related events: " + "; ".join(e.title for e in events))
+    return "\n".join(parts)
+
+
+def _find_answer_in_corpus(question, memories, story_sections, events, fallback_text):
+    """Search corpus for an answer to the given question."""
+    from difflib import get_close_matches
+    
+    corpus = []
+    corpus.extend([f"{m.title}: {m.content}" for m in memories])
+    corpus.extend([f"{s.heading}: {s.content}" for s in story_sections])
+    corpus.extend([f"Event {e.title}: {e.description}" for e in events if e.description])
+    
+    best = get_close_matches(question.lower(), [c.lower() for c in corpus], n=1, cutoff=0.1)
+    if best:
+        idx = [c.lower() for c in corpus].index(best[0])
+        return corpus[idx]
+    return "I couldn't find an exact answer, but here's the latest summary:\n" + fallback_text
+
+
 @login_required
 def person_chatbot(request, family_id, person_id):
     """
@@ -3458,53 +3590,28 @@ def person_chatbot(request, family_id, person_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
 
-    memories = (
+    memories = list(
         MemoryStory.objects.filter(person=person)
         .order_by("-is_featured", "-created_at")
-        .prefetch_related("media")
-    )[:10]
-    story_sections = (
+        .prefetch_related("media")[:10]
+    )
+    story_sections = list(
         person.life_stories.first().sections.all() if person.life_stories.exists() else []
     )
-    events = (
+    events = list(
         Event.objects.filter(family=family, title__icontains=person.first_name)
         .order_by("-start_datetime")[:5]
     )
     question = request.GET.get("q", "").strip()
 
-    def summarize():
-        parts = [f"{person.full_name} — quick story snapshot:"]
-        if person.birth_date:
-            parts.append(f"- Born: {person.birth_date}")
-        if person.death_date:
-            parts.append(f"- Passed: {person.death_date}")
-        if memories:
-            parts.append(f"- Top memories ({len(memories)}): " + "; ".join(m.title for m in memories[:3]))
-        if story_sections:
-            parts.append(f"- Life story sections: " + "; ".join(s.heading for s in story_sections[:4]))
-        if events:
-            parts.append(f"- Related events: " + "; ".join(e.title for e in events))
-        return "\n".join(parts)
-
-    response_text = summarize()
-
+    response_text = _build_person_summary(person, memories, story_sections, events)
     answer = ""
     if question:
-        corpus = []
-        corpus.extend([f"{m.title}: {m.content}" for m in memories])
-        corpus.extend([f"{s.heading}: {s.content}" for s in story_sections])
-        corpus.extend([f"Event {e.title}: {e.description}" for e in events if e.description])
-        from difflib import get_close_matches
-        best = get_close_matches(question.lower(), [c.lower() for c in corpus], n=1, cutoff=0.1)
-        if best:
-            idx = [c.lower() for c in corpus].index(best[0])
-            answer = corpus[idx]
-        else:
-            answer = "I couldn't find an exact answer, but here's the latest summary:\n" + response_text
+        answer = _find_answer_in_corpus(question, memories, story_sections, events, response_text)
 
     return render(request, "families/person_chatbot.html", {
         "family": family,
@@ -3523,7 +3630,7 @@ def memory_edit(request, family_id, memory_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     from .models import MemoryStory, MemoryMedia
     
@@ -3535,7 +3642,7 @@ def memory_edit(request, family_id, memory_id):
         membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN]
     )
     if not can_edit:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     if request.method == "POST":
         memory.title = request.POST.get('title', memory.title).strip()
@@ -3571,7 +3678,7 @@ def memory_edit(request, family_id, memory_id):
             )
         
         messages.success(request, "Memory has been updated.")
-        return redirect("families:memory_detail", family_id=family.id, memory_id=memory.id)
+        return redirect(URL_MEMORY_DETAIL, family_id=family.id, memory_id=memory.id)
     
     return render(request, "families/memory_edit.html", {
         "family": family,
@@ -3588,7 +3695,7 @@ def memory_delete(request, family_id, memory_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     from .models import MemoryStory
     
@@ -3601,7 +3708,7 @@ def memory_delete(request, family_id, memory_id):
         membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN]
     )
     if not can_delete:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     if request.method == "POST":
         memory.delete()
@@ -3622,7 +3729,7 @@ def memory_react(request, family_id, memory_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     from .models import MemoryStory, MemoryReaction
     
@@ -3636,7 +3743,7 @@ def memory_react(request, family_id, memory_id):
             MemoryReaction.objects.filter(memory=memory, user=request.user).delete()
         elif reaction_type in dict(MemoryReaction.ReactionType.choices):
             # Add or update reaction
-            reaction, created = MemoryReaction.objects.update_or_create(
+            _, _ = MemoryReaction.objects.update_or_create(
                 memory=memory,
                 user=request.user,
                 defaults={'reaction_type': reaction_type}
@@ -3651,9 +3758,9 @@ def memory_react(request, family_id, memory_id):
                 "total": memory.reactions.count(),
             })
         
-        return redirect("families:memory_detail", family_id=family.id, memory_id=memory.id)
+        return redirect(URL_MEMORY_DETAIL, family_id=family.id, memory_id=memory.id)
     
-    return JsonResponse({"error": "POST required"}, status=405)
+    return JsonResponse({"error": ERROR_POST_REQUIRED}, status=405)
 
 
 @login_required
@@ -3663,11 +3770,11 @@ def memory_comment(request, family_id, memory_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Viewers cannot comment
     if membership.role == Membership.Role.VIEWER:
-        return redirect("families:memory_detail", family_id=family.id, memory_id=memory_id)
+        return redirect(URL_MEMORY_DETAIL, family_id=family.id, memory_id=memory_id)
     
     from .models import MemoryStory, MemoryComment
     
@@ -3683,7 +3790,7 @@ def memory_comment(request, family_id, memory_id):
             )
             messages.success(request, "Your comment has been added.")
     
-    return redirect("families:memory_detail", family_id=family.id, memory_id=memory.id)
+    return redirect(URL_MEMORY_DETAIL, family_id=family.id, memory_id=memory.id)
 
 
 @login_required
@@ -3693,7 +3800,7 @@ def memory_media_delete(request, family_id, memory_id, media_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     from .models import MemoryStory, MemoryMedia
     
@@ -3707,7 +3814,7 @@ def memory_media_delete(request, family_id, memory_id, media_id):
         membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN]
     )
     if not can_delete:
-        return JsonResponse({"error": "Permission denied"}, status=403)
+        return JsonResponse({"error": ERROR_PERMISSION_DENIED}, status=403)
     
     if request.method == "POST":
         media.delete()
@@ -3718,21 +3825,83 @@ def memory_media_delete(request, family_id, memory_id, media_id):
         messages.success(request, "Media has been removed.")
         return redirect("families:memory_edit", family_id=family.id, memory_id=memory.id)
     
-    return JsonResponse({"error": "POST required"}, status=405)
+    return JsonResponse({"error": ERROR_POST_REQUIRED}, status=405)
 
 
 # =============================================================================
 # Museum Sharing Views
 # =============================================================================
 
+def _parse_museum_share_form(request, family):
+    """Parse museum share form data from POST request."""
+    from .models import MuseumShare, MemoryStory
+    from datetime import timedelta
+    
+    share_type = (request.POST.get('share_type') or MuseumShare.ShareType.MUSEUM).upper()
+    shared_with_email = request.POST.get('shared_with_email', request.POST.get('email', '')).strip()
+    share_method = request.POST.get('share_method', 'link')
+    is_public_link = share_method == 'link' or request.POST.get('is_public') == 'on'
+    message = request.POST.get('message', '').strip()
+    expires_days = request.POST.get('expires_in', request.POST.get('expires_days'))
+    
+    expires_at = None
+    if expires_days and expires_days.isdigit():
+        expires_at = timezone.now() + timedelta(days=int(expires_days))
+    
+    share = MuseumShare(
+        share_type=share_type,
+        shared_by=request.user,
+        shared_with_email=shared_with_email,
+        is_public_link=is_public_link,
+        message=message,
+        expires_at=expires_at,
+    )
+    
+    memory_id = request.POST.get('memory_id')
+    person_id = request.POST.get('person_id')
+    
+    if share_type == MuseumShare.ShareType.MEMORY and memory_id:
+        share.memory = get_object_or_404(MemoryStory, id=memory_id, person__family=family)
+    elif share_type == MuseumShare.ShareType.PERSON and person_id:
+        share.person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+    else:
+        share.share_type = MuseumShare.ShareType.MUSEUM
+        share.family = family
+    
+    return share
+
+
+def _notify_share_recipient(share, request, family):
+    """Try to find and notify the share recipient by email."""
+    if not share.shared_with_email:
+        return
+    
+    from django.contrib.auth import get_user_model
+    user_model = get_user_model()
+    
+    try:
+        recipient = user_model.objects.get(email__iexact=share.shared_with_email)
+        share.shared_with_user = recipient
+        share.save()
+        
+        create_notification(
+            recipient=recipient,
+            notification_type=Notification.NotificationType.SYSTEM,
+            title="Museum shared with you",
+            message=f"{request.user.email} shared memories with you",
+            link=share.get_share_url(),
+            family=family
+        )
+    except user_model.DoesNotExist:
+        pass
+
+
 @login_required
 def museum_share_create(request, family_id, share_type=None, object_id=None):
-    """
-    Create a share link for the museum or specific content.
-    """
+    """Create a share link for the museum or specific content."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     from .models import MuseumShare, MemoryStory
     
@@ -3745,69 +3914,12 @@ def museum_share_create(request, family_id, share_type=None, object_id=None):
         person = get_object_or_404(Person, id=object_id, family=family, is_deleted=False)
 
     if request.method == "POST":
-        raw_share_type = request.POST.get('share_type', share_type or MuseumShare.ShareType.MUSEUM)
-        normalized_share_type = (raw_share_type or MuseumShare.ShareType.MUSEUM).upper()
-        memory_id = request.POST.get('memory_id')
-        person_id = request.POST.get('person_id')
-        shared_with_email = request.POST.get('shared_with_email', request.POST.get('email', '')).strip()
-        share_method = request.POST.get('share_method', 'link')
-        is_public_link = share_method == 'link' or request.POST.get('is_public') == 'on'
-        message = request.POST.get('message', '').strip()
-        expires_days = request.POST.get('expires_in', request.POST.get('expires_days'))
-        
-        # Calculate expiration
-        expires_at = None
-        if expires_days and expires_days.isdigit():
-            from django.utils import timezone
-            from datetime import timedelta
-            expires_at = timezone.now() + timedelta(days=int(expires_days))
-        
-        share = MuseumShare(
-            share_type=normalized_share_type,
-            shared_by=request.user,
-            shared_with_email=shared_with_email,
-            is_public_link=is_public_link,
-            message=message,
-            expires_at=expires_at,
-        )
-
-        # Set what is being shared
-        if normalized_share_type == MuseumShare.ShareType.MEMORY and memory_id:
-            memory = get_object_or_404(MemoryStory, id=memory_id, person__family=family)
-            share.memory = memory
-        elif normalized_share_type == MuseumShare.ShareType.PERSON and person_id:
-            person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
-            share.person = person
-        else:
-            share.share_type = MuseumShare.ShareType.MUSEUM
-            share.family = family
-        
+        share = _parse_museum_share_form(request, family)
         share.save()
-        
-        # If shared with email, try to find user
-        if shared_with_email:
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            try:
-                recipient = User.objects.get(email__iexact=shared_with_email)
-                share.shared_with_user = recipient
-                share.save()
-                
-                # Create notification for recipient
-                create_notification(
-                    recipient=recipient,
-                    notification_type=Notification.NotificationType.SYSTEM,
-                    title=f"Museum shared with you",
-                    message=f"{request.user.email} shared memories with you",
-                    link=share.get_share_url(),
-                    family=family
-                )
-            except User.DoesNotExist:
-                pass
+        _notify_share_recipient(share, request, family)
         
         messages.success(request, "Share link created successfully!")
         
-        # Return share URL for copying
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return JsonResponse({
                 "success": True,
@@ -3817,7 +3929,6 @@ def museum_share_create(request, family_id, share_type=None, object_id=None):
         
         return redirect("families:museum_share_list", family_id=family.id)
     
-    # Get persons and memories for the form
     persons = Person.objects.filter(family=family, is_deleted=False).order_by('last_name', 'first_name')
     memories = MemoryStory.objects.filter(person__family=family).select_related('person')[:50]
 
@@ -3841,7 +3952,7 @@ def museum_share_list(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     from .models import MuseumShare
     
@@ -3880,7 +3991,7 @@ def museum_share_delete(request, family_id, share_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     from .models import MuseumShare
     
@@ -3896,7 +4007,7 @@ def museum_share_delete(request, family_id, share_id):
         membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN]
     )
     if not can_delete:
-        return JsonResponse({"error": "Permission denied"}, status=403)
+        return JsonResponse({"error": ERROR_PERMISSION_DENIED}, status=403)
     
     if request.method == "POST":
         share.delete()
@@ -3954,7 +4065,7 @@ def museum_shared_view(request, share_token):
         context["memory"] = share.memory
         context["memory"].view_count += 1
         context["memory"].save(update_fields=['view_count'])
-        return render(request, "families/museum_shared_view.html", context)
+        return render(request, TEMPLATE_MUSEUM_SHARED_VIEW, context)
     
     elif share.share_type == MuseumShare.ShareType.PERSON and share.person:
         context["person"] = share.person
@@ -3962,7 +4073,7 @@ def museum_shared_view(request, share_token):
             person=share.person,
             is_public=True  # Only show public memories
         ).select_related('author').prefetch_related('media')
-        return render(request, "families/museum_shared_view.html", context)
+        return render(request, TEMPLATE_MUSEUM_SHARED_VIEW, context)
     
     elif share.share_type == MuseumShare.ShareType.MUSEUM and share.family:
         context["family"] = share.family
@@ -3975,7 +4086,7 @@ def museum_shared_view(request, share_token):
             is_deleted=False,
             memories__is_public=True
         ).distinct()
-        return render(request, "families/museum_shared_view.html", context)
+        return render(request, TEMPLATE_MUSEUM_SHARED_VIEW, context)
 
     return render(request, "families/museum_share_error.html", context)
 
@@ -4107,7 +4218,7 @@ def messaging_hub(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     _get_or_create_family_conversation(family, request.user)
 
@@ -4166,14 +4277,14 @@ def direct_conversation_start(request, family_id, user_id):
     """Create or open a direct conversation with another family member."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     if user_id == request.user.id:
         return redirect("families:messaging_hub", family_id=family.id)
 
     other_membership = get_object_or_404(Membership.objects.select_related("user"), family=family, user_id=user_id)
     conversation = _get_or_create_direct_conversation(family, request.user, other_membership.user)
-    return redirect("families:conversation_room", family_id=family.id, conversation_id=conversation.id)
+    return redirect(URL_CONVERSATION_ROOM, family_id=family.id, conversation_id=conversation.id)
 
 
 @login_required
@@ -4181,11 +4292,11 @@ def branch_conversation_start(request, family_id, person_id):
     """Create or open a branch conversation."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
     conversation = _get_or_create_branch_conversation(family, request.user, person)
-    return redirect("families:conversation_room", family_id=family.id, conversation_id=conversation.id)
+    return redirect(URL_CONVERSATION_ROOM, family_id=family.id, conversation_id=conversation.id)
 
 
 @login_required
@@ -4193,11 +4304,11 @@ def event_conversation_start(request, family_id, event_id):
     """Create or open an event conversation."""
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     event = get_object_or_404(Event, id=event_id, family=family)
     conversation = _get_or_create_event_conversation(family, request.user, event)
-    return redirect("families:conversation_room", family_id=family.id, conversation_id=conversation.id)
+    return redirect(URL_CONVERSATION_ROOM, family_id=family.id, conversation_id=conversation.id)
 
 
 @login_required
@@ -4207,7 +4318,7 @@ def conversation_room(request, family_id, conversation_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     conversation = get_object_or_404(
         ChatConversation.objects.select_related("family", "branch_root", "event"),
@@ -4218,7 +4329,7 @@ def conversation_room(request, family_id, conversation_id):
         _ensure_shared_conversation_participants(conversation)
     participant = ChatConversationParticipant.objects.filter(conversation=conversation, user=request.user).first()
     if not participant:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
 
     _mark_conversation_read(conversation, request.user)
 
@@ -4252,7 +4363,7 @@ def conversation_room(request, family_id, conversation_id):
 def milestone_list(request, family_id):
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     milestones = FamilyMilestone.objects.filter(family=family).select_related("person", "event", "created_by")
     return render(request, "families/milestone_list.html", {
@@ -4266,7 +4377,7 @@ def milestone_list(request, family_id):
 def milestone_create(request, family_id):
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership or membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     if request.method == "POST":
         form = FamilyMilestoneForm(request.POST, request.FILES, family=family)
@@ -4276,7 +4387,7 @@ def milestone_create(request, family_id):
             milestone.created_by = request.user
             milestone.save()
             form.save_m2m()
-            return redirect("families:milestone_list", family_id=family.id)
+            return redirect(URL_MILESTONE_LIST, family_id=family.id)
     else:
         form = FamilyMilestoneForm(family=family)
 
@@ -4292,14 +4403,14 @@ def milestone_create(request, family_id):
 def milestone_edit(request, family_id, milestone_id):
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership or membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     milestone = get_object_or_404(FamilyMilestone, id=milestone_id, family=family)
     if request.method == "POST":
         form = FamilyMilestoneForm(request.POST, request.FILES, instance=milestone, family=family)
         if form.is_valid():
             form.save()
-            return redirect("families:milestone_list", family_id=family.id)
+            return redirect(URL_MILESTONE_LIST, family_id=family.id)
     else:
         form = FamilyMilestoneForm(instance=milestone, family=family)
 
@@ -4316,12 +4427,12 @@ def milestone_edit(request, family_id, milestone_id):
 def milestone_delete(request, family_id, milestone_id):
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership or membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
     milestone = get_object_or_404(FamilyMilestone, id=milestone_id, family=family)
     if request.method == "POST":
         milestone.delete()
-        return redirect("families:milestone_list", family_id=family.id)
+        return redirect(URL_MILESTONE_LIST, family_id=family.id)
 
     return render(request, "families/milestone_delete.html", {
         "family": family,
@@ -4337,9 +4448,9 @@ def chat_room(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     conversation = _get_or_create_family_conversation(family, request.user)
-    return redirect("families:conversation_room", family_id=family.id, conversation_id=conversation.id)
+    return redirect(URL_CONVERSATION_ROOM, family_id=family.id, conversation_id=conversation.id)
 
 
 @login_required
@@ -4349,7 +4460,7 @@ def conversation_message_delete(request, family_id, conversation_id, message_id)
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
 
     conversation = get_object_or_404(ChatConversation, id=conversation_id, family=family)
     message = get_object_or_404(ChatConversationMessage, id=message_id, conversation=conversation)
@@ -4359,14 +4470,14 @@ def conversation_message_delete(request, family_id, conversation_id, message_id)
         message.author == request.user
     )
     if not can_delete:
-        return JsonResponse({"error": "Permission denied"}, status=403)
+        return JsonResponse({"error": ERROR_PERMISSION_DENIED}, status=403)
 
     if request.method == "POST":
         message.is_deleted = True
         message.save(update_fields=["is_deleted", "updated_at"])
-        return redirect("families:conversation_room", family_id=family.id, conversation_id=conversation.id)
+        return redirect(URL_CONVERSATION_ROOM, family_id=family.id, conversation_id=conversation.id)
 
-    return JsonResponse({"error": "POST required"}, status=405)
+    return JsonResponse({"error": ERROR_POST_REQUIRED}, status=405)
 
 
 @login_required
@@ -4377,7 +4488,7 @@ def chat_messages_json(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     # Get messages after a specific ID (for polling)
     after_id = request.GET.get('after', 0)
@@ -4420,7 +4531,7 @@ def chat_delete_message(request, family_id, message_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     message = get_object_or_404(ChatMessage, id=message_id, family=family)
     
@@ -4430,7 +4541,7 @@ def chat_delete_message(request, family_id, message_id):
     )
     
     if not can_delete:
-        return JsonResponse({"error": "Permission denied"}, status=403)
+        return JsonResponse({"error": ERROR_PERMISSION_DENIED}, status=403)
     
     if request.method == "POST":
         message.is_deleted = True
@@ -4441,7 +4552,7 @@ def chat_delete_message(request, family_id, message_id):
         
         return redirect("families:chat_room", family_id=family.id)
     
-    return JsonResponse({"error": "POST required"}, status=405)
+    return JsonResponse({"error": ERROR_POST_REQUIRED}, status=405)
 
 
 # =============================================================================
@@ -4458,7 +4569,7 @@ def gedcom_import_report(request, family_id, import_id):
     
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     gedcom_import = get_object_or_404(
         GedcomImport,
@@ -4510,7 +4621,7 @@ def gedcom_import_history(request, family_id):
     
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     imports = GedcomImport.objects.filter(family=family).order_by('-created_at')
     
@@ -4531,12 +4642,12 @@ def gedcom_import_rollback(request, family_id, import_id):
     
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Only admin/owner can rollback imports
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
         messages.error(request, "Only administrators can rollback imports.")
-        return redirect('families:gedcom_import_report', family_id=family_id, import_id=import_id)
+        return redirect(URL_GEDCOM_IMPORT_REPORT, family_id=family_id, import_id=import_id)
     
     gedcom_import = get_object_or_404(
         GedcomImport,
@@ -4561,10 +4672,10 @@ def gedcom_import_rollback(request, family_id, import_id):
             gedcom_import.save()
             
             messages.success(request, f"Rollback complete. {deleted_count} persons deleted.")
-            return redirect('families:gedcom_import_history', family_id=family_id)
+            return redirect(URL_GEDCOM_IMPORT_HISTORY, family_id=family_id)
         else:
             messages.info(request, "Rollback cancelled.")
-            return redirect('families:gedcom_import_report', family_id=family_id, import_id=import_id)
+            return redirect(URL_GEDCOM_IMPORT_REPORT, family_id=family_id, import_id=import_id)
     
     return render(request, "families/gedcom_import_rollback.html", {
         "family": family,
@@ -4585,12 +4696,12 @@ def gedcom_import_delete(request, family_id, import_id):
     
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Only admin/owner can delete imports
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
         messages.error(request, "Only administrators can delete import records.")
-        return redirect('families:gedcom_import_history', family_id=family_id)
+        return redirect(URL_GEDCOM_IMPORT_HISTORY, family_id=family_id)
     
     gedcom_import = get_object_or_404(
         GedcomImport,
@@ -4601,13 +4712,13 @@ def gedcom_import_delete(request, family_id, import_id):
     # Only allow deleting cancelled imports
     if gedcom_import.status != GedcomImport.Status.CANCELLED:
         messages.error(request, "You can only delete cancelled imports. Rollback the import first.")
-        return redirect('families:gedcom_import_report', family_id=family_id, import_id=import_id)
+        return redirect(URL_GEDCOM_IMPORT_REPORT, family_id=family_id, import_id=import_id)
     
     if request.method == "POST":
         file_name = gedcom_import.file_name
         gedcom_import.delete()
         messages.success(request, f"Import record '{file_name}' permanently deleted.")
-        return redirect('families:gedcom_import_history', family_id=family_id)
+        return redirect(URL_GEDCOM_IMPORT_HISTORY, family_id=family_id)
     
     return render(request, "families/gedcom_import_delete.html", {
         "family": family,
@@ -4627,11 +4738,11 @@ def duplicate_review(request, family_id, duplicate_id):
     
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Only admin/owner can review duplicates
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     duplicate = get_object_or_404(
         PotentialDuplicate,
@@ -4685,7 +4796,7 @@ def duplicate_review(request, family_id, duplicate_id):
             messages.info(request, "Duplicate dismissed")
         
         # Redirect to import report
-        return redirect("families:gedcom_import_report", 
+        return redirect(URL_GEDCOM_IMPORT_REPORT, 
                        family_id=family.id, 
                        import_id=duplicate.gedcom_import.id)
     
@@ -4706,7 +4817,7 @@ def duplicate_queue(request, family_id):
     
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     duplicates = PotentialDuplicate.objects.filter(
         gedcom_import__family=family,
@@ -4734,7 +4845,7 @@ def bulk_delete_perfect_duplicates(request, family_id):
     
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Only admin/owner can bulk delete
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
@@ -4785,45 +4896,46 @@ def bulk_delete_perfect_duplicates(request, family_id):
 # Phase 8: DNA Assist Tools Views
 # =============================================================================
 
+def _parse_link_to_params(request):
+    """Parse link_to person and family from request GET parameters."""
+    from .models import Person, FamilySpace
+    
+    link_to_person = None
+    link_to_family = None
+    
+    if 'link_to' not in request.GET:
+        return link_to_person, link_to_family
+    
+    try:
+        person_id = int(request.GET.get('link_to'))
+        link_to_person = Person.objects.get(id=person_id, is_deleted=False)
+        if 'family' in request.GET:
+            family_id = int(request.GET.get('family'))
+            link_to_family = FamilySpace.objects.get(id=family_id)
+    except (ValueError, Person.DoesNotExist, FamilySpace.DoesNotExist):
+        pass
+    
+    return link_to_person, link_to_family
+
+
 @login_required
 def dna_kit_list(request):
-    """
-    List all DNA kits owned by the current user.
-    
-    This is the main DNA dashboard showing the user's kits,
-    recent matches, and pending suggestions.
-    
-    Supports ?link_to=<person_id>&family=<family_id> to pre-select a person to link.
-    """
-    from .models import DNAKit, DNAMatch, RelationshipSuggestion, Person, FamilySpace
+    """List all DNA kits owned by the current user. Main DNA dashboard."""
+    from .models import DNAKit, DNAMatch, RelationshipSuggestion
     
     kits = DNAKit.objects.filter(user=request.user).order_by('-uploaded_at')
-    
-    # Get recent matches for user's kits
     kit_ids = kits.values_list('id', flat=True)
+    
     recent_matches = DNAMatch.objects.filter(
         Q(kit1_id__in=kit_ids) | Q(kit2_id__in=kit_ids)
     ).select_related('kit1', 'kit2').order_by('-discovered_at')[:10]
     
-    # Count pending suggestions
     pending_suggestions = RelationshipSuggestion.objects.filter(
         suggested_for_kit__in=kits,
         status=RelationshipSuggestion.Status.PENDING
     ).count()
     
-    # Handle link_to parameter (from person profile page)
-    link_to_person = None
-    link_to_family = None
-    if 'link_to' in request.GET:
-        try:
-            person_id = int(request.GET.get('link_to'))
-            link_to_person = Person.objects.get(id=person_id, is_deleted=False)
-            # Also get family if provided
-            if 'family' in request.GET:
-                family_id = int(request.GET.get('family'))
-                link_to_family = FamilySpace.objects.get(id=family_id)
-        except (ValueError, Person.DoesNotExist, FamilySpace.DoesNotExist):
-            pass
+    link_to_person, link_to_family = _parse_link_to_params(request)
     
     return render(request, "families/dna_kit_list.html", {
         "kits": kits,
@@ -4836,33 +4948,17 @@ def dna_kit_list(request):
 
 @login_required
 def dna_kit_create(request):
-    """
-    Register a new DNA kit.
-    
-    Supports ?link_to=<person_id>&family=<family_id> to pre-link the kit after creation.
-    """
+    """Register a new DNA kit. Supports ?link_to=<person_id>&family=<family_id> for pre-linking."""
     from .forms import DNAKitForm
-    from .models import DNAKit, Person, FamilySpace
+    from .models import DNAKit, Person
     
-    # Check for link_to parameter
-    link_to_person = None
-    link_to_family = None
-    if 'link_to' in request.GET:
-        try:
-            person_id = int(request.GET.get('link_to'))
-            link_to_person = Person.objects.get(id=person_id, is_deleted=False)
-            if 'family' in request.GET:
-                family_id = int(request.GET.get('family'))
-                link_to_family = FamilySpace.objects.get(id=family_id)
-        except (ValueError, Person.DoesNotExist, FamilySpace.DoesNotExist):
-            pass
+    link_to_person, link_to_family = _parse_link_to_params(request)
     
     if request.method == "POST":
         form = DNAKitForm(request.POST)
         if form.is_valid():
             kit = form.save(commit=False)
             kit.user = request.user
-            # Auto-link to person if specified
             link_person_id = request.POST.get('link_to_person')
             if link_person_id:
                 try:
@@ -4871,10 +4967,9 @@ def dna_kit_create(request):
                     pass
             kit.save()
             messages.success(request, f"DNA kit '{kit.display_name}' registered successfully!")
-            # Redirect back to person profile if we linked to them
             if kit.linked_person and link_to_family:
-                return redirect("families:person_detail", family_id=link_to_family.id, person_id=kit.linked_person.id)
-            return redirect("families:dna_kit_list")
+                return redirect(URL_PERSON_DETAIL, family_id=link_to_family.id, person_id=kit.linked_person.id)
+            return redirect(URL_DNA_KIT_LIST)
     else:
         form = DNAKitForm()
     
@@ -4897,7 +4992,7 @@ def dna_kit_detail(request, kit_id):
     # Only owner can view their kit details
     if kit.user != request.user:
         messages.error(request, "You don't have access to this DNA kit.")
-        return redirect("families:dna_kit_list")
+        return redirect(URL_DNA_KIT_LIST)
     
     # Get all matches for this kit
     matches = DNAMatch.objects.filter(
@@ -4948,7 +5043,7 @@ def dna_kit_delete(request, kit_id):
         name = kit.display_name
         kit.delete()
         messages.success(request, f"DNA kit '{name}' deleted.")
-        return redirect("families:dna_kit_list")
+        return redirect(URL_DNA_KIT_LIST)
     
     return render(request, "families/dna_kit_delete.html", {
         "kit": kit,
@@ -5008,7 +5103,7 @@ def dna_match_create(request, kit_id):
                 
                 if existing:
                     messages.warning(request, "A match between these kits already exists.")
-                    return redirect("families:dna_match_detail", match_id=existing.id)
+                    return redirect(URL_DNA_MATCH_DETAIL, match_id=existing.id)
                 
                 match = form.save(commit=False)
                 match.kit1 = kit
@@ -5020,7 +5115,7 @@ def dna_match_create(request, kit_id):
                 _create_relationship_suggestion(match, kit)
                 
                 messages.success(request, f"DNA match added! Predicted: {match.predicted_relationship}")
-                return redirect("families:dna_match_detail", match_id=match.id)
+                return redirect(URL_DNA_MATCH_DETAIL, match_id=match.id)
                 
             except DNAKit.DoesNotExist:
                 messages.error(request, "Selected kit not found or doesn't allow matching.")
@@ -5112,7 +5207,7 @@ def dna_match_confirm(request, match_id):
     else:
         messages.error(request, "You cannot confirm this match.")
     
-    return redirect("families:dna_match_detail", match_id=match.id)
+    return redirect(URL_DNA_MATCH_DETAIL, match_id=match.id)
 
 
 @login_required
@@ -5140,15 +5235,89 @@ def relationship_suggestion_list(request):
     })
 
 
+def _update_suggestion_status(suggestion, status, user, notes=''):
+    """Update suggestion status with review metadata."""
+    from .models import RelationshipSuggestion
+    suggestion.status = status
+    suggestion.reviewed_by = user
+    suggestion.reviewed_at = timezone.now()
+    if notes:
+        suggestion.notes = notes
+    suggestion.save()
+
+
+def _handle_accept_action(request, suggestion, other_kit, family):
+    """Handle accept action for relationship suggestion review."""
+    from .models import Person
+    
+    person_id = request.POST.get('person_id')
+    create_new = request.POST.get('create_new') == 'true'
+    
+    if create_new:
+        first_name = other_kit.display_name.split()[0] if ' ' in other_kit.display_name else 'Unknown'
+        new_person = Person.objects.create(
+            family=family,
+            first_name=first_name,
+            last_name='(DNA Match)',
+            created_by=request.user,
+        )
+        if other_kit.linked_person is None:
+            other_kit.linked_person = new_person
+            other_kit.save()
+        
+        suggestion.suggested_person = new_person
+        _update_suggestion_status(suggestion, suggestion.Status.ACCEPTED, request.user)
+        messages.success(request, "Created new person and linked to DNA match!")
+        return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=new_person.id)
+    
+    if not person_id:
+        messages.warning(request, "Please select a person or create a new one.")
+        return None
+    
+    try:
+        person = Person.objects.get(id=person_id, family=family)
+    except Person.DoesNotExist:
+        messages.error(request, "Selected person not found.")
+        return None
+    
+    if other_kit.linked_person is None:
+        other_kit.linked_person = person
+        other_kit.save()
+    
+    suggestion.suggested_person = person
+    _update_suggestion_status(suggestion, suggestion.Status.ACCEPTED, request.user, request.POST.get('notes', ''))
+    messages.success(request, f"DNA match linked to {person.full_name}!")
+    return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id)
+
+
+def _handle_suggestion_action(request, suggestion, other_kit, family):
+    """Handle POST actions for relationship suggestion review."""
+    action = request.POST.get('action')
+    
+    if action == 'accept':
+        return _handle_accept_action(request, suggestion, other_kit, family)
+    
+    if action == 'reject':
+        _update_suggestion_status(suggestion, suggestion.Status.REJECTED, request.user, request.POST.get('notes', ''))
+        messages.info(request, "Suggestion rejected.")
+        return redirect(URL_RELATIONSHIP_SUGGESTION_LIST)
+    
+    if action == 'ignore':
+        _update_suggestion_status(suggestion, suggestion.Status.IGNORED, request.user)
+        messages.info(request, "Suggestion ignored.")
+        return redirect(URL_RELATIONSHIP_SUGGESTION_LIST)
+    
+    return None
+
+
 @login_required
 def relationship_suggestion_review(request, suggestion_id):
     """
     Review a relationship suggestion and link to tree if accepted.
-    
     This is the attach-to-tree confirmation workflow.
     """
     from .forms import LinkToTreeForm
-    from .models import DNAKit, RelationshipSuggestion, Person, Relationship
+    from .models import DNAKit, RelationshipSuggestion, Person
     
     suggestion = get_object_or_404(
         RelationshipSuggestion.objects.select_related(
@@ -5159,97 +5328,21 @@ def relationship_suggestion_review(request, suggestion_id):
         suggested_for_kit__user=request.user
     )
     
-    # Get the other kit in the match
     match = suggestion.dna_match
     other_kit = match.kit2 if match.kit1 == suggestion.suggested_for_kit else match.kit1
-    
-    # Get family membership
     family = suggestion.family
-    membership = Membership.objects.filter(
-        family=family,
-        user=request.user
-    ).first()
     
+    membership = Membership.objects.filter(family=family, user=request.user).first()
     if not membership:
         messages.error(request, "You don't have access to this family.")
-        return redirect("families:relationship_suggestion_list")
+        return redirect(URL_RELATIONSHIP_SUGGESTION_LIST)
     
-    # Get possible people to link to
     people = Person.objects.filter(family=family).order_by('last_name', 'first_name')
     
     if request.method == "POST":
-        action = request.POST.get('action')
-        
-        if action == 'accept':
-            form = LinkToTreeForm(request.POST)
-            
-            person_id = request.POST.get('person_id')
-            create_new = request.POST.get('create_new') == 'true'
-            
-            if create_new:
-                # Create a new person for this match
-                new_person = Person.objects.create(
-                    family=family,
-                    first_name=other_kit.display_name.split()[0] if ' ' in other_kit.display_name else 'Unknown',
-                    last_name='(DNA Match)',
-                    created_by=request.user,
-                )
-                # Link the other kit to this person
-                if other_kit.linked_person is None:
-                    other_kit.linked_person = new_person
-                    other_kit.save()
-                
-                suggestion.suggested_person = new_person
-                suggestion.status = RelationshipSuggestion.Status.ACCEPTED
-                suggestion.reviewed_by = request.user
-                suggestion.reviewed_at = timezone.now()
-                suggestion.save()
-                
-                messages.success(request, f"Created new person and linked to DNA match!")
-                return redirect("families:person_detail", family_id=family.id, person_id=new_person.id)
-                
-            elif person_id:
-                try:
-                    person = Person.objects.get(id=person_id, family=family)
-                    
-                    # Link the other kit to this person if not already linked
-                    if other_kit.linked_person is None:
-                        other_kit.linked_person = person
-                        other_kit.save()
-                    
-                    suggestion.suggested_person = person
-                    suggestion.status = RelationshipSuggestion.Status.ACCEPTED
-                    suggestion.reviewed_by = request.user
-                    suggestion.reviewed_at = timezone.now()
-                    suggestion.notes = request.POST.get('notes', '')
-                    suggestion.save()
-                    
-                    messages.success(request, f"DNA match linked to {person.full_name}!")
-                    return redirect("families:person_detail", family_id=family.id, person_id=person.id)
-                    
-                except Person.DoesNotExist:
-                    messages.error(request, "Selected person not found.")
-            else:
-                messages.warning(request, "Please select a person or create a new one.")
-                
-        elif action == 'reject':
-            suggestion.status = RelationshipSuggestion.Status.REJECTED
-            suggestion.reviewed_by = request.user
-            suggestion.reviewed_at = timezone.now()
-            suggestion.notes = request.POST.get('notes', '')
-            suggestion.save()
-            messages.info(request, "Suggestion rejected.")
-            return redirect("families:relationship_suggestion_list")
-            
-        elif action == 'ignore':
-            suggestion.status = RelationshipSuggestion.Status.IGNORED
-            suggestion.reviewed_by = request.user
-            suggestion.reviewed_at = timezone.now()
-            suggestion.save()
-            messages.info(request, "Suggestion ignored.")
-            return redirect("families:relationship_suggestion_list")
-    
-    form = LinkToTreeForm()
+        result = _handle_suggestion_action(request, suggestion, other_kit, family)
+        if result:
+            return result
     
     return render(request, "families/relationship_suggestion_review.html", {
         "suggestion": suggestion,
@@ -5257,7 +5350,7 @@ def relationship_suggestion_review(request, suggestion_id):
         "other_kit": other_kit,
         "family": family,
         "people": people,
-        "form": form,
+        "form": LinkToTreeForm(),
     })
 
 
@@ -5274,7 +5367,7 @@ def dna_link_to_person(request, kit_id, family_id):
     family, membership = _get_membership_or_deny(request, family_id)
     
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     people = Person.objects.filter(family=family, is_deleted=False).order_by('last_name', 'first_name')
     
@@ -5289,7 +5382,7 @@ def dna_link_to_person(request, kit_id, family_id):
                 kit.linked_person = person
                 kit.save()
                 messages.success(request, f"DNA kit linked to {person.full_name}")
-                return redirect("families:person_detail", family_id=family.id, person_id=person.id)
+                return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id)
             except Person.DoesNotExist:
                 messages.error(request, "Person not found.")
     
@@ -5301,19 +5394,85 @@ def dna_link_to_person(request, kit_id, family_id):
     })
 
 
+def _build_kit_node(kit, user_kit_ids):
+    """Build a node dictionary for a DNA kit."""
+    person_name = kit.linked_person.full_name if kit.linked_person else None
+    return {
+        "id": f"kit_{kit.id}",
+        "kit_id": kit.id,
+        "name": person_name or kit.display_name,
+        "display_name": kit.display_name,
+        "provider": kit.get_provider_display(),
+        "is_own": kit.id in user_kit_ids,
+        "linked_person_id": kit.linked_person.id if kit.linked_person else None,
+        "linked_person_family_id": kit.linked_person.family_id if kit.linked_person else None,
+        "user_name": kit.user.get_full_name() or kit.user.username,
+    }
+
+
+def _build_match_link(match):
+    """Build a link dictionary for a DNA match."""
+    cm = match.shared_cm
+    if cm >= 900:
+        strength, width = "close", 6
+    elif cm >= 200:
+        strength, width = "extended", 4
+    else:
+        strength, width = "distant", 2
+    
+    return {
+        "source": f"kit_{match.kit1_id}",
+        "target": f"kit_{match.kit2_id}",
+        "match_id": match.id,
+        "shared_cm": match.shared_cm,
+        "predicted_relationship": match.predicted_relationship,
+        "is_confirmed": match.is_confirmed,
+        "strength": strength,
+        "width": width,
+    }
+
+
+def _build_dna_connection_data(user_kits, user_kit_ids):
+    """Build nodes and links data for DNA connections visualization."""
+    from .models import DNAMatch
+    
+    nodes = {}
+    links = []
+    
+    # Add user's own kits as nodes
+    for kit in user_kits:
+        node = _build_kit_node(kit, user_kit_ids)
+        nodes[node["id"]] = node
+    
+    # Get all matches involving user's kits
+    matches = DNAMatch.objects.filter(
+        Q(kit1_id__in=user_kit_ids) | Q(kit2_id__in=user_kit_ids)
+    ).select_related(
+        'kit1', 'kit2', 'kit1__user', 'kit2__user',
+        'kit1__linked_person', 'kit2__linked_person'
+    )
+    
+    for match in matches:
+        kit1_id = f"kit_{match.kit1_id}"
+        kit2_id = f"kit_{match.kit2_id}"
+        
+        if kit1_id not in nodes:
+            nodes[kit1_id] = _build_kit_node(match.kit1, user_kit_ids)
+        
+        if kit2_id not in nodes:
+            nodes[kit2_id] = _build_kit_node(match.kit2, user_kit_ids)
+        
+        links.append(_build_match_link(match))
+    
+    return nodes, links
+
+
 @login_required
 def dna_connections(request):
-    """
-    Interactive network visualization of DNA connections.
-    
-    Shows a force-directed graph of DNA matches between kits,
-    with nodes representing people/kits and edges representing
-    genetic connections (weighted by cM).
-    """
-    from .models import DNAKit, DNAMatch, Person
+    """Interactive network visualization of DNA connections."""
+    from .models import DNAKit
     import json
     
-    # Get user's kits
     user_kits = DNAKit.objects.filter(user=request.user)
     user_kit_ids = set(user_kits.values_list('id', flat=True))
     
@@ -5324,94 +5483,7 @@ def dna_connections(request):
             "has_data": False,
         })
     
-    # Get all matches involving user's kits
-    matches = DNAMatch.objects.filter(
-        Q(kit1_id__in=user_kit_ids) | Q(kit2_id__in=user_kit_ids)
-    ).select_related(
-        'kit1', 'kit2', 'kit1__user', 'kit2__user',
-        'kit1__linked_person', 'kit2__linked_person'
-    )
-    
-    # Build nodes and links for D3.js
-    nodes = {}
-    links = []
-    
-    # Add user's own kits as nodes
-    for kit in user_kits:
-        node_id = f"kit_{kit.id}"
-        person_name = kit.linked_person.full_name if kit.linked_person else None
-        nodes[node_id] = {
-            "id": node_id,
-            "kit_id": kit.id,
-            "name": person_name or kit.display_name,
-            "display_name": kit.display_name,
-            "provider": kit.get_provider_display(),
-            "is_own": True,
-            "linked_person_id": kit.linked_person.id if kit.linked_person else None,
-            "linked_person_family_id": kit.linked_person.family_id if kit.linked_person else None,
-            "user_name": kit.user.get_full_name() or kit.user.username,
-        }
-    
-    # Add matches and connected kits
-    for match in matches:
-        kit1_id = f"kit_{match.kit1_id}"
-        kit2_id = f"kit_{match.kit2_id}"
-        
-        # Add kit1 if not already present
-        if kit1_id not in nodes:
-            kit = match.kit1
-            person_name = kit.linked_person.full_name if kit.linked_person else None
-            nodes[kit1_id] = {
-                "id": kit1_id,
-                "kit_id": kit.id,
-                "name": person_name or kit.display_name,
-                "display_name": kit.display_name,
-                "provider": kit.get_provider_display(),
-                "is_own": kit.id in user_kit_ids,
-                "linked_person_id": kit.linked_person.id if kit.linked_person else None,
-                "linked_person_family_id": kit.linked_person.family_id if kit.linked_person else None,
-                "user_name": kit.user.get_full_name() or kit.user.username,
-            }
-        
-        # Add kit2 if not already present
-        if kit2_id not in nodes:
-            kit = match.kit2
-            person_name = kit.linked_person.full_name if kit.linked_person else None
-            nodes[kit2_id] = {
-                "id": kit2_id,
-                "kit_id": kit.id,
-                "name": person_name or kit.display_name,
-                "display_name": kit.display_name,
-                "provider": kit.get_provider_display(),
-                "is_own": kit.id in user_kit_ids,
-                "linked_person_id": kit.linked_person.id if kit.linked_person else None,
-                "linked_person_family_id": kit.linked_person.family_id if kit.linked_person else None,
-                "user_name": kit.user.get_full_name() or kit.user.username,
-            }
-        
-        # Calculate link strength based on cM (closer = stronger)
-        # cM ranges: 3400+ parent/sibling, 200-900 extended, <200 distant
-        cm = match.shared_cm
-        if cm >= 900:
-            strength = "close"
-            width = 6
-        elif cm >= 200:
-            strength = "extended"
-            width = 4
-        else:
-            strength = "distant"
-            width = 2
-        
-        links.append({
-            "source": kit1_id,
-            "target": kit2_id,
-            "match_id": match.id,
-            "shared_cm": match.shared_cm,
-            "predicted_relationship": match.predicted_relationship,
-            "is_confirmed": match.is_confirmed,
-            "strength": strength,
-            "width": width,
-        })
+    nodes, links = _build_dna_connection_data(user_kits, user_kit_ids)
     
     return render(request, "families/dna_connections.html", {
         "nodes_json": json.dumps(list(nodes.values())),
@@ -5435,11 +5507,11 @@ def trash_bin(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Only admin/owner can view trash
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     deleted_persons = Person.objects.filter(family=family, is_deleted=True).order_by('-deleted_at')
     deleted_relationships = Relationship.objects.filter(
@@ -5467,10 +5539,10 @@ def restore_person(request, family_id, person_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     person = get_object_or_404(Person, id=person_id, family=family, is_deleted=True)
     
@@ -5487,7 +5559,7 @@ def restore_person(request, family_id, person_id):
         )
         
         messages.success(request, f"{person.full_name} has been restored.")
-        return redirect("families:trash_bin", family_id=family.id)
+        return redirect(URL_TRASH_BIN, family_id=family.id)
     
     return render(request, "families/restore_confirm.html", {
         "family": family,
@@ -5504,10 +5576,10 @@ def restore_relationship(request, family_id, relationship_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     rel = get_object_or_404(Relationship, id=relationship_id, family=family, is_deleted=True)
     
@@ -5524,7 +5596,7 @@ def restore_relationship(request, family_id, relationship_id):
         )
         
         messages.success(request, "Relationship has been restored.")
-        return redirect("families:trash_bin", family_id=family.id)
+        return redirect(URL_TRASH_BIN, family_id=family.id)
     
     return render(request, "families/restore_confirm.html", {
         "family": family,
@@ -5543,12 +5615,12 @@ def permanent_delete_person(request, family_id, person_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Only owner can permanently delete
     if membership.role != Membership.Role.OWNER:
         messages.error(request, "Only the family owner can permanently delete records.")
-        return redirect("families:trash_bin", family_id=family.id)
+        return redirect(URL_TRASH_BIN, family_id=family.id)
     
     person = get_object_or_404(Person, id=person_id, family=family, is_deleted=True)
     
@@ -5582,7 +5654,7 @@ def permanent_delete_person(request, family_id, person_id):
         person.delete()
         
         messages.success(request, f"{person_name} has been permanently deleted.")
-        return redirect("families:trash_bin", family_id=family.id)
+        return redirect(URL_TRASH_BIN, family_id=family.id)
     
     return render(request, "families/permanent_delete_confirm.html", {
         "family": family,
@@ -5601,10 +5673,10 @@ def audit_log(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     # Filter options
     action_filter = request.GET.get('action', '')
@@ -5639,11 +5711,11 @@ def deletion_request_create(request, family_id, object_type, object_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     # Viewers cannot request deletions
     if membership.role == Membership.Role.VIEWER:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     # Get the object
     obj = None
@@ -5670,13 +5742,13 @@ def deletion_request_create(request, family_id, object_type, object_id):
         db_type = DeletionRequest.ObjectType.RELATIONSHIP
     else:
         messages.error(request, "Invalid object type.")
-        return redirect("families:family_detail", family_id=family.id)
+        return redirect(URL_FAMILY_DETAIL, family_id=family.id)
     
     if request.method == "POST":
         reason = request.POST.get('reason', '')
         
         # Create the deletion request
-        del_request = DeletionRequest.objects.create(
+        DeletionRequest.objects.create(
             family=family,
             requester=request.user,
             object_type=db_type,
@@ -5694,11 +5766,12 @@ def deletion_request_create(request, family_id, object_type, object_id):
         
         for admin_membership in admins:
             create_notification(
-                user=admin_membership.user,
-                family=family,
-                notification_type='mention',
+                recipient=admin_membership.user,
+                notification_type=Notification.NotificationType.SYSTEM,
+                title="Deletion Request",
                 message=f"{request.user.get_full_name() or request.user.username} requested deletion of {obj_repr}",
-                link=f"/families/{family.id}/deletion-requests/"
+                link=f"/families/{family.id}/deletion-requests/",
+                family=family
             )
         
         messages.success(request, "Your deletion request has been submitted for review.")
@@ -5719,10 +5792,10 @@ def deletion_request_list(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     pending = DeletionRequest.objects.filter(
         family=family,
@@ -5748,7 +5821,7 @@ def my_deletion_requests(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     my_requests = DeletionRequest.objects.filter(
         family=family,
@@ -5769,10 +5842,10 @@ def deletion_request_review(request, family_id, request_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
-        return render(request, "families/no_access.html", {"family": family})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     del_request = get_object_or_404(
         DeletionRequest, 
@@ -5808,11 +5881,12 @@ def deletion_request_review(request, family_id, request_id):
         
         # Notify requester
         create_notification(
-            user=del_request.requester,
-            family=family,
-            notification_type='mention',
+            recipient=del_request.requester,
+            notification_type=Notification.NotificationType.SYSTEM,
+            title="Deletion Request Update",
             message=f"Your deletion request for {del_request.object_repr} was {action}ed",
-            link=f"/families/{family.id}/my-deletion-requests/"
+            link=f"/families/{family.id}/my-deletion-requests/",
+            family=family
         )
         
         return redirect("families:deletion_request_list", family_id=family.id)
@@ -5831,11 +5905,11 @@ def empty_trash(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return render(request, "families/no_access.html", {"family": None})
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
     if membership.role != Membership.Role.OWNER:
         messages.error(request, "Only the family owner can empty the trash.")
-        return redirect("families:trash_bin", family_id=family.id)
+        return redirect(URL_TRASH_BIN, family_id=family.id)
     
     if request.method == "POST":
         # Count items
@@ -5859,6 +5933,6 @@ def empty_trash(request, family_id):
         )
         
         messages.success(request, f"Trash emptied. {person_count} persons and {rel_count} relationships permanently deleted.")
-        return redirect("families:trash_bin", family_id=family.id)
+        return redirect(URL_TRASH_BIN, family_id=family.id)
     
-    return redirect("families:trash_bin", family_id=family.id)
+    return redirect(URL_TRASH_BIN, family_id=family.id)
