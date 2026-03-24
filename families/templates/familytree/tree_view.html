@@ -16,12 +16,16 @@
         <p class="text-muted mb-0">Interactive view powered by dTree. Click a person to open their profile.</p>
       </div>
       <div class="flex-center gap-sm">
+        <div class="btn-group me-2" role="group" aria-label="Renderer toggle">
+          <button id="btn-dtree" type="button" class="btn btn-outline-secondary btn-sm active">dTree</button>
+          <button id="btn-d3" type="button" class="btn btn-outline-secondary btn-sm">D3 + Photos</button>
+        </div>
         <a class="btn btn-outline-secondary btn-sm" href="{% url 'families:family_detail' family_id=family.id %}">Back</a>
         <a class="btn btn-outline-primary btn-sm" href="{% url 'families:familytree_upload' family_id=family.id %}"><i class="bi bi-upload"></i> Import GEDCOM</a>
       </div>
     </div>
     <div class="card-body">
-      <div id="tree-container" data-url="{{ data_url }}" data-family="{{ family.id }}" data-linked="{{ linked_person_id|default_if_none:\"\" }}" class="border rounded" style="min-height:480px; overflow:auto;"></div>
+      <div id="tree-container" data-url="{{ data_url }}" data-family="{{ family.id }}" data-linked="{{ linked_person_id|default_if_none:\"\" }}" data-render="dtree" class="border rounded" style="min-height:480px; overflow:auto;"></div>
     </div>
   </div>
 </div>
@@ -33,4 +37,30 @@
 <script src="https://unpkg.com/dtree/dist/dTree.min.js"></script>
 <script src="{% static 'familytree/js/tree.js' %}"></script>
 <script src="{% static 'familytree/js/tree_d3.js' %}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const container = document.getElementById("tree-container");
+    const btnDTree = document.getElementById("btn-dtree");
+    const btnD3 = document.getElementById("btn-d3");
+    const saved = localStorage.getItem("familytree-renderer") || "dtree";
+
+    function setActive(mode) {
+      btnDTree.classList.toggle("active", mode === "dtree");
+      btnD3.classList.toggle("active", mode === "d3");
+      container.dataset.render = mode;
+      localStorage.setItem("familytree-renderer", mode);
+      container.innerHTML = "";
+      if (mode === "dtree" && window.FamilyTreeRenderers?.renderDTree) {
+        window.FamilyTreeRenderers.renderDTree(container);
+      } else if (mode === "d3" && window.FamilyTreeRenderers?.renderD3) {
+        window.FamilyTreeRenderers.renderD3(container);
+      }
+    }
+
+    btnDTree.addEventListener("click", () => setActive("dtree"));
+    btnD3.addEventListener("click", () => setActive("d3"));
+
+    setActive(saved);
+  });
+</script>
 {% endblock %}

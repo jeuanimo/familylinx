@@ -1,11 +1,6 @@
-(() => {
-  const container = document.getElementById("tree-container");
-  if (!container) return;
+window.FamilyTreeRenderers = window.FamilyTreeRenderers || {};
 
-  const dataUrl = container.dataset.url;
-  const familyId = container.dataset.family;
-
-  const width = container.clientWidth || 900;
+(function registerD3Renderer() {
   const dx = 90;
   const dy = 220;
 
@@ -29,8 +24,9 @@
     return roots.length ? roots : nodes.slice(0, 1);
   }
 
-  function render(treeNodes) {
+  function render(treeNodes, { container, familyId }) {
     container.innerHTML = "";
+    const width = container.clientWidth || 900;
     const rootData = { name: "root", children: treeNodes };
     const root = d3.hierarchy(rootData);
     const tree = d3.tree().nodeSize([dx, dy]);
@@ -133,7 +129,7 @@
       });
   }
 
-  async function load() {
+  async function load({ container, dataUrl, familyId }) {
     container.innerHTML = "<p class='text-muted p-3'>Loading tree…</p>";
     try {
       const res = await fetch(dataUrl);
@@ -151,5 +147,10 @@
     }
   }
 
-  load();
+  window.FamilyTreeRenderers.renderD3 = (container) =>
+    load({
+      container,
+      dataUrl: container.dataset.url,
+      familyId: container.dataset.family,
+    });
 })();
