@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block title %}Cross-Family Links – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Cross-Family Links</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-link-45deg"></i> Cross-Family Links</h1>
+        <p class="muted">Connections between {{ family.name }} and other family trees.</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:tree_link_search' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-search"></i> Find More Connections
+        </a>
+      </div>
+    </div>
+
+    <!-- Pending Links -->
+    {% if proposed_links %}
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-clock"></i> Pending Confirmation ({{ proposed_links|length }})</span>
+      </div>
+      <div class="card-body">
+        <div class="stack">
+          {% for link in proposed_links %}
+          <div class="link-card" id="link-{{ link.id }}">
+            <div class="link-content">
+              <div class="link-persons">
+                {% if link.person1.family == family %}
+                <div class="link-person">
+                  <strong>{{ link.person1.full_name }}</strong>
+                  <div class="muted">{{ family.name }}</div>
+                </div>
+                <div class="link-arrow"><i class="bi bi-arrow-left-right"></i></div>
+                <div class="link-person">
+                  <strong>{{ link.person2.full_name }}</strong>
+                  <div class="muted">{{ link.person2.family.name }}</div>
+                </div>
+                {% else %}
+                <div class="link-person">
+                  <strong>{{ link.person2.full_name }}</strong>
+                  <div class="muted">{{ family.name }}</div>
+                </div>
+                <div class="link-arrow"><i class="bi bi-arrow-left-right"></i></div>
+                <div class="link-person">
+                  <strong>{{ link.person1.full_name }}</strong>
+                  <div class="muted">{{ link.person1.family.name }}</div>
+                </div>
+                {% endif %}
+              </div>
+              <div class="link-meta">
+                <span class="badge badge-gold">{{ link.confidence_score|floatformat:0 }}% confidence</span>
+                {% if link.person1.family == family and link.confirmed_by_space1 %}
+                <span class="badge badge-green">You confirmed</span>
+                {% elif link.person2.family == family and link.confirmed_by_space2 %}
+                <span class="badge badge-green">You confirmed</span>
+                {% else %}
+                <span class="badge badge-blue">Awaiting your confirmation</span>
+                {% endif %}
+              </div>
+            </div>
+            {% if membership.role != 'VIEWER' %}
+            <div class="link-actions">
+              {% if link.person1.family == family and not link.confirmed_by_space1 or link.person2.family == family and not link.confirmed_by_space2 %}
+              <button class="btn btn-primary btn-sm confirm-link-btn" data-link-id="{{ link.id }}">
+                <i class="bi bi-check-lg"></i> Confirm
+              </button>
+              <button class="btn btn-outline btn-sm reject-link-btn" data-link-id="{{ link.id }}">
+                <i class="bi bi-x-lg"></i> Reject
+              </button>
+              {% else %}
+              <span class="muted">Waiting for other family</span>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Confirmed Links -->
+    {% if confirmed_links %}
+    <div class="card" style="margin-top: 1.5rem;">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-check-circle"></i> Confirmed Links ({{ confirmed_links|length }})</span>
+      </div>
+      <div class="card-body">
+        <div class="stack">
+          {% for link in confirmed_links %}
+          <div class="link-card confirmed">
+            <div class="link-content">
+              <div class="link-persons">
+                {% if link.person1.family == family %}
+                <a href="{% url 'families:person_detail' family_id=family.id person_id=link.person1.id %}" class="link-person-link">
+                  <strong>{{ link.person1.full_name }}</strong>
+                  <div class="muted">{{ family.name }}</div>
+                </a>
+                <div class="link-arrow"><i class="bi bi-link-45deg"></i></div>
+                <div class="link-person">
+                  <strong>{{ link.person2.full_name }}</strong>
+                  <div class="muted">{{ link.person2.family.name }}</div>
+                </div>
+                {% else %}
+                <a href="{% url 'families:person_detail' family_id=family.id person_id=link.person2.id %}" class="link-person-link">
+                  <strong>{{ link.person2.full_name }}</strong>
+                  <div class="muted">{{ family.name }}</div>
+                </a>
+                <div class="link-arrow"><i class="bi bi-link-45deg"></i></div>
+                <div class="link-person">
+                  <strong>{{ link.person1.full_name }}</strong>
+                  <div class="muted">{{ link.person1.family.name }}</div>
+                </div>
+                {% endif %}
+              </div>
+              <div class="link-meta">
+                <span class="badge badge-green">Confirmed</span>
+                <span class="badge badge-blue">{{ link.confidence_score|floatformat:0 }}% match</span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if not proposed_links and not confirmed_links %}
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon"><i class="bi bi-link-45deg"></i></div>
+          <h3>No Cross-Family Links Yet</h3>
+          <p class="muted">
+            Search for common ancestors in other family trees to create connections.
+          </p>
+          <a href="{% url 'families:tree_link_search' family_id=family.id %}" class="btn btn-primary">
+            <i class="bi bi-search"></i> Find Common Ancestors
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Merge Requests Link -->
+    <div class="card" style="margin-top: 1.5rem;">
+      <div class="card-body">
+        <div class="flex-between">
+          <div>
+            <h4><i class="bi bi-arrows-angle-contract"></i> Tree Merge Requests</h4>
+            <p class="muted">View and manage requests to merge family trees.</p>
+          </div>
+          <a href="{% url 'families:tree_merge_requests' family_id=family.id %}" class="btn btn-outline">
+            View Merge Requests
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<style>
+.link-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--fl-surface);
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius);
+  padding: 1rem;
+}
+
+.link-card.confirmed {
+  border-left: 4px solid var(--fl-green);
+}
+
+.link-content {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.link-persons {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.link-person, .link-person-link {
+  text-align: center;
+  min-width: 120px;
+}
+
+.link-person-link {
+  color: var(--fl-text);
+  text-decoration: none;
+}
+
+.link-person-link:hover {
+  color: var(--fl-blue);
+}
+
+.link-arrow {
+  color: var(--fl-muted);
+  font-size: 1.5rem;
+}
+
+.link-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.link-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+[data-theme="dark"] .link-card {
+  background: #1e293b;
+}
+</style>
+
+<script>
+document.querySelectorAll('.confirm-link-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const linkId = this.dataset.linkId;
+    
+    fetch(`{% url 'families:tree_link_confirm' family_id=family.id link_id=0 %}`.replace('/0/', `/${linkId}/`), {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': '{{ csrf_token }}'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        if (data.confirmed) {
+          location.reload();
+        } else {
+          const card = document.getElementById(`link-${linkId}`);
+          card.querySelector('.link-actions').innerHTML = '<span class="muted">Waiting for other family</span>';
+        }
+      } else {
+        alert(data.error || 'Failed to confirm link');
+      }
+    });
+  });
+});
+
+document.querySelectorAll('.reject-link-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    if (!confirm('Reject this link? This cannot be undone.')) return;
+    
+    const linkId = this.dataset.linkId;
+    
+    fetch(`{% url 'families:tree_link_reject' family_id=family.id link_id=0 %}`.replace('/0/', `/${linkId}/`), {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': '{{ csrf_token }}'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        document.getElementById(`link-${linkId}`).remove();
+      } else {
+        alert(data.error || 'Failed to reject link');
+      }
+    });
+  });
+});
+</script>
+{% endblock %}

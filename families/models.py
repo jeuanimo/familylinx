@@ -3762,6 +3762,125 @@ class CrossSpacePersonLink(models.Model):
         ordering = ['-created_at']
 
 
+class TreeMergeRequest(models.Model):
+    """
+    Request to merge persons from one family tree into another.
+    
+    This model tracks bulk merge operations where multiple persons
+    from a source family can be copied/linked into a target family.
+    Both family owners must approve the merge.
+    
+    Attributes:
+        from_family (FamilySpace): Source family tree
+        to_family (FamilySpace): Target family tree
+        proposed_links (JSON): List of person matches to merge
+        status (str): Request status
+        requested_by (User): User who initiated the request
+    """
+    
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        APPROVED_SOURCE = 'APPROVED_SOURCE', 'Approved by Source'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+        COMPLETED = 'COMPLETED', 'Completed'
+    
+    from_family = models.ForeignKey(
+        FamilySpace,
+        on_delete=models.CASCADE,
+        related_name="merge_requests_from",
+        help_text="Source family tree"
+    )
+    to_family = models.ForeignKey(
+        FamilySpace,
+        on_delete=models.CASCADE,
+        related_name="merge_requests_to",
+        help_text="Target family tree"
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="merge_requests_initiated",
+        help_text="User who requested the merge"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        help_text="Merge request status"
+    )
+    proposed_links = models.JSONField(
+        default=list,
+        help_text="JSON array of proposed person matches"
+    )
+    approved_by_source = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="merge_requests_approved_source",
+        help_text="Source family admin who approved"
+    )
+    approved_by_target = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="merge_requests_approved_target",
+        help_text="Target family admin who approved"
+    )
+    merge_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('LINK', 'Link Only'),
+            ('COPY', 'Copy Persons'),
+        ],
+        default='LINK',
+        help_text="Whether to link or copy persons"
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Optional notes about the merge"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    def approve_by_source(self, user):
+        """Approve the merge request on behalf of source family."""
+        self.approved_by_source = user
+        if self.status == self.Status.PENDING:
+            self.status = self.Status.APPROVED_SOURCE
+        self.save()
+    
+    def approve_by_target(self, user):
+        """Approve the merge request on behalf of target family."""
+        self.approved_by_target = user
+        if self.approved_by_source:
+            self.status = self.Status.APPROVED
+        self.save()
+    
+    def reject(self):
+        """Reject the merge request."""
+        self.status = self.Status.REJECTED
+        self.save()
+    
+    def complete(self):
+        """Mark the merge as completed."""
+        self.status = self.Status.COMPLETED
+        self.completed_at = timezone.now()
+        self.save()
+    
+    def __str__(self):
+        return f"Merge: {self.from_family.name} → {self.to_family.name} ({self.status})"
+    
+    class Meta:
+        verbose_name = "Tree Merge Request"
+        verbose_name_plural = "Tree Merge Requests"
+        ordering = ['-created_at']
+
+
 # Custom manager for non-deleted objects
 class ActivePersonManager(models.Manager):
     """Manager that returns only non-deleted persons."""

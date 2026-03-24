@@ -2309,16 +2309,16 @@ def familytree_upload(request, family_id):
         if existing_import and not request.POST.get('confirm_duplicate'):
             messages.warning(
                 request,
-                f\"A file named '{file_name}' was already imported on "
-                f\"{existing_import.created_at.strftime('%b %d, %Y')} "
-                f\"({existing_import.persons_created} people created). "
-                \"Check the box below to import anyway.\"
+                f"A file named '{file_name}' was already imported on "
+                f"{existing_import.created_at.strftime('%b %d, %Y')} "
+                f"({existing_import.persons_created} people created). "
+                "Check the box below to import anyway."
             )
             return render(request, TEMPLATE_FAMILYTREE_UPLOAD, {
-                **base_context, \"form\": form,
-                \"show_duplicate_warning\": True,
-                \"duplicate_file_name\": file_name,
-                \"existing_import\": existing_import,
+                **base_context, "form": form,
+                "show_duplicate_warning": True,
+                "duplicate_file_name": file_name,
+                "existing_import": existing_import,
             })
 
         gedcom_import_record = import_gedcom_with_tracking(
@@ -2327,11 +2327,11 @@ def familytree_upload(request, family_id):
         return redirect(URL_GEDCOM_IMPORT_REPORT, family_id=family.id, import_id=gedcom_import_record.id)
 
     except GedcomParseError as e:
-        messages.error(request, f\"Parse error: {str(e)}\")
+        messages.error(request, f"Parse error: {str(e)}")
     except Exception as e:
-        messages.error(request, f\"Import failed: {str(e)}\")
+        messages.error(request, f"Import failed: {str(e)}")
 
-    return render(request, TEMPLATE_FAMILYTREE_UPLOAD, {**base_context, \"form\": form})
+    return render(request, TEMPLATE_FAMILYTREE_UPLOAD, {**base_context, "form": form})
 
 
 @login_required

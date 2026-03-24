@@ -1455,6 +1455,39 @@ main {
 }
 
 /* Person Photos */
+.person-photo-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.photo-upload-btn {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--fl-blue);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  border: 3px solid var(--fl-surface);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.photo-upload-btn:hover {
+  background: var(--fl-green);
+  color: #fff;
+  text-decoration: none;
+}
+
+[data-theme="dark"] .photo-upload-btn {
+  border-color: #1e293b;
+}
+
 .person-photo-lg {
   width: 120px;
   height: 120px;

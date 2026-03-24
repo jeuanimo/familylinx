@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Find Common Ancestors – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Find Common Ancestors</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-link-45deg"></i> Find Common Ancestors</h1>
+        <p class="muted">Connect your family tree with others to discover shared relatives.</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Your Other Families -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-people"></i> Your Family Trees</span>
+        </div>
+        <div class="card-body">
+          {% if other_memberships %}
+          <ul class="list">
+            {% for m in other_memberships %}
+            <li>
+              <div class="flex-between">
+                <div>
+                  <strong>{{ m.family.name }}</strong>
+                  <div class="muted">{{ m.get_role_display }}</div>
+                </div>
+                <a href="{% url 'families:tree_link_compare' family_id=family.id target_family_id=m.family.id %}" class="btn btn-primary btn-sm">
+                  <i class="bi bi-search"></i> Compare
+                </a>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <div class="empty-state">
+            <div class="empty-state-icon"><i class="bi bi-people"></i></div>
+            <p class="muted">You're only a member of one family tree.</p>
+            <p class="muted">Join or create another family to compare trees.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Search Other Families -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><i class="bi bi-search"></i> Search Families</span>
+        </div>
+        <div class="card-body">
+          <form method="get" class="search-form">
+            <div class="form-group">
+              <label for="q" class="form-label">Search by family name</label>
+              <div class="flex" style="gap: 0.5rem;">
+                <input type="text" name="q" id="q" value="{{ search_query }}" class="form-control" placeholder="Enter family name...">
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-search"></i>
+                </button>
+              </div>
+            </div>
+          </form>
+
+          {% if search_results %}
+          <h4 style="margin-top: 1.5rem;">Search Results</h4>
+          <ul class="list">
+            {% for result in search_results %}
+            <li>
+              <div class="flex-between">
+                <div>
+                  <strong>{{ result.name }}</strong>
+                </div>
+                <a href="{% url 'families:tree_link_compare' family_id=family.id target_family_id=result.id %}" class="btn btn-outline btn-sm">
+                  <i class="bi bi-search"></i> Compare
+                </a>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+          {% elif search_query %}
+          <p class="muted" style="margin-top: 1rem;">No families found matching "{{ search_query }}".</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Existing Links -->
+    <div class="card" style="margin-top: 1.5rem;">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-link"></i> Existing Links</span>
+        <a href="{% url 'families:tree_link_list' family_id=family.id %}" class="btn btn-outline btn-sm">View All</a>
+      </div>
+      <div class="card-body">
+        <p class="muted">View and manage your existing cross-family links.</p>
+        <a href="{% url 'families:tree_link_list' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-link-45deg"></i> Manage Links
+        </a>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

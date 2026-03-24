@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}Request Tree Merge – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:tree_merge_requests' family_id=family.id %}">Merge Requests</a>
+      <span class="separator">/</span>
+      <span class="current">New Request</span>
+    </nav>
+
+    <div class="page-header">
+      <h1><i class="bi bi-arrows-angle-contract"></i> Request Tree Merge</h1>
+      <p class="muted">Propose merging {{ family.name }} with another family tree.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <form method="post" class="form">
+          {% csrf_token %}
+          
+          <div class="form-section">
+            <h3>Select Target Family</h3>
+            <p class="muted">Choose which family tree you want to merge with.</p>
+            
+            {% if families %}
+            <div class="family-select-grid">
+              {% for fam in families %}
+              <label class="family-option">
+                <input type="radio" name="target_family" value="{{ fam.id }}" required>
+                <div class="family-option-content">
+                  <strong>{{ fam.name }}</strong>
+                  <span class="muted">{{ fam.person_set.count }} people</span>
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle"></i>
+              You don't have access to any other family trees. Join or create another family to create merge requests.
+            </div>
+            {% endif %}
+          </div>
+
+          <div class="form-section">
+            <h3>Merge Type</h3>
+            <p class="muted">Choose how the merge should work.</p>
+            
+            <div class="merge-type-options">
+              <label class="merge-type-option">
+                <input type="radio" name="merge_type" value="LINK" checked>
+                <div class="merge-type-content">
+                  <div class="merge-type-header">
+                    <i class="bi bi-link-45deg"></i>
+                    <strong>Link Trees</strong>
+                  </div>
+                  <p class="muted">
+                    Keep both trees separate but create links between matching people.
+                    Both families maintain their own data.
+                  </p>
+                </div>
+              </label>
+              
+              <label class="merge-type-option">
+                <input type="radio" name="merge_type" value="COPY">
+                <div class="merge-type-content">
+                  <div class="merge-type-header">
+                    <i class="bi bi-copy"></i>
+                    <strong>Copy to Target</strong>
+                  </div>
+                  <p class="muted">
+                    Copy people from {{ family.name }} into the target family.
+                    Duplicates will be linked, not recreated.
+                  </p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3>Message</h3>
+            <p class="muted">Add a note explaining why you want to merge these trees.</p>
+            
+            <div class="form-group">
+              <textarea name="message" class="form-control" rows="4" placeholder="These trees share the Johnson family branch..."></textarea>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <a href="{% url 'families:tree_merge_requests' family_id=family.id %}" class="btn btn-outline">Cancel</a>
+            <button type="submit" class="btn btn-primary" {% if not families %}disabled{% endif %}>
+              <i class="bi bi-send"></i> Send Request
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 1.5rem;">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-info-circle"></i> How Tree Merging Works</span>
+      </div>
+      <div class="card-body">
+        <ol style="margin: 0; padding-left: 1.5rem;">
+          <li style="margin-bottom: 0.5rem;"><strong>Create links first</strong> – Use the "Find Connections" feature to identify matching people between trees.</li>
+          <li style="margin-bottom: 0.5rem;"><strong>Send a request</strong> – Both family owners must approve the merge.</li>
+          <li style="margin-bottom: 0.5rem;"><strong>Automatic matching</strong> – The system will use confirmed links to avoid duplicates.</li>
+          <li><strong>Review results</strong> – Check merged data and resolve any conflicts.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</main>
+
+<style>
+.form-section {
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--fl-border);
+}
+
+.form-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 1rem;
+  padding-bottom: 0;
+}
+
+.family-select-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.family-option {
+  display: block;
+  cursor: pointer;
+}
+
+.family-option input {
+  display: none;
+}
+
+.family-option-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem;
+  border: 2px solid var(--fl-border);
+  border-radius: var(--fl-radius);
+  transition: all 0.2s ease;
+}
+
+.family-option:hover .family-option-content {
+  border-color: var(--fl-blue);
+}
+
+.family-option input:checked + .family-option-content {
+  border-color: var(--fl-blue);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.merge-type-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.merge-type-option {
+  display: block;
+  cursor: pointer;
+}
+
+.merge-type-option input {
+  display: none;
+}
+
+.merge-type-content {
+  padding: 1.25rem;
+  border: 2px solid var(--fl-border);
+  border-radius: var(--fl-radius);
+  transition: all 0.2s ease;
+}
+
+.merge-type-option:hover .merge-type-content {
+  border-color: var(--fl-blue);
+}
+
+.merge-type-option input:checked + .merge-type-content {
+  border-color: var(--fl-blue);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.merge-type-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.merge-type-header i {
+  font-size: 1.25rem;
+  color: var(--fl-blue);
+}
+
+[data-theme="dark"] .family-option input:checked + .family-option-content,
+[data-theme="dark"] .merge-type-option input:checked + .merge-type-content {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block title %}Compare Trees – {{ family.name }} & {{ target_family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:tree_link_search' family_id=family.id %}">Find Common Ancestors</a>
+      <span class="separator">/</span>
+      <span class="current">Compare with {{ target_family.name }}</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-diagram-3"></i> Compare Family Trees</h1>
+        <p class="muted">
+          Comparing <strong>{{ family.name }}</strong> with <strong>{{ target_family.name }}</strong>
+        </p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:tree_merge_request' family_id=family.id target_family_id=target_family.id %}" class="btn btn-primary">
+          <i class="bi bi-arrows-angle-contract"></i> Request Merge
+        </a>
+      </div>
+    </div>
+
+    <!-- Threshold Filter -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card-body">
+        <form method="get" class="flex" style="gap: 1rem; align-items: flex-end;">
+          <div class="form-group" style="margin-bottom: 0; flex: 1; max-width: 300px;">
+            <label for="threshold" class="form-label">Minimum Match Score</label>
+            <select name="threshold" id="threshold" class="form-control">
+              <option value="30" {% if threshold == 30 %}selected{% endif %}>30% - Show more results</option>
+              <option value="40" {% if threshold == 40 %}selected{% endif %}>40% - Balanced</option>
+              <option value="50" {% if threshold == 50 %}selected{% endif %}>50% - Default</option>
+              <option value="60" {% if threshold == 60 %}selected{% endif %}>60% - Higher confidence</option>
+              <option value="70" {% if threshold == 70 %}selected{% endif %}>70% - Very likely matches</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-outline">
+            <i class="bi bi-funnel"></i> Apply Filter
+          </button>
+        </form>
+      </div>
+    </div>
+
+    {% if matches %}
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-people"></i> Potential Matches ({{ matches|length }})</span>
+      </div>
+      <div class="card-body">
+        <div class="stack">
+          {% for match in matches %}
+          <div class="match-card" data-source="{{ match.source_person_id }}" data-target="{{ match.target_person_id }}">
+            <div class="match-header">
+              <div class="match-persons">
+                <div class="match-person">
+                  <strong>{{ match.source_person_name }}</strong>
+                  <div class="muted">{{ family.name }}</div>
+                </div>
+                <div class="match-arrow">
+                  <i class="bi bi-arrow-left-right"></i>
+                </div>
+                <div class="match-person">
+                  <strong>{{ match.target_person_name }}</strong>
+                  <div class="muted">{{ target_family.name }}</div>
+                </div>
+              </div>
+              <div class="match-score">
+                <span class="badge badge-{% if match.score >= 70 %}green{% elif match.score >= 50 %}gold{% else %}blue{% endif %}">
+                  {{ match.score }}% match
+                </span>
+              </div>
+            </div>
+            
+            {% if match.reasons %}
+            <div class="match-reasons">
+              <ul>
+                {% for reason in match.reasons %}
+                <li><i class="bi bi-check-circle"></i> {{ reason }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+            
+            <div class="match-actions">
+              <button class="btn btn-primary btn-sm link-btn" 
+                      data-source="{{ match.source_person_id }}" 
+                      data-target="{{ match.target_person_id }}">
+                <i class="bi bi-link"></i> Link These Persons
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon"><i class="bi bi-search"></i></div>
+          <h3>No Potential Matches Found</h3>
+          <p class="muted">
+            No persons in these trees matched above the {{ threshold }}% threshold.
+            Try lowering the threshold to see more results.
+          </p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if existing_links %}
+    <div class="card" style="margin-top: 1.5rem;">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-link"></i> Existing Links ({{ existing_links|length }})</span>
+      </div>
+      <div class="card-body">
+        <ul class="list">
+          {% for link in existing_links %}
+          <li>
+            <div class="flex-between">
+              <div>
+                <strong>{{ link.person1.full_name }}</strong> 
+                <i class="bi bi-arrow-left-right"></i> 
+                <strong>{{ link.person2.full_name }}</strong>
+              </div>
+              <span class="badge badge-{% if link.status == 'CONFIRMED' %}green{% else %}gold{% endif %}">
+                {{ link.get_status_display }}
+              </span>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+
+<style>
+.match-card {
+  background: var(--fl-surface);
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.match-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.match-persons {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.match-person {
+  text-align: center;
+}
+
+.match-arrow {
+  color: var(--fl-muted);
+  font-size: 1.25rem;
+}
+
+.match-reasons {
+  background: var(--fl-bg);
+  border-radius: var(--fl-radius-sm);
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.match-reasons ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.match-reasons li {
+  font-size: 0.875rem;
+  color: var(--fl-muted);
+  margin-bottom: 0.25rem;
+}
+
+.match-reasons li:last-child {
+  margin-bottom: 0;
+}
+
+.match-reasons i {
+  color: var(--fl-green);
+  margin-right: 0.5rem;
+}
+
+.match-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+[data-theme="dark"] .match-card {
+  background: #1e293b;
+}
+
+[data-theme="dark"] .match-reasons {
+  background: #0f172a;
+}
+</style>
+
+<script>
+document.querySelectorAll('.link-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const sourceId = this.dataset.source;
+    const targetId = this.dataset.target;
+    
+    fetch('{% url "families:tree_link_propose" family_id=family.id %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': '{{ csrf_token }}'
+      },
+      body: `source_person_id=${sourceId}&target_person_id=${targetId}`
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        this.innerHTML = '<i class="bi bi-check"></i> Linked';
+        this.disabled = true;
+        this.classList.remove('btn-primary');
+        this.classList.add('btn-outline');
+      } else {
+        alert(data.error || 'Failed to create link');
+      }
+    })
+    .catch(err => {
+      alert('Error creating link');
+    });
+  });
+});
+</script>
+{% endblock %}

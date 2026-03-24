@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Photo – {{ person.full_name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container" style="max-width: 500px;">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}">{{ person.full_name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Upload Photo</span>
+    </nav>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-camera"></i> Upload Photo</span>
+      </div>
+      <div class="card-body">
+        <div class="text-center" style="margin-bottom: 1.5rem;">
+          {% if person.display_photo_url %}
+          <img src="{{ person.display_photo_url }}" alt="{{ person.full_name }}" class="person-photo-lg">
+          <p class="muted" style="margin-top: 0.5rem;">Current photo</p>
+          {% else %}
+          <div class="person-photo-placeholder-lg">
+            <i class="bi bi-person"></i>
+          </div>
+          <p class="muted" style="margin-top: 0.5rem;">No photo yet</p>
+          {% endif %}
+        </div>
+
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="form-group">
+            <label for="photo" class="form-label">Select Photo</label>
+            <input type="file" name="photo" id="photo" class="form-control" accept="image/*" required>
+            <small class="muted">Recommended: Square image, at least 300x300px</small>
+          </div>
+          
+          <div class="flex" style="gap: 0.5rem; margin-top: 1.5rem;">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-upload"></i> Upload Photo
+            </button>
+            <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" class="btn btn-outline">
+              Cancel
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

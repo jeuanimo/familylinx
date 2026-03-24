@@ -22,13 +22,22 @@
       <div class="stack-lg">
         <div class="card">
           <div class="card-body text-center">
-            {% if person.display_photo_url %}
-            <img src="{{ person.display_photo_url }}" alt="{{ person.full_name }}" class="person-photo-lg">
-            {% else %}
-            <div class="person-photo-placeholder-lg">
-              <i class="bi bi-person"></i>
+            <div class="person-photo-wrapper">
+              {% if person.display_photo_url %}
+              <img src="{{ person.display_photo_url }}" alt="{{ person.full_name }}" class="person-photo-lg">
+              {% elif person.user_profiles.exists and person.user_profiles.first.profile_picture %}
+              <img src="{{ person.user_profiles.first.profile_picture.url }}" alt="{{ person.full_name }}" class="person-photo-lg">
+              {% else %}
+              <div class="person-photo-placeholder-lg">
+                <i class="bi bi-person"></i>
+              </div>
+              {% endif %}
+              {% if membership.role != 'VIEWER' %}
+              <a href="{% url 'families:person_photo_upload' family_id=family.id person_id=person.id %}" class="photo-upload-btn" title="{% if person.photo %}Change{% else %}Add{% endif %} Photo">
+                <i class="bi bi-camera"></i>
+              </a>
+              {% endif %}
             </div>
-            {% endif %}
             
             <h2 style="margin: 1rem 0 0.25rem;">{{ person.full_name }}</h2>
             {% if person.maiden_name %}
@@ -47,13 +56,7 @@
             {% if person.user_profiles.exists %}
             {% with profile=person.user_profiles.first %}
             <div class="linked-user-badge">
-              {% if profile.profile_picture %}
-              <img src="{{ profile.profile_picture.url }}" alt="{{ profile.display_name }}" class="linked-user-avatar">
-              {% else %}
-              <div class="linked-user-avatar-placeholder">
-                <i class="bi bi-person-fill"></i>
-              </div>
-              {% endif %}
+              <i class="bi bi-link-45deg"></i>
               <span class="linked-user-name">{{ profile.display_name|default:profile.user.email }}</span>
             </div>
             <div style="margin: 0.5rem 0 1rem;">

@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block title %}Tree Merge Requests – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:tree_link_list' family_id=family.id %}">Cross-Family Links</a>
+      <span class="separator">/</span>
+      <span class="current">Merge Requests</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-arrows-angle-contract"></i> Tree Merge Requests</h1>
+        <p class="muted">Manage requests to merge family trees together.</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:tree_merge_request' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-plus-lg"></i> New Merge Request
+        </a>
+      </div>
+    </div>
+
+    <!-- Incoming Requests -->
+    {% if incoming_requests %}
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-inbox-fill"></i> Incoming Requests ({{ incoming_requests|length }})</span>
+      </div>
+      <div class="card-body">
+        <div class="stack">
+          {% for req in incoming_requests %}
+          <div class="merge-request-card" id="req-{{ req.id }}">
+            <div class="merge-header">
+              <div class="merge-families">
+                <strong>{{ req.source_family.name }}</strong>
+                <i class="bi bi-arrow-right"></i>
+                <strong>{{ family.name }}</strong>
+              </div>
+              <div class="merge-badges">
+                <span class="badge badge-{{ req.status|lower }}">{{ req.get_status_display }}</span>
+                <span class="badge badge-outline">{{ req.get_merge_type_display }}</span>
+              </div>
+            </div>
+            
+            <p class="muted">{{ req.message }}</p>
+            
+            <div class="merge-meta">
+              <small class="muted">
+                From {{ req.requested_by.get_full_name|default:req.requested_by.username }}
+                • {{ req.created_at|timesince }} ago
+              </small>
+              
+              <div class="merge-status">
+                {% if req.approved_by_source %}
+                <span class="badge badge-small badge-green"><i class="bi bi-check"></i> Source approved</span>
+                {% else %}
+                <span class="badge badge-small badge-gray"><i class="bi bi-clock"></i> Source pending</span>
+                {% endif %}
+                {% if req.approved_by_target %}
+                <span class="badge badge-small badge-green"><i class="bi bi-check"></i> Target approved</span>
+                {% else %}
+                <span class="badge badge-small badge-gray"><i class="bi bi-clock"></i> Target pending</span>
+                {% endif %}
+              </div>
+            </div>
+            
+            {% if req.status == 'PENDING' and membership.role != 'VIEWER' and not req.approved_by_target %}
+            <div class="merge-actions">
+              <form action="{% url 'families:tree_merge_approve' family_id=family.id request_id=req.id %}" method="post" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary btn-sm">
+                  <i class="bi bi-check-lg"></i> Approve
+                </button>
+              </form>
+              <form action="{% url 'families:tree_merge_reject' family_id=family.id request_id=req.id %}" method="post" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline btn-sm" onclick="return confirm('Reject this merge request?');">
+                  <i class="bi bi-x-lg"></i> Reject
+                </button>
+              </form>
+            </div>
+            {% elif req.status == 'PENDING' and req.approved_by_target %}
+            <p class="muted"><i class="bi bi-info-circle"></i> Waiting for the source family to approve.</p>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Outgoing Requests -->
+    {% if outgoing_requests %}
+    <div class="card" style="margin-top: 1.5rem;">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-send-fill"></i> Outgoing Requests ({{ outgoing_requests|length }})</span>
+      </div>
+      <div class="card-body">
+        <div class="stack">
+          {% for req in outgoing_requests %}
+          <div class="merge-request-card">
+            <div class="merge-header">
+              <div class="merge-families">
+                <strong>{{ family.name }}</strong>
+                <i class="bi bi-arrow-right"></i>
+                <strong>{{ req.target_family.name }}</strong>
+              </div>
+              <div class="merge-badges">
+                <span class="badge badge-{{ req.status|lower }}">{{ req.get_status_display }}</span>
+                <span class="badge badge-outline">{{ req.get_merge_type_display }}</span>
+              </div>
+            </div>
+            
+            <p class="muted">{{ req.message }}</p>
+            
+            <div class="merge-meta">
+              <small class="muted">
+                Sent {{ req.created_at|timesince }} ago
+              </small>
+              
+              <div class="merge-status">
+                {% if req.approved_by_source %}
+                <span class="badge badge-small badge-green"><i class="bi bi-check"></i> You approved</span>
+                {% else %}
+                <span class="badge badge-small badge-gray"><i class="bi bi-clock"></i> You need to approve</span>
+                {% endif %}
+                {% if req.approved_by_target %}
+                <span class="badge badge-small badge-green"><i class="bi bi-check"></i> They approved</span>
+                {% else %}
+                <span class="badge badge-small badge-gray"><i class="bi bi-clock"></i> Awaiting their approval</span>
+                {% endif %}
+              </div>
+            </div>
+            
+            {% if req.status == 'PENDING' and membership.role != 'VIEWER' and not req.approved_by_source %}
+            <div class="merge-actions">
+              <form action="{% url 'families:tree_merge_approve' family_id=family.id request_id=req.id %}" method="post" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary btn-sm">
+                  <i class="bi bi-check-lg"></i> Approve
+                </button>
+              </form>
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if not incoming_requests and not outgoing_requests %}
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon"><i class="bi bi-arrows-angle-contract"></i></div>
+          <h3>No Merge Requests</h3>
+          <p class="muted">
+            Create a merge request to combine family trees with another family.
+          </p>
+          <a href="{% url 'families:tree_merge_request' family_id=family.id %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> New Merge Request
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+
+<style>
+.merge-request-card {
+  background: var(--fl-surface);
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius);
+  padding: 1.25rem;
+}
+
+.merge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.merge-families {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.merge-families i {
+  color: var(--fl-blue);
+}
+
+.merge-badges {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.merge-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--fl-border);
+}
+
+.merge-status {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.merge-actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.badge-pending { background: var(--fl-gold); color: #000; }
+.badge-approved { background: var(--fl-blue); }
+.badge-completed { background: var(--fl-green); }
+.badge-rejected { background: var(--fl-red); }
+
+.badge-small {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+}
+
+.badge-gray {
+  background: var(--fl-muted);
+  color: var(--fl-surface);
+}
+
+[data-theme="dark"] .merge-request-card {
+  background: #1e293b;
+}
+
+[data-theme="dark"] .badge-gray {
+  background: #475569;
+  color: #e2e8f0;
+}
+</style>
+{% endblock %}
