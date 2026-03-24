@@ -37,6 +37,8 @@ from django.db import models
 from django.db.models import Q, Count
 from datetime import date, timedelta
 from collections import deque
+
+from .services.tree_builder import build_tree_json
 from .models import (
     FamilySpace, Membership, Invite, Post, Comment, Event, RSVP, Person, 
     Relationship, Album, Photo, Notification, ChatMessage, create_notification, 
@@ -1839,31 +1841,8 @@ def family_tree_data(request, family_id):
     if not membership:
         return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
-    # Filter out deleted records
-    persons = Person.objects.filter(family=family, is_deleted=False)
-    relationships = Relationship.objects.filter(family=family, is_deleted=False)
-    
-    nodes = []
-    for p in persons:
-        nodes.append({
-            "id": p.id,
-            "name": p.full_name,
-            "gender": p.gender,
-            "birth_date": p.birth_date.isoformat() if p.birth_date else None,
-            "death_date": p.death_date.isoformat() if p.death_date else None,
-            "is_living": p.is_living,
-            "photo": p.photo.url if p.photo else None,
-        })
-    
-    edges = []
-    for r in relationships:
-        edges.append({
-            "source": r.person1_id,
-            "target": r.person2_id,
-            "type": r.relationship_type,
-        })
-    
-    return JsonResponse({"nodes": nodes, "edges": edges})
+    data = build_tree_json(family)
+    return JsonResponse(data)
 
 
 @login_required
@@ -2200,7 +2179,7 @@ def _check_existing_gedcom_import(family, file_name):
 def gedcom_import(request, family_id):
     """Import a GEDCOM file into the family tree."""
     from .forms import GedcomUploadForm
-    from .gedcom import import_gedcom_with_tracking, GedcomParseError
+    from .services.gedcom_parser import import_gedcom_with_tracking, GedcomParseError
     from .models import GedcomImport, PotentialDuplicate
     
     family, membership = _get_membership_or_deny(request, family_id)
@@ -2500,6 +2479,31 @@ def person_edit(request, family_id, person_id):
         "membership": membership,
         "person": person,
         "form": form,
+    })
+
+
+@login_required
+def person_photo_upload(request, family_id, person_id):
+    """Upload or change a person's photo."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    if membership.role == Membership.Role.VIEWER:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
+    
+    person = get_object_or_404(Person, id=person_id, family=family)
+    
+    if request.method == "POST" and request.FILES.get('photo'):
+        photo = request.FILES['photo']
+        person.photo.save(photo.name, photo, save=True)
+        messages.success(request, f"Photo updated for {person.full_name}.")
+        return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id)
+    
+    return render(request, "families/person_photo_upload.html", {
+        "family": family,
+        "membership": membership,
+        "person": person,
     })
 
 
@@ -5936,3 +5940,398 @@ def empty_trash(request, family_id):
         return redirect(URL_TRASH_BIN, family_id=family.id)
     
     return redirect(URL_TRASH_BIN, family_id=family.id)
+
+
+# =============================================================================
+# Tree Linking / Merging
+# =============================================================================
+
+from .models import CrossSpacePersonLink, TreeMergeRequest
+from .tree_matching import find_potential_matches, find_all_potential_matches, calculate_match_score, create_person_link
+import json
+
+
+@login_required
+def tree_link_search(request, family_id):
+    """
+    Search for another family tree to find common ancestors.
+    
+    Shows a list of other family trees the user has access to,
+    or allows searching by family name.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    if membership.role == Membership.Role.VIEWER:
+        messages.error(request, "You need editor access to link trees.")
+        return redirect(URL_FAMILY_DETAIL, family_id=family.id)
+    
+    # Get user's other family memberships
+    other_memberships = Membership.objects.filter(
+        user=request.user
+    ).exclude(family=family).select_related('family')
+    
+    # Search for public families (if implemented)
+    search_query = request.GET.get('q', '')
+    search_results = []
+    if search_query:
+        search_results = FamilySpace.objects.filter(
+            name__icontains=search_query
+        ).exclude(id=family.id)[:20]
+    
+    return render(request, "families/tree_link_search.html", {
+        "family": family,
+        "membership": membership,
+        "other_memberships": other_memberships,
+        "search_query": search_query,
+        "search_results": search_results,
+    })
+
+
+@login_required
+def tree_link_compare(request, family_id, target_family_id):
+    """
+    Compare two family trees and show potential matches.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    if membership.role == Membership.Role.VIEWER:
+        messages.error(request, "You need editor access to link trees.")
+        return redirect(URL_FAMILY_DETAIL, family_id=family.id)
+    
+    target_family = get_object_or_404(FamilySpace, id=target_family_id)
+    
+    # Check if user has access to target family
+    target_membership = Membership.objects.filter(
+        user=request.user, family=target_family
+    ).first()
+    
+    # For now, require membership in both families
+    if not target_membership:
+        messages.error(request, "You need access to both family trees to compare them.")
+        return redirect("families:tree_link_search", family_id=family.id)
+    
+    # Get threshold from request
+    threshold = int(request.GET.get('threshold', 50))
+    
+    # Find potential matches
+    matches = find_all_potential_matches(family, target_family, threshold)
+    
+    # Get existing links between these families
+    existing_links = CrossSpacePersonLink.objects.filter(
+        Q(person1__family=family, person2__family=target_family) |
+        Q(person1__family=target_family, person2__family=family)
+    )
+    
+    return render(request, "families/tree_link_compare.html", {
+        "family": family,
+        "membership": membership,
+        "target_family": target_family,
+        "target_membership": target_membership,
+        "matches": matches,
+        "existing_links": existing_links,
+        "threshold": threshold,
+    })
+
+
+@login_required
+def tree_link_propose(request, family_id):
+    """
+    Propose a link between two persons from different families.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"error": "Access denied"}, status=403)
+    
+    if membership.role == Membership.Role.VIEWER:
+        return JsonResponse({"error": "Permission denied"}, status=403)
+    
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    
+    source_person_id = request.POST.get('source_person_id')
+    target_person_id = request.POST.get('target_person_id')
+    
+    if not source_person_id or not target_person_id:
+        return JsonResponse({"error": "Both persons required"}, status=400)
+    
+    source_person = get_object_or_404(Person, id=source_person_id, family=family)
+    target_person = get_object_or_404(Person, id=target_person_id)
+    
+    # Calculate match score
+    score, reasons = calculate_match_score(source_person, target_person)
+    
+    # Create the link
+    link = create_person_link(
+        source_person, target_person, 
+        request.user, score, reasons
+    )
+    
+    # Auto-confirm for the source family
+    link.confirm_for_space(family)
+    
+    return JsonResponse({
+        "success": True,
+        "link_id": link.id,
+        "status": link.status,
+        "message": f"Link proposed between {source_person.full_name} and {target_person.full_name}"
+    })
+
+
+@login_required
+def tree_link_list(request, family_id):
+    """
+    List all cross-space links for this family.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    # Get links where this family is involved
+    links = CrossSpacePersonLink.objects.filter(
+        Q(person1__family=family) | Q(person2__family=family)
+    ).select_related('person1', 'person2', 'person1__family', 'person2__family')
+    
+    # Separate by status
+    proposed_links = links.filter(status='PROPOSED')
+    confirmed_links = links.filter(status='CONFIRMED')
+    
+    return render(request, "families/tree_link_list.html", {
+        "family": family,
+        "membership": membership,
+        "proposed_links": proposed_links,
+        "confirmed_links": confirmed_links,
+    })
+
+
+@login_required
+def tree_link_confirm(request, family_id, link_id):
+    """
+    Confirm a proposed link from this family's side.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"error": "Access denied"}, status=403)
+    
+    if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        return JsonResponse({"error": "Only admins can confirm links"}, status=403)
+    
+    link = get_object_or_404(CrossSpacePersonLink, id=link_id)
+    
+    # Verify this family is part of the link
+    if link.person1.family != family and link.person2.family != family:
+        return JsonResponse({"error": "Link does not involve this family"}, status=400)
+    
+    # Confirm for this family
+    link.confirm_for_space(family)
+    
+    return JsonResponse({
+        "success": True,
+        "status": link.status,
+        "confirmed": link.status == 'CONFIRMED'
+    })
+
+
+@login_required
+def tree_link_reject(request, family_id, link_id):
+    """
+    Reject a proposed link.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"error": "Access denied"}, status=403)
+    
+    if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        return JsonResponse({"error": "Only admins can reject links"}, status=403)
+    
+    link = get_object_or_404(CrossSpacePersonLink, id=link_id)
+    
+    # Verify this family is part of the link
+    if link.person1.family != family and link.person2.family != family:
+        return JsonResponse({"error": "Link does not involve this family"}, status=400)
+    
+    link.status = 'REJECTED'
+    link.save()
+    
+    return JsonResponse({
+        "success": True,
+        "message": "Link rejected"
+    })
+
+
+@login_required
+def tree_merge_request(request, family_id, target_family_id):
+    """
+    Create a merge request to copy/link persons between families.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        messages.error(request, "Only admins can request tree merges.")
+        return redirect(URL_FAMILY_DETAIL, family_id=family.id)
+    
+    target_family = get_object_or_404(FamilySpace, id=target_family_id)
+    
+    if request.method == "POST":
+        merge_type = request.POST.get('merge_type', 'LINK')
+        notes = request.POST.get('notes', '')
+        selected_matches = request.POST.getlist('matches')
+        
+        # Parse selected matches
+        proposed_links = []
+        for match in selected_matches:
+            try:
+                source_id, target_id, score = match.split(':')
+                proposed_links.append({
+                    'source_id': int(source_id),
+                    'target_id': int(target_id),
+                    'score': int(score)
+                })
+            except (ValueError, AttributeError):
+                continue
+        
+        # Create merge request
+        merge_request = TreeMergeRequest.objects.create(
+            from_family=family,
+            to_family=target_family,
+            requested_by=request.user,
+            merge_type=merge_type,
+            proposed_links=proposed_links,
+            notes=notes
+        )
+        
+        # Auto-approve for source family if user is admin
+        merge_request.approve_by_source(request.user)
+        
+        messages.success(request, f"Merge request sent to {target_family.name}. Waiting for their approval.")
+        return redirect("families:tree_link_list", family_id=family.id)
+    
+    # Get matches for the form
+    matches = find_all_potential_matches(family, target_family, 40)
+    
+    return render(request, "families/tree_merge_request.html", {
+        "family": family,
+        "membership": membership,
+        "target_family": target_family,
+        "matches": matches,
+    })
+
+
+@login_required
+def tree_merge_requests(request, family_id):
+    """
+    List incoming and outgoing merge requests for this family.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    incoming = TreeMergeRequest.objects.filter(
+        to_family=family
+    ).exclude(status='COMPLETED').select_related('from_family', 'requested_by')
+    
+    outgoing = TreeMergeRequest.objects.filter(
+        from_family=family
+    ).select_related('to_family', 'requested_by')
+    
+    return render(request, "families/tree_merge_requests.html", {
+        "family": family,
+        "membership": membership,
+        "incoming": incoming,
+        "outgoing": outgoing,
+    })
+
+
+@login_required  
+def tree_merge_approve(request, family_id, merge_id):
+    """
+    Approve a merge request (target family admin).
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"error": "Access denied"}, status=403)
+    
+    if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        return JsonResponse({"error": "Only admins can approve merges"}, status=403)
+    
+    merge = get_object_or_404(TreeMergeRequest, id=merge_id, to_family=family)
+    
+    merge.approve_by_target(request.user)
+    
+    # If fully approved, execute the merge
+    if merge.status == 'APPROVED':
+        _execute_tree_merge(merge)
+        merge.complete()
+        return JsonResponse({
+            "success": True,
+            "message": "Merge approved and completed!"
+        })
+    
+    return JsonResponse({
+        "success": True,
+        "message": "Merge approved. Waiting for source family approval."
+    })
+
+
+@login_required
+def tree_merge_reject(request, family_id, merge_id):
+    """
+    Reject a merge request.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"error": "Access denied"}, status=403)
+    
+    if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        return JsonResponse({"error": "Only admins can reject merges"}, status=403)
+    
+    merge = get_object_or_404(
+        TreeMergeRequest, 
+        id=merge_id
+    )
+    
+    # Must be involved in the merge
+    if merge.from_family != family and merge.to_family != family:
+        return JsonResponse({"error": "Not authorized"}, status=403)
+    
+    merge.reject()
+    
+    return JsonResponse({
+        "success": True,
+        "message": "Merge request rejected"
+    })
+
+
+def _execute_tree_merge(merge):
+    """
+    Execute a tree merge operation.
+    Creates CrossSpacePersonLinks for all proposed matches.
+    
+    For COPY type, would also copy persons into target family (future).
+    """
+    for link_data in merge.proposed_links:
+        source_person = Person.objects.filter(id=link_data['source_id']).first()
+        target_person = Person.objects.filter(id=link_data['target_id']).first()
+        
+        if source_person and target_person:
+            # Check if link already exists
+            existing = CrossSpacePersonLink.objects.filter(
+                Q(person1=source_person, person2=target_person) |
+                Q(person1=target_person, person2=source_person)
+            ).first()
+            
+            if not existing:
+                CrossSpacePersonLink.objects.create(
+                    person1=source_person,
+                    person2=target_person,
+                    proposed_by=merge.requested_by,
+                    status='CONFIRMED',
+                    confidence_score=link_data.get('score', 0),
+                    confirmed_by_space1=True,
+                    confirmed_by_space2=True
+                )

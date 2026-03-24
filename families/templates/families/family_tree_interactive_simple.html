@@ -560,7 +560,7 @@ function selectPerson(person) {
   html += '<p><strong>Parents:</strong> ' + numParents + ' | <strong>Children:</strong> ' + numChildren + ' | <strong>Spouses:</strong> ' + numSpouses + '</p>';
   
   document.getElementById('infoPanelBody').innerHTML = html;
-  document.getElementById('infoPanelViewLink').href = '/families/' + familyId + '/persons/' + person.id + '/';
+  document.getElementById('infoPanelViewLink').href = '/families/' + familyId + '/people/' + person.id + '/';
   document.getElementById('infoPanel').classList.add('active');
 }
 

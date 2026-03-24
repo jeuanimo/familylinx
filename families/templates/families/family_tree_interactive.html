@@ -1460,7 +1460,7 @@
       .attr('transform', d => `translate(${d.x - nw/2}, ${d.y - nh/2})`)
       .on('click', (event, d) => selectNode(d))
       .on('dblclick', (event, d) => {
-        window.location.href = `/families/${familyId}/persons/${d.id}/`;
+        window.location.href = `/families/${familyId}/people/${d.id}/`;
       });
     
     // Node rectangle
@@ -1739,9 +1739,9 @@
     contentEl.innerHTML = html || '<p class="muted">No additional details</p>';
     
     // Links
-    viewLink.href = `/families/${familyId}/persons/${node.id}/`;
+    viewLink.href = `/families/${familyId}/people/${node.id}/`;
     if (editLink) {
-      editLink.href = `/families/${familyId}/persons/${node.id}/edit/`;
+      editLink.href = `/families/${familyId}/people/${node.id}/edit/`;
     }
     
     panel.classList.add('active');

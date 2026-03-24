@@ -45,13 +45,23 @@
             </div>
             
             {% if person.user_profiles.exists %}
-            <div style="margin: 1rem 0;">
-              {% with profile=person.user_profiles.first %}
+            {% with profile=person.user_profiles.first %}
+            <div class="linked-user-badge">
+              {% if profile.profile_picture %}
+              <img src="{{ profile.profile_picture.url }}" alt="{{ profile.display_name }}" class="linked-user-avatar">
+              {% else %}
+              <div class="linked-user-avatar-placeholder">
+                <i class="bi bi-person-fill"></i>
+              </div>
+              {% endif %}
+              <span class="linked-user-name">{{ profile.display_name|default:profile.user.email }}</span>
+            </div>
+            <div style="margin: 0.5rem 0 1rem;">
               <a href="{% url 'accounts:profile_view' user_id=profile.user.id %}" class="btn btn-primary btn-sm">
                 <i class="bi bi-person-badge"></i> View Profile
               </a>
-              {% endwith %}
             </div>
+            {% endwith %}
             {% endif %}
             
             {% if membership.role != 'VIEWER' %}
