@@ -135,6 +135,13 @@ urlpatterns = [
     path("<int:family_id>/people/<int:person_id>/delete/", views.person_delete, name="person_delete"),
     path("<int:family_id>/people/<int:person_id>/add-ancestor/", views.add_ancestor, name="add_ancestor"),
     path("<int:family_id>/people/<int:person_id>/add-child/", views.add_child, name="add_child"),
+
+    # Legacy alias routes for older front-end links that used "/persons/" instead of "/people/"
+    path("<int:family_id>/persons/<int:person_id>/", views.person_detail, name="person_detail_alias"),
+    path("<int:family_id>/persons/<int:person_id>/edit/", views.person_edit, name="person_edit_alias"),
+    path("<int:family_id>/persons/<int:person_id>/delete/", views.person_delete, name="person_delete_alias"),
+    path("<int:family_id>/persons/<int:person_id>/add-ancestor/", views.add_ancestor, name="add_ancestor_alias"),
+    path("<int:family_id>/persons/<int:person_id>/add-child/", views.add_child, name="add_child_alias"),
     
     # Relationship management
     path("<int:family_id>/people/<int:person_id>/relationships/add/", views.relationship_add, name="relationship_add"),
