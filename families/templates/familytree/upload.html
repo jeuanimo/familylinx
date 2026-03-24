@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Import GEDCOM · {{ family.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row">
+    <div class="col-lg-7">
+      <div class="card">
+        <div class="card-header flex-between">
+          <h4 class="mb-0"><i class="bi bi-upload"></i> Import GEDCOM</h4>
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'families:family_detail' family_id=family.id %}">Back to family</a>
+        </div>
+        <div class="card-body">
+          <p class="text-muted">Upload a .ged file exported from Ancestry, FamilySearch, or other tools. Max 5 MB.</p>
+          <form method="post" enctype="multipart/form-data" class="stack-md">
+            {% csrf_token %}
+            <div class="form-group">
+              {{ form.gedcom_file.label_tag }}
+              {{ form.gedcom_file }}
+              {% if form.gedcom_file.help_text %}<small class="form-text text-muted">{{ form.gedcom_file.help_text }}</small>{% endif %}
+              {% if form.gedcom_file.errors %}
+                <div class="text-danger small">{{ form.gedcom_file.errors|join:", " }}</div>
+              {% endif %}
+            </div>
+
+            {% if show_duplicate_warning %}
+              <div class="alert alert-warning">
+                A file named <strong>{{ duplicate_file_name }}</strong> was already imported on {{ existing_import.created_at|date:"M j, Y" }}.
+                Check the box below if you want to import anyway.
+              </div>
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="confirm_duplicate" name="confirm_duplicate" value="1">
+                <label class="form-check-label" for="confirm_duplicate">Import anyway</label>
+              </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-primary">Upload &amp; Import</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card mb-3">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-info-circle"></i> What happens?</h6>
+        </div>
+        <div class="card-body small text-muted">
+          <ul class="mb-0">
+            <li>We parse individuals and families from the GEDCOM.</li>
+            <li>Potential duplicates are flagged for review.</li>
+            <li>No existing people are deleted during import.</li>
+            <li>You can review results in the import report.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header flex-between">
+          <h6 class="mb-0"><i class="bi bi-clock-history"></i> Recent imports</h6>
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'families:gedcom_import_history' family_id=family.id %}">History</a>
+        </div>
+        <div class="card-body">
+          {% if recent_imports %}
+            <ul class="list-unstyled mb-0">
+              {% for imp in recent_imports %}
+                <li class="mb-2">
+                  <div class="flex-between">
+                    <strong>{{ imp.file_name }}</strong>
+                    <span class="badge badge-gray">{{ imp.get_status_display }}</span>
+                  </div>
+                  <small class="text-muted">{{ imp.created_at|date:"M j, Y" }} · {{ imp.persons_created }} people</small>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted mb-0">No imports yet.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

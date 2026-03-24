@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Family Tree · {{ family.name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/dtree/dist/dTree.css">
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="card">
+    <div class="card-header flex-between">
+      <div>
+        <h4 class="mb-0"><i class="bi bi-diagram-3"></i> Family Tree</h4>
+        <p class="text-muted mb-0">Interactive view powered by dTree. Click a person to open their profile.</p>
+      </div>
+      <div class="flex-center gap-sm">
+        <a class="btn btn-outline-secondary btn-sm" href="{% url 'families:family_detail' family_id=family.id %}">Back</a>
+        <a class="btn btn-outline-primary btn-sm" href="{% url 'families:familytree_upload' family_id=family.id %}"><i class="bi bi-upload"></i> Import GEDCOM</a>
+      </div>
+    </div>
+    <div class="card-body">
+      <div id="tree-container" data-url="{{ data_url }}" data-family="{{ family.id }}" data-linked="{{ linked_person_id|default_if_none:\"\" }}" class="border rounded" style="min-height:480px; overflow:auto;"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/dtree/dist/dTree.min.js"></script>
+<script src="{% static 'familytree/js/tree.js' %}"></script>
+{% endblock %}

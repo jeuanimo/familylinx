@@ -107,6 +107,8 @@ urlpatterns = [
     path("<int:family_id>/tree/", views.family_tree, name="family_tree"),
     path("<int:family_id>/tree/interactive/", views.family_tree_interactive, name="family_tree_interactive"),
     path("<int:family_id>/tree/link-me/", views.link_to_tree, name="link_to_tree"),
+    path("<int:family_id>/familytree/view/", views.familytree_view, name="familytree_view"),
+    path("<int:family_id>/familytree/upload/", views.familytree_upload, name="familytree_upload"),
     
     # Identity verification (link GEDCOM person to user account)
     path("<int:family_id>/tree/find-me/", views.find_my_match, name="find_my_match"),
@@ -132,6 +134,7 @@ urlpatterns = [
     path("<int:family_id>/people/new/", views.person_create, name="person_create"),
     path("<int:family_id>/people/<int:person_id>/", views.person_detail, name="person_detail"),
     path("<int:family_id>/people/<int:person_id>/edit/", views.person_edit, name="person_edit"),
+    path("<int:family_id>/people/<int:person_id>/photo/", views.person_photo_upload, name="person_photo_upload"),
     path("<int:family_id>/people/<int:person_id>/delete/", views.person_delete, name="person_delete"),
     path("<int:family_id>/people/<int:person_id>/add-ancestor/", views.add_ancestor, name="add_ancestor"),
     path("<int:family_id>/people/<int:person_id>/add-child/", views.add_child, name="add_child"),
@@ -287,4 +290,24 @@ urlpatterns = [
     
     # My shares dashboard
     path("museum/my-shares/", views.museum_my_shares, name="museum_my_shares"),
+    
+    # ==========================================================================
+    # Tree Linking / Merging URLs
+    # ==========================================================================
+    
+    # Search for families to link
+    path("<int:family_id>/tree-link/", views.tree_link_search, name="tree_link_search"),
+    path("<int:family_id>/tree-link/compare/<int:target_family_id>/", views.tree_link_compare, name="tree_link_compare"),
+    
+    # Manage links
+    path("<int:family_id>/tree-link/links/", views.tree_link_list, name="tree_link_list"),
+    path("<int:family_id>/tree-link/propose/", views.tree_link_propose, name="tree_link_propose"),
+    path("<int:family_id>/tree-link/confirm/<int:link_id>/", views.tree_link_confirm, name="tree_link_confirm"),
+    path("<int:family_id>/tree-link/reject/<int:link_id>/", views.tree_link_reject, name="tree_link_reject"),
+    
+    # Merge requests
+    path("<int:family_id>/tree-merge/", views.tree_merge_requests, name="tree_merge_requests"),
+    path("<int:family_id>/tree-merge/request/<int:target_family_id>/", views.tree_merge_request, name="tree_merge_request"),
+    path("<int:family_id>/tree-merge/approve/<int:merge_id>/", views.tree_merge_approve, name="tree_merge_approve"),
+    path("<int:family_id>/tree-merge/reject/<int:merge_id>/", views.tree_merge_reject, name="tree_merge_reject"),
 ]

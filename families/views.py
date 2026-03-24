@@ -27,6 +27,7 @@ Templates Required:
 
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.utils import timezone
 from django.http import JsonResponse
 from django.contrib import messages
@@ -71,11 +72,15 @@ URL_GEDCOM_IMPORT_HISTORY = "families:gedcom_import_history"
 URL_DNA_KIT_LIST = "families:dna_kit_list"
 URL_DNA_MATCH_DETAIL = "families:dna_match_detail"
 URL_RELATIONSHIP_SUGGESTION_LIST = "families:relationship_suggestion_list"
+URL_FAMILYTREE_VIEW = "families:familytree_view"
+URL_FAMILYTREE_UPLOAD = "families:familytree_upload"
 
 # Template paths
 TEMPLATE_NO_ACCESS = "families/no_access.html"
 TEMPLATE_MUSEUM_SHARED_VIEW = "families/museum_shared_view.html"
 TEMPLATE_GEDCOM_IMPORT = "families/gedcom_import.html"
+TEMPLATE_FAMILYTREE_UPLOAD = "familytree/upload.html"
+TEMPLATE_FAMILYTREE_VIEW = "familytree/tree_view.html"
 TEMPLATE_MEMORY_CREATE = "families/memory_create.html"
 
 # Error messages
@@ -1884,6 +1889,26 @@ def family_tree_interactive(request, family_id):
 
 
 @login_required
+def familytree_view(request, family_id):
+    """Lean template that loads tree JSON and renders via dTree."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+
+    data_url = reverse("families:family_tree_data", kwargs={"family_id": family.id})
+    can_edit = membership.role in ['OWNER', 'ADMIN', 'EDITOR']
+    linked_person_id = membership.linked_person.id if membership.linked_person else None
+
+    return render(request, TEMPLATE_FAMILYTREE_VIEW, {
+        "family": family,
+        "membership": membership,
+        "data_url": data_url,
+        "linked_person_id": linked_person_id,
+        "can_edit": can_edit,
+    })
+
+
+@login_required
 def link_to_tree(request, family_id):
     """
     Link the current user to a Person record in the family tree.
@@ -2240,6 +2265,73 @@ def gedcom_import(request, family_id):
         messages.error(request, f"Import failed: {str(e)}")
     
     return render(request, TEMPLATE_GEDCOM_IMPORT, {**base_context, "form": form})
+
+
+@login_required
+def familytree_upload(request, family_id):
+    """Friendly wrapper around gedcom_import with a dedicated template/URL."""
+    from .forms import GedcomUploadForm
+    from .services.gedcom_parser import import_gedcom_with_tracking, GedcomParseError
+    from .models import GedcomImport, PotentialDuplicate
+
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+
+    if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
+
+    recent_imports = GedcomImport.objects.filter(family=family).order_by('-created_at')[:5]
+    pending_duplicate_count = PotentialDuplicate.objects.filter(
+        gedcom_import__family=family, status='PENDING'
+    ).count()
+
+    base_context = {
+        "family": family,
+        "membership": membership,
+        "recent_imports": recent_imports,
+        "pending_duplicate_count": pending_duplicate_count,
+    }
+
+    if request.method != "POST":
+        return render(request, TEMPLATE_FAMILYTREE_UPLOAD, {**base_context, "form": GedcomUploadForm()})
+
+    form = GedcomUploadForm(request.POST, request.FILES)
+    if not form.is_valid():
+        return render(request, TEMPLATE_FAMILYTREE_UPLOAD, {**base_context, "form": form})
+
+    try:
+        gedcom_file = form.cleaned_data['gedcom_file']
+        content = gedcom_file.read().decode('utf-8', errors='ignore')
+        file_name = gedcom_file.name
+        existing_import = _check_existing_gedcom_import(family, file_name)
+
+        if existing_import and not request.POST.get('confirm_duplicate'):
+            messages.warning(
+                request,
+                f\"A file named '{file_name}' was already imported on "
+                f\"{existing_import.created_at.strftime('%b %d, %Y')} "
+                f\"({existing_import.persons_created} people created). "
+                \"Check the box below to import anyway.\"
+            )
+            return render(request, TEMPLATE_FAMILYTREE_UPLOAD, {
+                **base_context, \"form\": form,
+                \"show_duplicate_warning\": True,
+                \"duplicate_file_name\": file_name,
+                \"existing_import\": existing_import,
+            })
+
+        gedcom_import_record = import_gedcom_with_tracking(
+            content, family, request.user, file_name, gedcom_file.size
+        )
+        return redirect(URL_GEDCOM_IMPORT_REPORT, family_id=family.id, import_id=gedcom_import_record.id)
+
+    except GedcomParseError as e:
+        messages.error(request, f\"Parse error: {str(e)}\")
+    except Exception as e:
+        messages.error(request, f\"Import failed: {str(e)}\")
+
+    return render(request, TEMPLATE_FAMILYTREE_UPLOAD, {**base_context, \"form\": form})
 
 
 @login_required
