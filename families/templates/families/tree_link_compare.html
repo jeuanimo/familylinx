@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Compare Trees – {{ family.name }} & {{ target_family.name }} | FamilyLinx{% endblock %}
+{% block title %}Compare Trees – {{ family.name }} & {{ target_family.name }} | FamilyLinx{% endblock title %}
 
 {% block content %}
 <main>
@@ -30,10 +30,10 @@
     </div>
 
     <!-- Threshold Filter -->
-    <div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card mb-3">
       <div class="card-body">
-        <form method="get" class="flex" style="gap: 1rem; align-items: flex-end;">
-          <div class="form-group" style="margin-bottom: 0; flex: 1; max-width: 300px;">
+        <form method="get" class="flex gap-sm flex-end">
+          <div class="form-group mb-0 flex-1 max-w-300">
             <label for="threshold" class="form-label">Minimum Match Score</label>
             <select name="threshold" id="threshold" class="form-control">
               <option value="30" {% if threshold == 30 %}selected{% endif %}>30% - Show more results</option>
@@ -118,7 +118,7 @@
     {% endif %}
 
     {% if existing_links %}
-    <div class="card" style="margin-top: 1.5rem;">
+    <div class="card mt-3">
       <div class="card-header">
         <span class="card-title"><i class="bi bi-link"></i> Existing Links ({{ existing_links|length }})</span>
       </div>
@@ -249,4 +249,4 @@ document.querySelectorAll('.link-btn').forEach(btn => {
   });
 });
 </script>
-{% endblock %}
+{% endblock content %}

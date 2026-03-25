@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Tree Merge Requests – {{ family.name }} | FamilyLinx{% endblock %}
+{% block title %}Tree Merge Requests – {{ family.name }} | FamilyLinx{% endblock title %}
 
 {% block content %}
 <main>
@@ -73,13 +73,13 @@
             
             {% if req.status == 'PENDING' and membership.role != 'VIEWER' and not req.approved_by_target %}
             <div class="merge-actions">
-              <form action="{% url 'families:tree_merge_approve' family_id=family.id request_id=req.id %}" method="post" style="display: inline;">
+              <form action="{% url 'families:tree_merge_approve' family_id=family.id request_id=req.id %}" method="post" class="d-inline">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-primary btn-sm">
                   <i class="bi bi-check-lg"></i> Approve
                 </button>
               </form>
-              <form action="{% url 'families:tree_merge_reject' family_id=family.id request_id=req.id %}" method="post" style="display: inline;">
+              <form action="{% url 'families:tree_merge_reject' family_id=family.id request_id=req.id %}" method="post" class="d-inline">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-outline btn-sm" onclick="return confirm('Reject this merge request?');">
                   <i class="bi bi-x-lg"></i> Reject
@@ -98,7 +98,7 @@
 
     <!-- Outgoing Requests -->
     {% if outgoing_requests %}
-    <div class="card" style="margin-top: 1.5rem;">
+    <div class="card mt-3">
       <div class="card-header">
         <span class="card-title"><i class="bi bi-send-fill"></i> Outgoing Requests ({{ outgoing_requests|length }})</span>
       </div>
@@ -141,7 +141,7 @@
             
             {% if req.status == 'PENDING' and membership.role != 'VIEWER' and not req.approved_by_source %}
             <div class="merge-actions">
-              <form action="{% url 'families:tree_merge_approve' family_id=family.id request_id=req.id %}" method="post" style="display: inline;">
+              <form action="{% url 'families:tree_merge_approve' family_id=family.id request_id=req.id %}" method="post" class="d-inline">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-primary btn-sm">
                   <i class="bi bi-check-lg"></i> Approve
@@ -250,4 +250,4 @@
   color: #e2e8f0;
 }
 </style>
-{% endblock %}
+{% endblock content %}

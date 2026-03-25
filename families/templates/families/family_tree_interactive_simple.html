@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Family Tree – {{ family.name }} | FamilyLinx{% endblock %}
+{% block title %}Family Tree – {{ family.name }} | FamilyLinx{% endblock title %}
 
 {% block extra_css %}
 <style>
@@ -18,11 +18,11 @@
   .tree-svg { width: 100%; height: 100%; }
   
   .person-card { cursor: pointer; }
-  .person-card rect {
+.person-card rect {
     fill: white;
     stroke: #ccc;
     stroke-width: 2px;
-    rx: 6;
+    rx: 10;
   }
   .person-card:hover rect {
     stroke: #2196f3;
@@ -32,9 +32,9 @@
   .person-card.female rect { fill: #fce4ec; stroke: #c2185b; }
   .person-card.focal rect { stroke-width: 3px; stroke: #ff9800; }
   
-  .person-name { font-size: 11px; font-weight: 600; text-anchor: middle; }
-  .person-dates { font-size: 9px; fill: #666; text-anchor: middle; }
-  .person-relation { font-size: 8px; fill: #999; text-anchor: middle; font-style: italic; }
+  .person-name { font-size: 11px; font-weight: 700; text-anchor: start; }
+  .person-dates { font-size: 9px; fill: #666; text-anchor: start; }
+  .person-relation { font-size: 8.5px; fill: #999; text-anchor: start; font-style: italic; }
   
   .spouse-line { stroke: #e91e63; stroke-width: 3px; }
   .child-line { stroke: #666; stroke-width: 2px; fill: none; }
@@ -51,13 +51,17 @@
   .tree-controls button:hover { background: #2196f3; color: white; }
   
   .person-selector {
-    position: absolute; top: 1rem; left: 1rem; z-index: 100;
-    background: white; padding: 0.75rem; border-radius: var(--fl-radius);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    position: relative;
+    margin: 1rem 1rem 0.5rem;
+    background: white;
+    padding: 0.75rem;
+    border-radius: var(--fl-radius);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
-  .person-selector select {
+  .person-selector select,
+  .person-selector input {
     padding: 0.5rem; border: 1px solid #ddd;
-    border-radius: 4px; font-size: 14px; min-width: 200px;
+    border-radius: 4px; font-size: 14px; min-width: 220px;
   }
   .person-selector label { display: block; font-size: 12px; color: #666; margin-bottom: 0.25rem; }
   
@@ -93,8 +97,46 @@
   }
   .tree-loading i { font-size: 2rem; animation: spin 1s linear infinite; }
   @keyframes spin { 100% { transform: rotate(360deg); } }
+
+  /* Dark mode overrides */
+  [data-theme="dark"] .tree-container { background: #0f172a; }
+  [data-theme="dark"] .tree-stats { background: #0b1220; border-bottom-color: #1f2937; color: #cbd5e1; }
+  [data-theme="dark"] .tree-stat strong { color: #e2e8f0; }
+  [data-theme="dark"] .person-selector { background: #0b1220; border: 1px solid #1f2937; color: #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.45); }
+  [data-theme="dark"] .person-selector label { color: #94a3b8; }
+  [data-theme="dark"] .person-selector select { background: #111827; color: #e2e8f0; border-color: #1f2937; }
+  [data-theme="dark"] .tree-controls button { background: #0b1220; color: #e2e8f0; }
+  [data-theme="dark"] .tree-controls button:hover { background: #2563eb; color: #e2e8f0; }
+  [data-theme="dark"] .info-panel { background: #0b1220; color: #e2e8f0; border: 1px solid #1f2937; }
+  [data-theme="dark"] .info-panel-header { border-bottom-color: #1f2937; }
+  [data-theme="dark"] .info-panel-actions { border-top-color: #1f2937; }
+  [data-theme="dark"] .tree-loading { color: #cbd5e1; }
+  [data-theme="dark"] .person-card rect { fill: #0b1220; stroke: #1f2937; }
+  [data-theme="dark"] .person-card.male rect { fill: #0d1b2d; stroke: #38bdf8; }
+  [data-theme="dark"] .person-card.female rect { fill: #2b0f24; stroke: #f472b6; }
+  [data-theme="dark"] .person-card.focal rect { stroke: #fbbf24; }
+  [data-theme="dark"] .person-name { fill: #e2e8f0; }
+  [data-theme="dark"] .person-dates { fill: #94a3b8; }
+  [data-theme="dark"] .person-relation { fill: #94a3b8; }
+  [data-theme="dark"] .spouse-line { stroke: #f472b6; }
+  [data-theme="dark"] .child-line { stroke: #94a3b8; }
+
+  /* Responsive tweaks for tablets/phones */
+  @media (max-width: 992px) {
+    .tree-container { height: calc(100vh - 260px); min-height: 480px; }
+    .page-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+    .page-actions { width: 100%; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  }
+  @media (max-width: 768px) {
+    .tree-container { height: 70vh; min-height: 420px; }
+    .person-selector { margin: 0.75rem; }
+    .person-selector .flex { flex-direction: column; align-items: stretch; gap: 0.35rem; }
+    .tree-controls button { width: 32px; height: 32px; }
+    .controls-wrap { top: 0.25rem !important; right: 0.25rem !important; }
+    .controls-legend { font-size: 10px; max-width: 150px; }
+  }
 </style>
-{% endblock %}
+{% endblock extra_css %}
 
 {% block content %}
 <main>
@@ -124,10 +166,49 @@
       </div>
     </div>
     
-    <div class="card" style="padding: 0; overflow: hidden;">
+    <div class="card mb-3">
+      <div class="card-body export-settings-body">
+        <fieldset class="fieldset-unstyled">
+          <legend class="muted small d-block mb-1 legend-inline">Line to export</legend>
+          <div class="btn-group" aria-label="Line choice">
+            <input type="radio" class="btn-check" name="lineChoice" id="lineMaternal" value="maternal" checked>
+            <label class="btn btn-sm btn-outline-primary" for="lineMaternal">Maternal</label>
+            <input type="radio" class="btn-check" name="lineChoice" id="linePaternal" value="paternal">
+            <label class="btn btn-sm btn-outline-primary" for="linePaternal">Paternal</label>
+          </div>
+        </fieldset>
+        <div class="min-w-200">
+          <label class="muted small d-block mb-1" for="lineMode">Export mode</label>
+          <select id="lineMode" class="form-select form-select-sm max-w-180">
+            <option value="subtree" selected>Line + my descendants</option>
+            <option value="line">Direct line only</option>
+          </select>
+        </div>
+        <div class="form-check form-switch min-w-160">
+          <input class="form-check-input" type="checkbox" id="lineIncludeSpouses" checked>
+          <label class="form-check-label" for="lineIncludeSpouses">Include spouses</label>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="exportLine('json')">
+          <i class="bi bi-download"></i> Export JSON
+        </button>
+      </div>
+    </div>
+    
+    <div class="card tree-card">
       <div class="tree-stats">
         <span class="tree-stat"><strong id="personCount">0</strong> people</span>
         <span class="tree-stat"><strong id="generationCount">0</strong> generations</span>
+      </div>
+
+      <div class="person-selector">
+        <label for="focalPersonInput">Center tree on:</label>
+        <div class="flex gap-sm flex-wrap">
+          <select id="focalPersonSelect" onchange="changeFocalPerson()">
+            <option value="">Loading...</option>
+          </select>
+          <input id="focalPersonInput" type="text" placeholder="Type a name..." onkeydown="if(event.key==='Enter'){findFocalByName();}" />
+          <button class="btn btn-primary btn-sm" type="button" onclick="findFocalByName()">Go</button>
+        </div>
       </div>
       
       <div class="tree-container" id="treeContainer">
@@ -136,17 +217,25 @@
           <p>Loading family tree...</p>
         </div>
         
-        <div class="person-selector">
-          <label>Center tree on:</label>
-          <select id="focalPersonSelect" onchange="changeFocalPerson()">
-            <option value="">Loading...</option>
-          </select>
-        </div>
-        
-        <div class="tree-controls">
-          <button onclick="zoomIn()" title="Zoom In"><i class="bi bi-zoom-in"></i></button>
-          <button onclick="zoomOut()" title="Zoom Out"><i class="bi bi-zoom-out"></i></button>
-          <button onclick="fitToScreen()" title="Fit to Screen"><i class="bi bi-fullscreen"></i></button>
+        <div class="controls-wrap">
+          <div class="tree-controls">
+            <button onclick="zoomIn()" title="Zoom In"><i class="bi bi-zoom-in"></i></button>
+            <button onclick="zoomOut()" title="Zoom Out"><i class="bi bi-zoom-out"></i></button>
+            <button onclick="fitToScreen()" title="Fit to Screen"><i class="bi bi-fullscreen"></i></button>
+            <div class="gen-buttons">
+              <button onclick="moreUp()" title="Show more ancestors"><i class="bi bi-arrow-up-circle"></i></button>
+              <button onclick="lessUp()" title="Show fewer ancestors"><i class="bi bi-dash-circle"></i></button>
+              <button onclick="moreDown()" title="Show more descendants"><i class="bi bi-arrow-down-circle"></i></button>
+              <button onclick="lessDown()" title="Show fewer descendants"><i class="bi bi-dash-circle"></i></button>
+            </div>
+          </div>
+          <div class="controls-legend">
+            <span><i class="bi bi-zoom-in"></i>/<i class="bi bi-zoom-out"></i> Zoom</span>
+            <span><i class="bi bi-fullscreen"></i> Fit to screen</span>
+            <span><i class="bi bi-arrow-up-circle"></i> More ancestors</span>
+            <span><i class="bi bi-arrow-down-circle"></i> More descendants</span>
+            <span><i class="bi bi-dash-circle"></i> Fewer gens</span>
+          </div>
         </div>
         
         <div class="info-panel" id="infoPanel">
@@ -164,20 +253,33 @@
     </div>
   </div>
 </main>
-{% endblock %}
+{% endblock content %}
 
 {% block extra_js %}
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script>
 const familyId = {{ family.id }};
+const initialFocusId = {{ linked_person_id|default:"null" }};
+const queryPersonId = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const pid = params.get('person_id');
+  const n = parseInt(pid, 10);
+  return Number.isFinite(n) ? n : null;
+})();
 const apiUrl = '/api/families/' + familyId + '/tree/';
 
-const CARD_W = 120, CARD_H = 55;
-const SPOUSE_GAP = 40, SIBLING_GAP = 80, GEN_GAP = 120;
+const CARD_W = 220, CARD_H = 95;
+const AVATAR_R = 24;
+const SPOUSE_GAP = 70, SIBLING_GAP = 140, GEN_GAP = 160;
+const NAME_LINE_MAX = 22;
+const MAX_UP_DEFAULT = 3;   // generations above (parents=1)
+const MAX_DOWN_DEFAULT = 3; // generations below (children=1)
 
 let allData = null, focalPersonId = null, selectedPerson = null;
 let svg, g, zoom;
 let personById = {}, childToParents = {}, parentToChildren = {}, spouseOf = {};
+let maxUp = MAX_UP_DEFAULT;
+let maxDown = MAX_DOWN_DEFAULT;
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -225,7 +327,15 @@ async function loadData() {
     
     document.getElementById('personCount').textContent = allData.nodes.length;
     populateSelector();
-    focalPersonId = findBestFocalPerson();
+
+    // Focus priority: query param > linked person > best guess
+    if (queryPersonId && personById[queryPersonId]) {
+      focalPersonId = queryPersonId;
+    } else if (initialFocusId && personById[initialFocusId]) {
+      focalPersonId = initialFocusId;
+    } else {
+      focalPersonId = findBestFocalPerson();
+    }
     document.getElementById('treeLoading').style.display = 'none';
     renderTree();
     setTimeout(fitToScreen, 100);
@@ -245,6 +355,23 @@ function populateSelector() {
     opt.textContent = (p.name || 'Unknown') + (p.birthYear ? ' (' + p.birthYear + ')' : '');
     select.appendChild(opt);
   });
+}
+
+function findFocalByName() {
+  const input = document.getElementById('focalPersonInput');
+  const query = (input.value || '').trim().toLowerCase();
+  if (!query) return;
+  const match = allData.nodes.find(p => (p.name || '').toLowerCase().includes(query));
+  if (match) {
+    focalPersonId = match.id;
+    document.getElementById('focalPersonSelect').value = focalPersonId;
+    renderTree();
+    fitToScreen();
+  } else {
+    input.setCustomValidity('No matching person');
+    input.reportValidity();
+    setTimeout(() => input.setCustomValidity(''), 1500);
+  }
 }
 
 function findBestFocalPerson() {
@@ -272,6 +399,11 @@ function setAsFocal() {
     fitToScreen();
   }
 }
+
+function moreUp() { maxUp = Math.min(maxUp + 1, 6); renderTree(); fitToScreen(); }
+function lessUp() { maxUp = Math.max(1, maxUp - 1); renderTree(); fitToScreen(); }
+function moreDown() { maxDown = Math.min(maxDown + 1, 6); renderTree(); fitToScreen(); }
+function lessDown() { maxDown = Math.max(1, maxDown - 1); renderTree(); fitToScreen(); }
 
 function renderTree() {
   g.select('.lines-group').selectAll('*').remove();
@@ -330,63 +462,25 @@ function renderTree() {
     displayed.set(sp.id, { x: focalX, y: centerY, person: sp, relation: 'Spouse' });
     focalX += CARD_W + SPOUSE_GAP;
   });
-  
-  // ===== ROW -1: PARENTS =====
+
   const parents = getParents(focalPersonId);
-  if (parents.length > 0) {
-    const py = centerY - GEN_GAP;
-    let parentWidth = parents.length * CARD_W + (parents.length - 1) * SPOUSE_GAP;
-    let px = centerX - parentWidth / 2 + CARD_W / 2;
-    parents.forEach((p, i) => {
-      displayed.set(p.id, { x: px, y: py, person: p, relation: p.gender === 'M' ? 'Father' : 'Mother' });
-      px += CARD_W + SPOUSE_GAP;
-    });
-  }
   
-  // ===== ROW -2: GRANDPARENTS (spouse pairs together) =====
-  const gpSet = new Set();
-  parents.forEach(parent => {
-    getParents(parent.id).forEach(gp => gpSet.add(gp.id));
-  });
-  
-  // Group grandparents into spouse pairs
-  const gpPairs = [];
-  const gpProcessed = new Set();
-  gpSet.forEach(gpId => {
-    if (gpProcessed.has(gpId)) return;
-    gpProcessed.add(gpId);
-    const gp = personById[gpId];
-    const pair = [gp];
-    // Find spouse who is also a grandparent
-    (spouseOf[gpId] || []).forEach(spId => {
-      if (gpSet.has(spId) && !gpProcessed.has(spId)) {
-        gpProcessed.add(spId);
-        pair.push(personById[spId]);
-      }
+  // ===== GENERIC ANCESTOR LEVELS =====
+  let currentGen = [focalPersonId];
+  for (let depth = 1; depth <= maxUp; depth++) {
+    const ancestors = new Set();
+    currentGen.forEach(id => (childToParents[id] || []).forEach(p => ancestors.add(p)));
+    if (ancestors.size === 0) break;
+    const list = [...ancestors].map(id => personById[id]).filter(Boolean);
+    if (list.length === 0) break;
+    const y = centerY - GEN_GAP * depth;
+    const totalWidth = list.length * CARD_W + (list.length - 1) * SIBLING_GAP;
+    let x = centerX - totalWidth / 2 + CARD_W / 2;
+    list.forEach(p => {
+      displayed.set(p.id, { x, y, person: p, relation: depth === 1 ? (p.gender === 'M' ? 'Father' : 'Mother') : `Gen -${depth}` });
+      x += CARD_W + SIBLING_GAP;
     });
-    // Sort: male first
-    pair.sort((a,b) => (a.gender === 'M' ? -1 : 1));
-    gpPairs.push(pair);
-  });
-  
-  if (gpPairs.length > 0) {
-    const gpy = centerY - GEN_GAP * 2;
-    let totalWidth = 0;
-    gpPairs.forEach((pair, i) => {
-      totalWidth += pair.length * CARD_W + (pair.length - 1) * SPOUSE_GAP;
-      if (i < gpPairs.length - 1) totalWidth += SIBLING_GAP;
-    });
-    let gpX = centerX - totalWidth / 2 + CARD_W / 2;
-    gpPairs.forEach((pair, pairIdx) => {
-      pair.forEach((gp, idx) => {
-        if (!displayed.has(gp.id)) {
-          const rel = gp.gender === 'M' ? 'Grandfather' : 'Grandmother';
-          displayed.set(gp.id, { x: gpX, y: gpy, person: gp, relation: rel });
-        }
-        gpX += CARD_W + SPOUSE_GAP;
-      });
-      if (pairIdx < gpPairs.length - 1) gpX += SIBLING_GAP - SPOUSE_GAP;
-    });
+    currentGen = list.map(p => p.id);
   }
 
   // ===== ROW 0 (right side): SIBLINGS =====
@@ -425,42 +519,25 @@ function renderTree() {
     });
   }
   
-  // ===== ROW +1: CHILDREN =====
-  const children = getChildren(focalPersonId);
-  if (children.length > 0) {
-    const cy = centerY + GEN_GAP;
-    let childWidth = children.length * CARD_W + (children.length - 1) * SIBLING_GAP;
-    let cx = centerX - childWidth / 2 + CARD_W / 2;
-    children.forEach(child => {
-      if (!displayed.has(child.id)) {
-        const rel = child.gender === 'M' ? 'Son' : 'Daughter';
-        displayed.set(child.id, { x: cx, y: cy, person: child, relation: rel });
-        cx += CARD_W + SIBLING_GAP;
+  // ===== GENERIC DESCENDANT LEVELS =====
+  currentGen = [focalPersonId];
+  for (let depth = 1; depth <= maxDown; depth++) {
+    const kids = new Set();
+    currentGen.forEach(id => (parentToChildren[id] || []).forEach(c => kids.add(c)));
+    if (kids.size === 0) break;
+    const list = [...kids].map(id => personById[id]).filter(Boolean);
+    if (list.length === 0) break;
+    const y = centerY + GEN_GAP * depth;
+    const totalWidth = list.length * CARD_W + (list.length - 1) * SIBLING_GAP;
+    let x = centerX - totalWidth / 2 + CARD_W / 2;
+    list.forEach(p => {
+      const rel = depth === 1 ? (p.gender === 'M' ? 'Son' : 'Daughter') : `Gen +${depth}`;
+      if (!displayed.has(p.id)) {
+        displayed.set(p.id, { x, y, person: p, relation: rel });
       }
+      x += CARD_W + SIBLING_GAP;
     });
-  }
-  
-  // ===== ROW +2: GRANDCHILDREN =====
-  const grandchildren = [];
-  children.forEach(child => {
-    getChildren(child.id).forEach(gc => {
-      if (!grandchildren.find(g => g.id === gc.id)) {
-        grandchildren.push(gc);
-      }
-    });
-  });
-  
-  if (grandchildren.length > 0) {
-    const gcy = centerY + GEN_GAP * 2;
-    let gcWidth = grandchildren.length * CARD_W + (grandchildren.length - 1) * SIBLING_GAP;
-    let gcX = centerX - gcWidth / 2 + CARD_W / 2;
-    grandchildren.forEach(gc => {
-      if (!displayed.has(gc.id)) {
-        const rel = gc.gender === 'M' ? 'Grandson' : 'Granddaughter';
-        displayed.set(gc.id, { x: gcX, y: gcy, person: gc, relation: rel });
-        gcX += CARD_W + SIBLING_GAP;
-      }
-    });
+    currentGen = list.map(p => p.id);
   }
   
   // Count generations displayed
@@ -507,29 +584,74 @@ function renderTree() {
       .attr('transform', 'translate(' + (d.x - CARD_W/2) + ', ' + (d.y - CARD_H/2) + ')')
       .on('click', () => selectPerson(d.person))
       .on('dblclick', () => { focalPersonId = d.person.id; document.getElementById('focalPersonSelect').value = focalPersonId; renderTree(); fitToScreen(); });
-    
+
     card.append('rect').attr('width', CARD_W).attr('height', CARD_H);
-    
-    // Gender indicator
+
+    // Avatar with photo or initials
+    const avatarX = 14 + AVATAR_R;
+    const avatarY = CARD_H / 2;
+    const clipId = `clip-${d.person.id}`;
+    card.append('defs')
+      .append('clipPath')
+      .attr('id', clipId)
+      .append('circle')
+      .attr('cx', avatarX).attr('cy', avatarY).attr('r', AVATAR_R);
+
+    // Avatar ring
     card.append('circle')
-      .attr('cx', 12).attr('cy', CARD_H / 2).attr('r', 5)
-      .attr('fill', d.person.gender === 'M' ? '#1976d2' : d.person.gender === 'F' ? '#c2185b' : '#999');
-    
+      .attr('cx', avatarX).attr('cy', avatarY).attr('r', AVATAR_R + 3)
+      .attr('fill', 'none')
+      .attr('stroke', d.person.gender === 'M' ? '#1976d2' : d.person.gender === 'F' ? '#c2185b' : '#94a3b8')
+      .attr('stroke-width', 2);
+
+    if (d.person.photoUrl) {
+      card.append('image')
+        .attr('href', d.person.photoUrl)
+        .attr('x', avatarX - AVATAR_R)
+        .attr('y', avatarY - AVATAR_R)
+        .attr('width', AVATAR_R * 2)
+        .attr('height', AVATAR_R * 2)
+        .attr('clip-path', `url(#${clipId})`)
+        .attr('preserveAspectRatio', 'xMidYMid slice');
+    } else {
+      // Initials fallback
+      card.append('circle')
+        .attr('cx', avatarX).attr('cy', avatarY).attr('r', AVATAR_R)
+        .attr('fill', '#e5e7eb');
+      const initials = (d.person.name || '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(p => p[0])
+        .join('')
+        .substring(0, 2)
+        .toUpperCase() || '•';
+      card.append('text')
+        .attr('class', 'person-name')
+        .attr('x', avatarX)
+        .attr('y', avatarY + 4)
+        .attr('text-anchor', 'middle')
+        .text(initials);
+    }
+
     // Name
-    const name = d.person.name || 'Unknown';
-    card.append('text')
-      .attr('class', 'person-name')
-      .attr('x', CARD_W / 2 + 5).attr('y', CARD_H / 2 - 10)
-      .text(name.length > 16 ? name.substring(0, 14) + '..' : name);
-    
+    const nameLines = splitNameLines(d.person.name);
+    nameLines.forEach((line, idx) => {
+      card.append('text')
+        .attr('class', 'person-name')
+        .attr('x', avatarX + AVATAR_R + 12)
+        .attr('y', CARD_H / 2 - 12 + idx * 14)
+        .text(line);
+    });
+
     // Dates
     let dates = '';
     if (d.person.birthYear && d.person.deathYear) dates = d.person.birthYear + '-' + d.person.deathYear;
     else if (d.person.birthYear) dates = 'b.' + d.person.birthYear;
+    const baseY = CARD_H / 2 + (nameLines.length > 1 ? 8 : 2);
     if (dates) {
       card.append('text')
         .attr('class', 'person-dates')
-        .attr('x', CARD_W / 2 + 5).attr('y', CARD_H / 2 + 3)
+        .attr('x', avatarX + AVATAR_R + 12).attr('y', baseY)
         .text(dates);
     }
     
@@ -537,12 +659,27 @@ function renderTree() {
     if (d.relation) {
       card.append('text')
         .attr('class', 'person-relation')
-        .attr('x', CARD_W / 2 + 5).attr('y', CARD_H / 2 + 15)
+        .attr('x', avatarX + AVATAR_R + 12).attr('y', baseY + 14)
         .text(d.relation);
     }
   });
   
   document.getElementById('focalPersonSelect').value = focalPersonId;
+}
+
+function splitNameLines(name) {
+  const clean = (name || 'Unknown').trim();
+  if (clean.length <= NAME_LINE_MAX) return [clean];
+  // Try to break on the last space before the limit
+  const firstPart = clean.slice(0, NAME_LINE_MAX);
+  const lastSpace = firstPart.lastIndexOf(' ');
+  let line1 = clean.slice(0, lastSpace > 8 ? lastSpace : NAME_LINE_MAX);
+  const remaining = clean.slice(line1.length).trim();
+  let line2 = remaining;
+  if (line2.length > NAME_LINE_MAX) {
+    line2 = line2.slice(0, NAME_LINE_MAX - 1) + '…';
+  }
+  return [line1, line2];
 }
 
 function selectPerson(person) {
@@ -587,5 +724,32 @@ function fitToScreen() {
   
   svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
 }
+
+async function exportLine(format = 'json') {
+  const line = document.querySelector('input[name="lineChoice"]:checked')?.value || 'maternal';
+  const mode = document.getElementById('lineMode').value || 'subtree';
+  const includeSpouses = document.getElementById('lineIncludeSpouses').checked ? '1' : '0';
+  const focal = focalPersonId || initialFocusId || '';
+
+  const url = `/api/families/${familyId}/export/line/?line=${line}&mode=${mode}&include_spouses=${includeSpouses}${focal ? `&person_id=${focal}` : ''}`;
+  try {
+    const resp = await fetch(url, { credentials: 'include' });
+    if (!resp.ok) throw new Error(`Export failed (${resp.status})`);
+    const data = await resp.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    a.download = `family-${familyId}-${line}-${mode}-${ts}.json`;
+    a.href = URL.createObjectURL(blob);
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(a.href);
+    a.remove();
+  } catch (err) {
+    console.error(err);
+    alert('Could not export the line. Please try again.');
+  }
+}
 </script>
-{% endblock %}
+{% endblock extra_js %}

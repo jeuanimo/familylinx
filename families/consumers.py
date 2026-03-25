@@ -1,3 +1,28 @@
+"""
+Families App - WebSocket Consumers
+
+Real-time messaging functionality using Django Channels.
+
+Consumers:
+    - ConversationConsumer: Handles chat messages in family conversations
+
+WebSocket Protocol:
+    Connection: ws://host/ws/family/{family_id}/conversation/{conversation_id}/
+    
+    Client -> Server Actions:
+        - {"action": "send_message", "content": "message text"}
+        - {"action": "mark_read"}
+    
+    Server -> Client Events:
+        - {"type": "chat_message", "message": {...}}
+        - {"type": "receipt_update", "message_id": int, "receipt_text": str}
+
+Security:
+    - Requires authenticated user
+    - Verifies family membership before allowing connection
+    - Messages scoped to conversation participants only
+"""
+
 import json
 
 from channels.db import database_sync_to_async
@@ -16,6 +41,36 @@ from .models import (
 
 
 class ConversationConsumer(AsyncWebsocketConsumer):
+    """
+    WebSocket consumer for real-time chat in family conversations.
+    
+    Handles bidirectional communication between family members in a
+    conversation room. Messages are broadcast to all participants.
+    
+    Attributes:
+        family_id (int): ID of the family space
+        conversation_id (int): ID of the chat conversation
+        room_group_name (str): Channel layer group name for broadcasting
+        user (User): Authenticated user from the scope
+    
+    Connection Flow:
+        1. Client connects with family_id and conversation_id in URL
+        2. Consumer verifies user authentication
+        3. Consumer verifies user is a member of the family
+        4. Consumer joins the conversation's channel group
+        5. Existing unread messages are marked as read
+    
+    Message Flow:
+        1. Client sends {"action": "send_message", "content": "..."}
+        2. Consumer creates message in database
+        3. Message broadcast to all group members via chat_message()
+        4. Each connected client receives the message
+    
+    Security Notes:
+        - Anonymous users are disconnected immediately
+        - Non-family members are disconnected
+        - Messages stored in database for audit trail
+    """
     async def connect(self):
         self.family_id = int(self.scope["url_route"]["kwargs"]["family_id"])
         self.conversation_id = int(self.scope["url_route"]["kwargs"]["conversation_id"])

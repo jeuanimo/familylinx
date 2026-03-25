@@ -74,7 +74,16 @@ def name_similarity(person1, person2):
     score = 0
     reasons = []
     
-    # First name comparison
+    # Compare each name component
+    score, reasons = _compare_first_names(person1, person2, score, reasons)
+    score, reasons = _compare_last_names(person1, person2, score, reasons)
+    score, reasons = _compare_maiden_names(person1, person2, score, reasons)
+    
+    return min(score, 1.0), reasons
+
+
+def _compare_first_names(person1, person2, score, reasons):
+    """Compare first names and update score."""
     fn1 = normalize_name(person1.first_name)
     fn2 = normalize_name(person2.first_name)
     if fn1 and fn2:
@@ -82,32 +91,45 @@ def name_similarity(person1, person2):
         score += fn_ratio * 0.3
         if fn_ratio > 0.8:
             reasons.append(f"First names similar: {person1.first_name} ≈ {person2.first_name}")
-    
-    # Last name comparison (weighted higher)
+    return score, reasons
+
+
+def _compare_last_names(person1, person2, score, reasons):
+    """Compare last names with Soundex bonus."""
     ln1 = normalize_name(person1.last_name)
     ln2 = normalize_name(person2.last_name)
-    if ln1 and ln2:
-        ln_ratio = SequenceMatcher(None, ln1, ln2).ratio()
-        score += ln_ratio * 0.4
-        if ln_ratio > 0.8:
-            reasons.append(f"Last names similar: {person1.last_name} ≈ {person2.last_name}")
-        
-        # Soundex bonus for last name
-        if soundex(ln1) == soundex(ln2):
-            score += 0.1
-            if ln_ratio < 0.8:
-                reasons.append(f"Last names sound similar (Soundex match)")
+    if not (ln1 and ln2):
+        return score, reasons
     
-    # Maiden name comparison
-    if person1.maiden_name and person2.maiden_name:
-        mn1 = normalize_name(person1.maiden_name)
-        mn2 = normalize_name(person2.maiden_name)
-        mn_ratio = SequenceMatcher(None, mn1, mn2).ratio()
-        score += mn_ratio * 0.2
-        if mn_ratio > 0.8:
-            reasons.append(f"Maiden names match: {person1.maiden_name} ≈ {person2.maiden_name}")
+    ln_ratio = SequenceMatcher(None, ln1, ln2).ratio()
+    score += ln_ratio * 0.4
     
-    return min(score, 1.0), reasons
+    if ln_ratio > 0.8:
+        reasons.append(f"Last names similar: {person1.last_name} ≈ {person2.last_name}")
+    
+    # Soundex bonus for last name
+    if soundex(ln1) == soundex(ln2):
+        score += 0.1
+        if ln_ratio < 0.8:
+            reasons.append("Last names sound similar (Soundex match)")
+    
+    return score, reasons
+
+
+def _compare_maiden_names(person1, person2, score, reasons):
+    """Compare maiden names if both exist."""
+    if not (person1.maiden_name and person2.maiden_name):
+        return score, reasons
+    
+    mn1 = normalize_name(person1.maiden_name)
+    mn2 = normalize_name(person2.maiden_name)
+    mn_ratio = SequenceMatcher(None, mn1, mn2).ratio()
+    score += mn_ratio * 0.2
+    
+    if mn_ratio > 0.8:
+        reasons.append(f"Maiden names match: {person1.maiden_name} ≈ {person2.maiden_name}")
+    
+    return score, reasons
 
 
 def date_proximity(person1, person2):
@@ -138,7 +160,7 @@ def date_proximity(person1, person2):
             reasons.append(f"Same death year: {person1.death_date.year}")
         elif year_diff <= 2:
             score += 0.4
-            reasons.append(f"Death years within 2 years")
+            reasons.append(f"Death years within 2 years: {person1.death_date.year} vs {person2.death_date.year}")
         elif year_diff <= 5:
             score += 0.2
     

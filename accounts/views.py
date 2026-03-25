@@ -2,6 +2,47 @@
 Accounts App - Views
 
 Profile views for FamilyLinx with Facebook-style features.
+
+This module implements user profile functionality including:
+    - Profile viewing (own and other users')
+    - Profile editing (display name, bio, location, etc.)
+    - Profile and cover photo management with crop support
+    - Wall posts (posting to user profiles)
+    - Direct messaging between users
+    - Linking profiles to family tree Person records
+
+View Categories:
+    Profile Management:
+        - my_profile: Redirect to current user's profile
+        - profile_view: Display a user's profile with wall posts
+        - profile_edit: Edit own profile settings
+        - profile_picture_update: Upload/crop profile picture
+        - cover_photo_update: Upload/crop cover photo
+        
+    Wall Posts:
+        - wall_post_create: Create a post on a profile wall
+        - wall_post_edit: Edit your own wall post
+        - wall_post_delete: Delete your own wall post
+        - wall_post_comment: Add comment to a wall post
+        - wall_comment_delete: Delete your own comment
+        
+    Messaging:
+        - message_inbox: View received messages
+        - message_sent: View sent messages
+        - message_compose: Write a new message
+        - message_view: View a specific message
+        - message_delete: Delete a message
+        
+    Family Tree Linking:
+        - link_to_tree: Link profile to a Person in family tree
+        - unlink_from_tree: Remove family tree link
+        - get_family_persons: API endpoint for person dropdown
+
+Security:
+    - All views require authentication (@login_required)
+    - Profile visibility settings control who can view profiles
+    - Users can only edit their own profiles, posts, and comments
+    - Message privacy enforced (only sender/recipient can view)
 """
 
 import base64

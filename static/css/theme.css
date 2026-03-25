@@ -852,6 +852,24 @@ main {
 .mt-2 { margin-top: 0.5rem; }
 .mt-3 { margin-top: 1rem; }
 .p-3 { padding: 1rem; }
+.text-sm { font-size: 0.8em; }
+.block { display: block; }
+.text-inherit { color: inherit; }
+.underline { text-decoration: underline; }
+.d-inline { display: inline; }
+.hidden { display: none; }
+.no-underline { text-decoration: none; }
+.flex-end { align-items: flex-end; }
+.flex-1 { flex: 1; }
+.flex-wrap { flex-wrap: wrap; }
+.max-w-300 { max-width: 300px; }
+.tree-card { padding: 0; overflow: hidden; }
+.logout-btn { background: none; border: none; cursor: pointer; text-align: left; }
+.person-detail-grid { grid-template-columns: 1fr 2fr; }
+.person-detail-name { margin: 1rem 0 0.25rem; }
+.photo-upload-container { max-width: 500px; }
+.merge-how-list { margin: 0; padding-left: 1.5rem; }
+@media (max-width: 800px) { .person-detail-grid { grid-template-columns: 1fr; } }
 
 /* Social Feed */
 .feed-posts {
@@ -2514,4 +2532,75 @@ main {
   width: 100%;
   border-radius: 12px;
   margin-top: 0.75rem;
+}
+
+/* =========================================================
+   Export Settings & Tree Controls
+   ========================================================= */
+
+/* Export settings card body flex layout */
+.export-settings-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+/* Unstyled fieldset for grouping */
+.fieldset-unstyled {
+  min-width: 220px;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Minimal legend */
+.legend-inline {
+  font-size: inherit;
+  padding: 0;
+}
+
+/* Min/max width utilities */
+.min-w-200 { min-width: 200px; }
+.min-w-160 { min-width: 160px; }
+.max-w-180 { max-width: 180px; }
+
+/* Tree controls positioning */
+.controls-wrap {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+/* Generation control buttons */
+.gen-buttons {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+/* Controls legend overlay */
+.controls-legend {
+  position: relative;
+  margin-top: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  gap: 0.25rem;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--fl-muted, #cbd5e1);
+  background: rgba(10, 14, 26, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  padding: 0.45rem 0.65rem;
+  border-radius: 10px;
+  max-width: 165px;
+  pointer-events: none;
+  transform: translateX(6px);
 }

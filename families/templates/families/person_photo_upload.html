@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Upload Photo – {{ person.full_name }} | FamilyLinx{% endblock %}
+{% block title %}Upload Photo – {{ person.full_name }} | FamilyLinx{% endblock title %}
 
 {% block content %}
 <main>
-  <div class="container" style="max-width: 500px;">
+  <div class="container photo-upload-container">
     <nav class="breadcrumb">
       <a href="{% url 'home' %}">Home</a>
       <span class="separator">/</span>
@@ -20,15 +20,15 @@
         <span class="card-title"><i class="bi bi-camera"></i> Upload Photo</span>
       </div>
       <div class="card-body">
-        <div class="text-center" style="margin-bottom: 1.5rem;">
+        <div class="text-center mb-3">
           {% if person.display_photo_url %}
-          <img src="{{ person.display_photo_url }}" alt="{{ person.full_name }}" class="person-photo-lg">
-          <p class="muted" style="margin-top: 0.5rem;">Current photo</p>
+          <img src="{{ person.display_photo_url }}" alt="{{ person.full_name }}" class="person-photo-lg" width="200" height="200">
+          <p class="muted mt-2">Current photo</p>
           {% else %}
           <div class="person-photo-placeholder-lg">
             <i class="bi bi-person"></i>
           </div>
-          <p class="muted" style="margin-top: 0.5rem;">No photo yet</p>
+          <p class="muted mt-2">No photo yet</p>
           {% endif %}
         </div>
 
@@ -40,7 +40,7 @@
             <small class="muted">Recommended: Square image, at least 300x300px</small>
           </div>
           
-          <div class="flex" style="gap: 0.5rem; margin-top: 1.5rem;">
+          <div class="flex gap-sm mt-3">
             <button type="submit" class="btn btn-primary">
               <i class="bi bi-upload"></i> Upload Photo
             </button>
@@ -53,4 +53,4 @@
     </div>
   </div>
 </main>
-{% endblock %}
+{% endblock content %}

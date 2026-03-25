@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Request Tree Merge – {{ family.name }} | FamilyLinx{% endblock %}
+{% block title %}Request Tree Merge – {{ family.name }} | FamilyLinx{% endblock title %}
 
 {% block content %}
 <main>
@@ -103,15 +103,15 @@
       </div>
     </div>
 
-    <div class="card" style="margin-top: 1.5rem;">
+    <div class="card mt-3">
       <div class="card-header">
         <span class="card-title"><i class="bi bi-info-circle"></i> How Tree Merging Works</span>
       </div>
       <div class="card-body">
-        <ol style="margin: 0; padding-left: 1.5rem;">
-          <li style="margin-bottom: 0.5rem;"><strong>Create links first</strong> – Use the "Find Connections" feature to identify matching people between trees.</li>
-          <li style="margin-bottom: 0.5rem;"><strong>Send a request</strong> – Both family owners must approve the merge.</li>
-          <li style="margin-bottom: 0.5rem;"><strong>Automatic matching</strong> – The system will use confirmed links to avoid duplicates.</li>
+        <ol class="merge-how-list">
+          <li class="mb-2"><strong>Create links first</strong> – Use the "Find Connections" feature to identify matching people between trees.</li>
+          <li class="mb-2"><strong>Send a request</strong> – Both family owners must approve the merge.</li>
+          <li class="mb-2"><strong>Automatic matching</strong> – The system will use confirmed links to avoid duplicates.</li>
           <li><strong>Review results</strong> – Check merged data and resolve any conflicts.</li>
         </ol>
       </div>
@@ -220,4 +220,4 @@
   justify-content: flex-end;
 }
 </style>
-{% endblock %}
+{% endblock content %}

@@ -1147,6 +1147,62 @@ class Relationship(models.Model):
 
 
 # =============================================================================
+# Pending Person Changes (Approval Workflow)
+# =============================================================================
+
+class PendingPersonChange(models.Model):
+    """
+    Person changes submitted by non-admins that require approval.
+    """
+
+    class Action(models.TextChoices):
+        CREATE = "CREATE", "Create"
+        UPDATE = "UPDATE", "Update"
+        DELETE = "DELETE", "Delete"
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+
+    family = models.ForeignKey(
+        FamilySpace,
+        on_delete=models.CASCADE,
+        related_name="pending_person_changes"
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pending_changes"
+    )
+    action = models.CharField(max_length=10, choices=Action.choices)
+    payload = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="person_change_requests"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="person_change_reviews"
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(blank=True)
+
+    def __str__(self):
+        target = self.person.full_name if self.person else "(new person)"
+        return f"{self.action} {target} [{self.status}]"
+
+
+# =============================================================================
 # Phase 5: Photo Albums
 # =============================================================================
 

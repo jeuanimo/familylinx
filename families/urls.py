@@ -106,6 +106,7 @@ urlpatterns = [
     # Family tree visualization
     path("<int:family_id>/tree/", views.family_tree, name="family_tree"),
     path("<int:family_id>/tree/interactive/", views.family_tree_interactive, name="family_tree_interactive"),
+    path("<int:family_id>/calendar/", views.family_calendar, name="family_calendar"),
     path("<int:family_id>/tree/link-me/", views.link_to_tree, name="link_to_tree"),
     path("<int:family_id>/familytree/view/", views.familytree_view, name="familytree_view"),
     path("<int:family_id>/familytree/upload/", views.familytree_upload, name="familytree_upload"),

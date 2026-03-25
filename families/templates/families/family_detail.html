@@ -469,5 +469,26 @@
     flex-wrap: wrap;
     margin-top: 0.75rem;
 }
+
+/* Dark mode milestone cards */
+[data-theme="dark"] .milestone-card {
+    background: linear-gradient(180deg, #1e293b, #0f172a) !important;
+    color: #e2e8f0 !important;
+}
+[data-theme="dark"] .milestone-card .milestone-title {
+    color: #f1f5f9 !important;
+}
+[data-theme="dark"] .milestone-card .muted {
+    color: #94a3b8 !important;
+}
+[data-theme="dark"] .milestone-birthday {
+    border-color: rgba(245, 158, 11, 0.5);
+}
+[data-theme="dark"] .milestone-anniversary {
+    border-color: rgba(239, 68, 68, 0.4);
+}
+[data-theme="dark"] .milestone-memorial {
+    border-color: rgba(59, 130, 246, 0.4);
+}
 </style>
 {% endblock content %}

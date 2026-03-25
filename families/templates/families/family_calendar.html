@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Family Calendar – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Calendar</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-calendar-event"></i> Family Calendar</h1>
+        <p class="muted">Birthdays and anniversaries, sorted by upcoming date.</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-diagram-3"></i> Tree
+        </a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        {% if events %}
+        <div class="list-group">
+          {% for e in events %}
+          <div class="list-group-item" style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+              {% if e.type == 'birthday' %}
+              <span class="badge badge-blue"><i class="bi bi-cake2"></i> Birthday</span>
+              <div>
+                <div><strong>{{ e.name }}</strong></div>
+                <div class="muted">Born {{ e.date|date:"F j, Y" }}</div>
+              </div>
+              {% else %}
+              <span class="badge badge-green"><i class="bi bi-heart"></i> Anniversary</span>
+              <div>
+                <div><strong>{{ e.names }}</strong></div>
+                <div class="muted">Married {{ e.date|date:"F j, Y" }}</div>
+              </div>
+              {% endif %}
+            </div>
+            <div style="text-align:right;">
+              <div><strong>Next:</strong> {{ e.next|date:"F j" }}</div>
+              {% if e.date %}<div class="muted">In {{ (e.next|date:'U'|add:'-now' )|divisibleby:86400 }}</div>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">No birthdays or anniversaries on record yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

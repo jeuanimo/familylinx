@@ -20,6 +20,9 @@ app_name = 'families_api'
 urlpatterns = [
     # Family tree data endpoint (D3.js format)
     path('families/<int:family_id>/tree/', views.FamilyTreeAPIView.as_view(), name='family_tree'),
+    # Line export (maternal/paternal subtree)
+    path('families/<int:family_id>/export/line/', views.FamilyLineExportAPIView.as_view(), name='family_line_export'),
+    path('families/<int:family_id>/export/line/create-space/', views.FamilyLineCreateSpaceAPIView.as_view(), name='family_line_create_space'),
     
     # Person search
     path('families/<int:family_id>/persons/search/', views.PersonSearchAPIView.as_view(), name='person_search'),
@@ -48,4 +51,10 @@ urlpatterns = [
     path('families/<int:family_id>/relationships/<int:pk>/', 
          views.RelationshipViewSet.as_view({'get': 'retrieve', 'delete': 'destroy'}), 
          name='relationship_detail'),
+
+    # Pending person changes (approval workflow)
+    path('families/<int:family_id>/person-changes/', views.PendingPersonChangeAPIView.as_view(), name='person_changes'),
+
+    # Self link/create person
+    path('families/<int:family_id>/persons/self-link/', views.SelfLinkAPIView.as_view(), name='person_self_link'),
 ]

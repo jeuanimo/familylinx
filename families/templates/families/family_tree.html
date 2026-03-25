@@ -17,6 +17,22 @@
 </style>
 {% endblock %}
 
+{% block extra_js %}
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="{% static 'familytree/js/tree_d3.js' %}"></script>
+<script id="family-tree-data" type="application/json">{{ tree_json_str|safe }}</script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('tree-container');
+    const inlineDataEl = document.getElementById('family-tree-data');
+    const inlineData = inlineDataEl ? JSON.parse(inlineDataEl.textContent) : null;
+    if (container && window.FamilyTreeRenderers?.renderD3) {
+      window.FamilyTreeRenderers.renderD3(container, inlineData);
+    }
+  });
+</script>
+{% endblock %}
+
 {% block content %}
 <main>
   <div class="container">
@@ -57,77 +73,19 @@
     {% if persons %}
     <div class="card">
       <div class="card-body">
-        <div class="family-tree-chart">
-          {% for gen in tree_generations %}
-          <div class="tree-generation">
-            <span class="generation-label">
-              {% if gen.generation == 0 %}
-                Ancestors
-              {% elif gen.generation == 1 %}
-                Generation 1
-              {% elif gen.generation == 2 %}
-                Generation 2
-              {% elif gen.generation == 3 %}
-                Generation 3
-              {% else %}
-                Generation {{ gen.generation }}
-              {% endif %}
-            </span>
-            
-            {% for unit in gen.units %}
-            <div class="tree-unit">
-              <div class="tree-couple">
-                {% for person in unit.persons %}
-                {% if not forloop.first %}
-                <div class="spouse-connector"><i class="bi bi-heart-fill"></i></div>
-                {% endif %}
-                <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" 
-                   class="tree-person-card {% if person.gender == 'M' %}male{% elif person.gender == 'F' %}female{% else %}other-gender{% endif %}{% if person.id == linked_person_id %} linked-me{% endif %}">
-                  <div class="tree-person-photo">
-                    {% if person.photo %}
-                    <img src="{{ person.photo.url }}" alt="{{ person.full_name }}">
-                    {% else %}
-                    <i class="bi bi-person"></i>
-                    {% endif %}
-                  </div>
-                  <div class="tree-person-name" title="{{ person.full_name }}">{{ person.full_name }}{% if person.id == linked_person_id %} <i class="bi bi-person-check" title="This is you"></i>{% endif %}</div>
-                  <div class="tree-person-dates">
-                    {{ person|lifespan_display }}
-                  </div>
-                  <div class="tree-person-badges">
-                    {% if person.is_private %}
-                    <span class="badge" style="background: var(--fl-muted);" title="Private">
-                      <i class="bi bi-lock-fill"></i>
-                    </span>
-                    {% endif %}
-                    {% if person.is_living %}
-                    <span class="badge badge-blue" title="Living">
-                      <i class="bi bi-heart-pulse"></i>
-                    </span>
-                    {% endif %}
-                    {% if person.children %}
-                    <span class="badge badge-green" title="{{ person.children|length }} children">
-                      <i class="bi bi-people-fill"></i> {{ person.children|length }}
-                    </span>
-                    {% endif %}
-                  </div>
-                </a>
-                {% endfor %}
-              </div>
-            </div>
-            {% empty %}
-            <div class="tree-empty-gen">No persons in this generation</div>
-            {% endfor %}
+        <div class="flex-between" style="gap: 1rem; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap;">
+          <div>
+            <h4 class="mb-1"><i class="bi bi-diagram-3"></i> Hierarchy View</h4>
+            <p class="muted mb-0">Clickable D3 layout with parent → child structure.</p>
           </div>
-          {% empty %}
-          <div class="empty-state">
-            <div class="empty-state-icon">
-              <i class="bi bi-diagram-3"></i>
-            </div>
-            <h3>No generations to display</h3>
-          </div>
-          {% endfor %}
+        <div class="muted" style="font-size: 0.9rem;">{{ persons|length }} people · {{ relationships|length }} relationships</div>
         </div>
+        <div id="tree-container" 
+             data-url="{{ data_url }}" 
+             data-family="{{ family.id }}" 
+             data-focus="{{ linked_person_id|default_if_none:'' }}"
+             class="border rounded" 
+             style="min-height:460px; max-height:70vh; overflow:hidden; background: var(--fl-surface);"></div>
       </div>
     </div>
 

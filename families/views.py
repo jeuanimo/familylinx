@@ -38,8 +38,8 @@ from django.db import models
 from django.db.models import Q, Count
 from datetime import date, timedelta
 from collections import deque
+import json
 
-from .services.tree_builder import build_tree_json
 from .models import (
     FamilySpace, Membership, Invite, Post, Comment, Event, RSVP, Person, 
     Relationship, Album, Photo, Notification, ChatMessage, create_notification, 
@@ -50,6 +50,7 @@ from .models import (
 )
 from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ChatMessageForm, ConversationMessageForm, LifeStorySectionForm, TimeCapsuleForm, FamilyMilestoneForm
 from utils.image_utils import process_cropped_image
+from .services.tree_builder import build_tree_json
 
 
 # =============================================================================
@@ -1741,6 +1742,80 @@ def _build_family_unit(p, spouses_of, children_of, person_by_id, generation, gen
     return unit
 
 
+def _find_linked_person(request, family, membership, person_by_id=None):
+    """
+    Find the linked person for the current user in a family.
+    
+    Returns (linked_person_id, me_person) tuple.
+    Updates membership.linked_person if a match is found.
+    """
+    linked_person_id = None
+    me_person = None
+    
+    # Priority 1: Person already linked to current user in this family
+    self_link = Person.objects.filter(
+        family=family, linked_user=request.user, is_deleted=False
+    ).first()
+    
+    if self_link:
+        if not membership.linked_person or membership.linked_person_id != self_link.id:
+            membership.linked_person = self_link
+            membership.save(update_fields=["linked_person"])
+        linked_person_id = self_link.id
+        me_person = self_link if person_by_id is None else person_by_id.get(linked_person_id, self_link)
+        return linked_person_id, me_person
+    
+    # Priority 2: Already set on membership
+    if membership.linked_person:
+        linked_person_id = membership.linked_person_id
+        me_person = person_by_id.get(linked_person_id) if person_by_id else membership.linked_person
+        return linked_person_id, me_person
+    
+    # Priority 3: Sync from user profile
+    linked_person_id, me_person = _sync_from_profile(request, family, membership, person_by_id)
+    if linked_person_id:
+        return linked_person_id, me_person
+    
+    # Priority 4: Match by full name
+    return _match_by_full_name(request, family, membership, person_by_id)
+
+
+def _sync_from_profile(request, family, membership, person_by_id):
+    """Try to sync linked person from user profile."""
+    try:
+        profile = request.user.profile
+        if profile.linked_person and profile.linked_person.family_id == family.id:
+            membership.linked_person = profile.linked_person
+            membership.save(update_fields=["linked_person"])
+            linked_person_id = profile.linked_person.id
+            me_person = person_by_id.get(linked_person_id) if person_by_id else profile.linked_person
+            return linked_person_id, me_person
+    except Exception:
+        pass
+    return None, None
+
+
+def _match_by_full_name(request, family, membership, person_by_id):
+    """Try to match user by full name."""
+    full_name = (request.user.get_full_name() or "").strip()
+    if not full_name:
+        return None, None
+    
+    if person_by_id:
+        matches = [p for p in person_by_id.values() if p.full_name.strip().lower() == full_name.lower()]
+    else:
+        matches = list(Person.objects.filter(
+            family=family, full_name__iexact=full_name, is_deleted=False
+        ))
+    
+    if len(matches) == 1:
+        membership.linked_person = matches[0]
+        membership.save(update_fields=["linked_person"])
+        return matches[0].id, matches[0]
+    
+    return None, None
+
+
 @login_required
 def family_tree(request, family_id):
     """
@@ -1765,13 +1840,9 @@ def family_tree(request, family_id):
     person_by_id = {p.id: p for p in all_persons}
     children_of, parents_of, spouses_of = _build_relationship_maps(relationships)
     
-    # Get linked person (ME)
-    linked_person_id = None
-    me_person = None
-    if membership.linked_person:
-        linked_person_id = membership.linked_person_id
-        me_person = person_by_id.get(linked_person_id)
-    
+    # Get linked person (ME) using helper
+    linked_person_id, me_person = _find_linked_person(request, family, membership, person_by_id)
+
     # Build tree centered on linked person (if any)
     persons, generation = _build_tree_data(
         me_person, all_persons,
@@ -1789,8 +1860,13 @@ def family_tree(request, family_id):
         generations_dict, linked_person_id, parents_of,
         children_of, spouses_of, person_by_id, generation
     )
-    
-    return render(request, "families/family_tree.html", {
+
+    # Use the API tree endpoint so the classic view matches the interactive tree data
+    data_url = reverse("families_api:family_tree", kwargs={"family_id": family.id})
+
+    can_edit = membership.role in ['OWNER', 'ADMIN', 'EDITOR']
+
+    return render(request, "families/family_tree_interactive_simple.html", {
         "family": family,
         "membership": membership,
         "persons": persons,
@@ -1802,6 +1878,8 @@ def family_tree(request, family_id):
         "parents_of": parents_of,
         "linked_person_id": linked_person_id,
         "has_linked_person": me_person is not None,
+        "data_url": data_url,
+        "can_edit": can_edit,
     })
 
 
@@ -1864,28 +1942,35 @@ def family_tree_interactive(request, family_id):
     
     can_edit = membership.role in ['OWNER', 'ADMIN', 'EDITOR']
     
-    # Get user's linked person for centering the tree
-    linked_person_id = None
-    if membership.linked_person:
-        linked_person_id = membership.linked_person.id
-    else:
-        # Also check profile's linked_person
-        try:
-            profile = request.user.profile
-            if profile.linked_person and profile.linked_person.family_id == family.id:
-                linked_person_id = profile.linked_person.id
-                # Sync to membership
-                membership.linked_person = profile.linked_person
-                membership.save()
-        except Exception:
-            pass
+    # Get user's linked person using helper
+    linked_person_id, _ = _find_linked_person(request, family, membership)
+
+    # Optional: focus a specific person passed via query param (?person_id=123)
+    initial_focus_id = _get_focus_person_id(request, family, linked_person_id)
     
     return render(request, "families/family_tree_interactive.html", {
         "family": family,
         "membership": membership,
         "can_edit": can_edit,
         "linked_person_id": linked_person_id,
+        "initial_focus_id": initial_focus_id,
     })
+
+
+def _get_focus_person_id(request, family, fallback_id):
+    """Get focus person ID from query param or use fallback."""
+    focus_person_id = request.GET.get("person_id")
+    if not focus_person_id:
+        return fallback_id
+    
+    try:
+        focus_person_id = int(focus_person_id)
+        if Person.objects.filter(id=focus_person_id, family=family, is_deleted=False).exists():
+            return focus_person_id
+    except (TypeError, ValueError):
+        pass
+    
+    return fallback_id
 
 
 @login_required
@@ -1897,7 +1982,9 @@ def familytree_view(request, family_id):
 
     data_url = reverse("families:family_tree_data", kwargs={"family_id": family.id})
     can_edit = membership.role in ['OWNER', 'ADMIN', 'EDITOR']
-    linked_person_id = membership.linked_person.id if membership.linked_person else None
+    
+    # Use helper to get linked person
+    linked_person_id, _ = _find_linked_person(request, family, membership)
 
     return render(request, TEMPLATE_FAMILYTREE_VIEW, {
         "family": family,
@@ -1905,6 +1992,73 @@ def familytree_view(request, family_id):
         "data_url": data_url,
         "linked_person_id": linked_person_id,
         "can_edit": can_edit,
+    })
+
+
+@login_required
+def family_calendar(request, family_id):
+    """Show upcoming birthdays and anniversaries for this family."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+
+    today = timezone.localdate()
+
+    def next_occurrence(dt):
+        if not dt:
+            return None
+        this_year = dt.replace(year=today.year)
+        if this_year >= today:
+            return this_year
+        try:
+            return dt.replace(year=today.year + 1)
+        except ValueError:
+            # handle Feb 29
+            return dt.replace(year=today.year + 1, day=28)
+
+    # Birthdays from Person.birth_date
+    people = Person.objects.filter(family=family, is_deleted=False, birth_date__isnull=False)
+    birthday_events = []
+    for p in people:
+        occ = next_occurrence(p.birth_date)
+        if occ:
+            birthday_events.append({
+                "type": "birthday",
+                "name": p.full_name,
+                "person_id": p.id,
+                "date": p.birth_date,
+                "next": occ,
+            })
+
+    # Anniversaries from spouse relationships start_date
+    spouse_rels = Relationship.objects.filter(
+        family=family,
+        is_deleted=False,
+        relationship_type=Relationship.Type.SPOUSE,
+        start_date__isnull=False,
+    ).select_related("person1", "person2")
+    anniversary_events = []
+    for r in spouse_rels:
+        occ = next_occurrence(r.start_date)
+        if occ:
+            anniversary_events.append({
+                "type": "anniversary",
+                "names": f"{r.person1.full_name} & {r.person2.full_name}",
+                "person1_id": r.person1_id,
+                "person2_id": r.person2_id,
+                "date": r.start_date,
+                "next": occ,
+            })
+
+    events = birthday_events + anniversary_events
+    events = [e for e in events if e.get("next")]
+    events.sort(key=lambda e: e["next"])
+
+    return render(request, "families/family_calendar.html", {
+        "family": family,
+        "membership": membership,
+        "events": events,
+        "today": today,
     })
 
 
@@ -6136,7 +6290,7 @@ def tree_link_propose(request, family_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     if membership.role == Membership.Role.VIEWER:
         return JsonResponse({"error": "Permission denied"}, status=403)
@@ -6206,7 +6360,7 @@ def tree_link_confirm(request, family_id, link_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
         return JsonResponse({"error": "Only admins can confirm links"}, status=403)
@@ -6234,7 +6388,7 @@ def tree_link_reject(request, family_id, link_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
         return JsonResponse({"error": "Only admins can reject links"}, status=403)
@@ -6346,7 +6500,7 @@ def tree_merge_approve(request, family_id, merge_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
         return JsonResponse({"error": "Only admins can approve merges"}, status=403)
@@ -6377,7 +6531,7 @@ def tree_merge_reject(request, family_id, merge_id):
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
         return JsonResponse({"error": "Only admins can reject merges"}, status=403)

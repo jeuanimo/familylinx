@@ -6,7 +6,7 @@ supporting interactive family tree visualization and editing.
 """
 
 from rest_framework import serializers
-from families.models import Person, Relationship, FamilySpace
+from families.models import Person, Relationship, FamilySpace, PendingPersonChange
 
 
 class PersonListSerializer(serializers.ModelSerializer):
@@ -118,6 +118,25 @@ class RelationshipSerializer(serializers.ModelSerializer):
         return obj.person2.full_name
 
 
+class PendingPersonChangeSerializer(serializers.ModelSerializer):
+    person_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PendingPersonChange
+        fields = [
+          'id', 'action', 'status', 'person', 'person_name', 'payload',
+          'created_by', 'created_by_name', 'created_at', 'review_notes'
+        ]
+        read_only_fields = ['id', 'status', 'created_by', 'created_at', 'review_notes']
+
+    def get_person_name(self, obj):
+        return obj.person.full_name if obj.person else None
+
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name() if obj.created_by else None
+
+
 class FamilyTreeSerializer(serializers.Serializer):
     """
     Serializer for the complete family tree structure.
@@ -147,6 +166,12 @@ class FamilyTreeSerializer(serializers.Serializer):
         except Exception:
             pass
         return None
+
+    def _abs(self, url):
+        request = self.context.get('request') if isinstance(self.context, dict) else None
+        if request and url:
+            return request.build_absolute_uri(url)
+        return url
     
     def to_representation(self, instance):
         """
@@ -168,6 +193,8 @@ class FamilyTreeSerializer(serializers.Serializer):
             else:
                 # Try to get linked user's profile picture
                 photo_url = self._get_linked_user_photo(p)
+            photo_url = self._abs(photo_url)
+            photo_thumb = photo_url  # placeholder; could swap to real thumb later
             
             nodes.append({
                 'id': p.id,
@@ -179,6 +206,7 @@ class FamilyTreeSerializer(serializers.Serializer):
                 'deathYear': p.death_date.year if p.death_date else None,
                 'birthPlace': p.birth_place,
                 'photoUrl': photo_url,
+                'photoThumb': photo_thumb,
                 'isPrivate': p.is_private,
             })
         

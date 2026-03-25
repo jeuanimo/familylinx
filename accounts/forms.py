@@ -1,7 +1,28 @@
 """
 Accounts App - Forms
 
-Forms for user profile management.
+Django ModelForms for user profile management and social features.
+
+Forms:
+    Profile Management:
+        - UserProfileForm: Full profile editing (name, bio, photos, settings)
+        - ProfilePictureForm: Quick profile picture upload
+        - CoverPhotoForm: Quick cover photo upload
+        
+    Social Features:
+        - ProfilePostForm: Creating and editing wall posts
+        - ProfilePostCommentForm: Commenting on wall posts
+        - ProfileMessageForm: Sending direct messages
+
+Widget Configuration:
+    All forms use Bootstrap-compatible CSS classes for consistent styling.
+    File inputs are configured to accept image/* MIME types.
+    Date inputs use HTML5 date type for native date pickers.
+
+Security Notes:
+    - Only fields specified in Meta.fields are accepted
+    - File uploads validated by model constraints
+    - Template rendering auto-escapes text content
 """
 
 from django import forms
@@ -10,7 +31,23 @@ from .models import UserProfile, ProfilePost, ProfilePostComment, ProfileMessage
 
 class UserProfileForm(forms.ModelForm):
     """
-    Form for editing user profile information.
+    Comprehensive form for editing user profile information.
+    
+    Includes personal info, photos, and privacy settings.
+    Profile picture and cover photo can be uploaded but cropping
+    is handled by separate views with JavaScript croppers.
+    
+    Fields:
+        display_name: Name shown on profile (defaults to email username)
+        bio: Personal bio/about text (max 500 chars)
+        profile_picture: Avatar image
+        cover_photo: Banner image at top of profile
+        location: User's location (free text)
+        website: Personal website URL
+        date_of_birth: Birthday (used for age display, birthday notifications)
+        profile_visibility: Who can view the profile
+        show_email: Whether to display email on profile
+        show_birthday: Whether to display birthday on profile
     """
     
     class Meta:

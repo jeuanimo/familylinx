@@ -80,10 +80,8 @@
                     <div class="col-4">
                         <img src="{{ memory.media.first.file.url }}" class="img-fluid rounded-start h-100 img-cover" alt="{{ memory.title }}" width="200" height="auto">
                     </div>
-                    <div class="col-8">
-                    {% else %}
-                    <div class="col-12">
                     {% endif %}
+                    <div class="{% if memory.media.first %}col-8{% else %}col-12{% endif %}">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-start">
                                 <span class="badge bg-{{ memory.story_type|lower|default:'secondary' }}">

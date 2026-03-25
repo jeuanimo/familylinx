@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Cross-Family Links – {{ family.name }} | FamilyLinx{% endblock %}
+{% block title %}Cross-Family Links – {{ family.name }} | FamilyLinx{% endblock title %}
 
 {% block content %}
 <main>
@@ -93,7 +93,7 @@
 
     <!-- Confirmed Links -->
     {% if confirmed_links %}
-    <div class="card" style="margin-top: 1.5rem;">
+    <div class="card mt-3">
       <div class="card-header">
         <span class="card-title"><i class="bi bi-check-circle"></i> Confirmed Links ({{ confirmed_links|length }})</span>
       </div>
@@ -155,7 +155,7 @@
     {% endif %}
 
     <!-- Merge Requests Link -->
-    <div class="card" style="margin-top: 1.5rem;">
+    <div class="card mt-3">
       <div class="card-body">
         <div class="flex-between">
           <div>
@@ -283,4 +283,4 @@ document.querySelectorAll('.reject-link-btn').forEach(btn => {
   });
 });
 </script>
-{% endblock %}
+{% endblock content %}

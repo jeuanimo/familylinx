@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Interactive Family Tree – {{ family.name }} | FamilyLinx{% endblock %}
+{% block title %}Interactive Family Tree – {{ family.name }} | FamilyLinx{% endblock title %}
 
 {% block extra_css %}
 <style>
@@ -101,6 +101,32 @@
   .link.spouse {
     stroke: #e91e63;
     stroke-dasharray: 5, 3;
+  }
+  
+  /* Dark mode tweaks for better contrast */
+  [data-theme="dark"] .node rect {
+    fill: #0f172a;
+    stroke: #334155;
+  }
+  [data-theme="dark"] .node.male rect {
+    fill: #0b3b5c;
+    stroke: #38bdf8;
+  }
+  [data-theme="dark"] .node.female rect {
+    fill: #2b0f24;
+    stroke: #f472b6;
+  }
+  [data-theme="dark"] .node-name {
+    fill: #e2e8f0;
+  }
+  [data-theme="dark"] .node-dates {
+    fill: #cbd5e1;
+  }
+  [data-theme="dark"] .link.parent-child {
+    stroke: #475569;
+  }
+  [data-theme="dark"] .link.spouse {
+    stroke: #f472b6;
   }
   
   /* Generation collapse indicator */
@@ -541,7 +567,7 @@
     padding: 2rem;
   }
 </style>
-{% endblock %}
+{% endblock extra_css %}
 
 {% block content %}
 <main>
@@ -572,7 +598,7 @@
       </div>
     </div>
     
-    <div class="card" style="padding: 0; overflow: hidden;">
+    <div class="card tree-card">
       <!-- Stats bar -->
       <div class="tree-stats">
         <span class="tree-stat"><strong id="personCount">0</strong> people</span>
@@ -599,7 +625,7 @@
           {% if linked_person_id %}
           <button onclick="focusOnMe()" title="Find Me" class="btn-find-me"><i class="bi bi-person-fill"></i> Me</button>
           {% else %}
-          <a href="{% url 'families:find_my_match' family.id %}" title="Verify your identity to link to the tree" class="btn-link-me" style="text-decoration: none;">
+          <a href="{% url 'families:find_my_match' family.id %}" title="Verify your identity to link to the tree" class="btn-link-me no-underline">
             <i class="bi bi-person-check"></i> Find Me
           </a>
           {% endif %}
@@ -650,7 +676,7 @@
     </div>
   </div>
 </main>
-{% endblock %}
+{% endblock content %}
 
 {% block extra_js %}
 <!-- D3.js -->
@@ -660,6 +686,7 @@
   // Configuration
   const familyId = {{ family.id }};
   const linkedPersonId = {{ linked_person_id|default:"null" }};
+  const initialFocusId = {{ initial_focus_id|default:"null" }};
   const linkToTreeUrl = '{% url "families:link_to_tree" family.id %}';
   const apiUrl = '/api/families/' + familyId + '/tree/';
   const nodeWidth = 70;
@@ -829,9 +856,10 @@
         }
       }
       
-      // Focus on linked person if set, otherwise fit to screen
-      if (linkedPersonId) {
-        setTimeout(() => focusOnPerson(linkedPersonId), 300);
+      // Focus priority: explicit target -> linked person -> fit
+      const targetId = initialFocusId || linkedPersonId;
+      if (targetId) {
+        setTimeout(() => focusOnPerson(targetId), 300);
       } else {
         setTimeout(fitToScreen, 100);
       }
@@ -1962,4 +1990,4 @@
            document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
   }
 </script>
-{% endblock %}
+{% endblock extra_js %}

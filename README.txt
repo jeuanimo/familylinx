@@ -139,6 +139,17 @@ SECURE CODING PRACTICES:
    - Use proper CORS configuration
    - Validate all request data
 
+MOBILE / API NOTES (Quick Reference)
+------------------------------------
+- JWT endpoints: `/api/auth/token/`, `/api/auth/token/refresh/` (Bearer tokens for mobile clients).
+- CORS: configured in `config/settings.py` via `django-cors-headers`; update `CORS_ALLOWED_ORIGINS` for your domains.
+- Tree API (mobile-friendly): `/api/families/<id>/tree/?person_id=me&depth_up=3&depth_down=3&include_spouses=1`.
+- Line export: `/api/families/<id>/export/line/` with `line`, `mode`, `include_spouses`, `parent_hint_id`, `depth_up`, `depth_down`.
+- Clone branch into new space: `POST /api/families/<id>/export/line/create-space/` (caller becomes OWNER of the new space).
+- Media URLs returned are absolute to ease mobile use.
+
+See `docs/mobile_api.md` and `docs/line_export.md` for more detail.
+
 REACT FRONTEND SECURITY (if applicable):
 ----------------------------------------
 - Sanitize user inputs before rendering
