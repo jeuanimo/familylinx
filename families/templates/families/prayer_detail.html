@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ prayer.title }}{% if family %} - {{ family.name }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Back navigation -->
+    <div class="mb-3">
+        {% if family %}
+        <a href="{% url 'families:prayer_list' family_id=family.id %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back to Prayer Requests
+        </a>
+        {% else %}
+        <a href="{% url 'families:global_prayer_list' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back to Prayer Requests
+        </a>
+        {% endif %}
+    </div>
+    
+    <!-- Prayer Request Card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <span class="badge bg-{% if prayer.status == 'ANSWERED' %}success{% elif prayer.status == 'CLOSED' %}secondary{% else %}primary{% endif %} me-2">
+                    {% if prayer.status == 'ANSWERED' %}
+                    <i class="bi bi-check-circle"></i> Answered
+                    {% elif prayer.status == 'CLOSED' %}
+                    <i class="bi bi-x-circle"></i> Closed
+                    {% else %}
+                    <i class="bi bi-heart-pulse"></i> Open for Prayer
+                    {% endif %}
+                </span>
+            </div>
+            {% if user == prayer.author %}
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-three-dots"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    {% if family %}
+                    <li><a class="dropdown-item" href="{% url 'families:prayer_edit' family_id=family.id prayer_id=prayer.id %}">
+                        <i class="bi bi-pencil"></i> Edit
+                    </a></li>
+                    {% if prayer.status == 'OPEN' %}
+                    <li><a class="dropdown-item" href="{% url 'families:prayer_mark_answered' family_id=family.id prayer_id=prayer.id %}">
+                        <i class="bi bi-check-circle"></i> Mark as Answered
+                    </a></li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="{% url 'families:prayer_delete' family_id=family.id prayer_id=prayer.id %}">
+                        <i class="bi bi-trash"></i> Delete
+                    </a></li>
+                    {% else %}
+                    <li><a class="dropdown-item" href="{% url 'families:global_prayer_edit' prayer_id=prayer.id %}">
+                        <i class="bi bi-pencil"></i> Edit
+                    </a></li>
+                    {% if prayer.status == 'OPEN' %}
+                    <li><a class="dropdown-item" href="{% url 'families:global_prayer_mark_answered' prayer_id=prayer.id %}">
+                        <i class="bi bi-check-circle"></i> Mark as Answered
+                    </a></li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="{% url 'families:global_prayer_delete' prayer_id=prayer.id %}">
+                        <i class="bi bi-trash"></i> Delete
+                    </a></li>
+                    {% endif %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <h3 class="card-title">{{ prayer.title }}</h3>
+            <p class="text-muted small mb-3">
+                {% if prayer.is_anonymous %}
+                <i class="bi bi-incognito"></i> Anonymous
+                {% else %}
+                <i class="bi bi-person"></i> {{ prayer.author.get_full_name|default:prayer.author.username }}
+                {% endif %}
+                &bull; {{ prayer.created_at|timesince }} ago
+                {% if prayer.updated_at != prayer.created_at %}
+                &bull; <em>edited</em>
+                {% endif %}
+            </p>
+            <div class="card-text" style="white-space: pre-wrap;">{{ prayer.content }}</div>
+        </div>
+        <div class="card-footer">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted">
+                        <i class="bi bi-people"></i> {{ prayer.praying_users.count }} praying
+                    </span>
+                </div>
+                {% if prayer.status == 'OPEN' %}
+                <form method="post" action="{% if family %}{% url 'families:prayer_toggle_praying' family_id=family.id prayer_id=prayer.id %}{% else %}{% url 'families:global_prayer_toggle_praying' prayer_id=prayer.id %}{% endif %}">
+                    {% csrf_token %}
+                    {% if is_praying %}
+                    <button type="submit" class="btn btn-success btn-sm">
+                        <i class="bi bi-heart-fill"></i> I'm Praying
+                    </button>
+                    {% else %}
+                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-heart"></i> Pray for This
+                    </button>
+                    {% endif %}
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Testimony (if answered) -->
+    {% if prayer.status == 'ANSWERED' and testimony %}
+    <div class="card mb-4 border-success">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-star-fill"></i> Testimony - Prayer Answered!</h5>
+        </div>
+        <div class="card-body">
+            <div style="white-space: pre-wrap;">{{ testimony.content }}</div>
+            <p class="text-muted small mt-3 mb-0">
+                Shared {{ testimony.created_at|timesince }} ago
+            </p>
+        </div>
+        {% if user == prayer.author %}
+        <div class="card-footer">
+            <a href="{% if family %}{% url 'families:prayer_testimony_edit' family_id=family.id prayer_id=prayer.id %}{% else %}{% url 'families:global_prayer_testimony_edit' prayer_id=prayer.id %}{% endif %}" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-pencil"></i> Edit Testimony
+            </a>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <!-- Replies Section -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-chat-dots"></i> Prayer Support ({{ replies.count }})</h5>
+        </div>
+        <div class="card-body">
+            <!-- Reply Form -->
+            {% if prayer.status == 'OPEN' %}
+            <form method="post" action="{% if family %}{% url 'families:prayer_reply_create' family_id=family.id prayer_id=prayer.id %}{% else %}{% url 'families:global_prayer_reply_create' prayer_id=prayer.id %}{% endif %}" class="mb-4">
+                {% csrf_token %}
+                <div class="mb-2">
+                    <textarea class="form-control" name="content" rows="3" placeholder="Share a word of encouragement or let them know you're praying..." required></textarea>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="reply_anonymous" name="is_anonymous">
+                        <label class="form-check-label" for="reply_anonymous">
+                            <i class="bi bi-incognito"></i> Reply Anonymously
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-send"></i> Send Encouragement
+                    </button>
+                </div>
+            </form>
+            <hr>
+            {% endif %}
+            
+            <!-- Replies List -->
+            {% if replies %}
+            <div class="replies-list">
+                {% for reply in replies %}
+                <div class="d-flex mb-3">
+                    <div class="flex-shrink-0">
+                        <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            {% if reply.is_anonymous %}
+                            <i class="bi bi-incognito"></i>
+                            {% else %}
+                            <i class="bi bi-person"></i>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <div class="bg-light rounded p-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <strong>
+                                    {% if reply.is_anonymous %}
+                                    Anonymous
+                                    {% else %}
+                                    {{ reply.author.get_full_name|default:reply.author.username }}
+                                    {% endif %}
+                                </strong>
+                                {% if user == reply.author %}
+                                <form method="post" action="{% if family %}{% url 'families:prayer_reply_delete' family_id=family.id prayer_id=prayer.id reply_id=reply.id %}{% else %}{% url 'families:global_prayer_reply_delete' prayer_id=prayer.id reply_id=reply.id %}{% endif %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-link btn-sm text-danger p-0" onclick="return confirm('Delete this reply?');">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            <div style="white-space: pre-wrap;">{{ reply.content }}</div>
+                            <small class="text-muted">{{ reply.created_at|timesince }} ago</small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted text-center py-4">
+                <i class="bi bi-chat-dots" style="font-size: 2rem;"></i><br>
+                No messages yet. Be the first to offer encouragement!
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -6581,3 +6581,409 @@ def _execute_tree_merge(merge):
                     confirmed_by_space1=True,
                     confirmed_by_space2=True
                 )
+
+
+# =============================================================================
+# Phase 10: Prayer Requests & Testimonies
+# =============================================================================
+
+@login_required
+def prayer_list(request, family_id=None):
+    """
+    List prayer requests for a family or global prayers.
+    
+    Supports filtering by status and displays prayer counts.
+    """
+    from .models import PrayerRequest
+    
+    family = None
+    membership = None
+    
+    if family_id:
+        family, membership = _get_membership_or_deny(request, family_id)
+        if not membership:
+            return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+        prayers = PrayerRequest.objects.filter(family=family, is_hidden=False)
+    else:
+        # Global prayers (no family scope)
+        prayers = PrayerRequest.objects.filter(family__isnull=True, is_hidden=False)
+    
+    # Filter by status
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        prayers = prayers.filter(status=status_filter)
+    
+    prayers = prayers.select_related('author').prefetch_related('praying_users').order_by('-is_pinned', '-created_at')
+    
+    # Count by status
+    status_counts = {
+        'all': PrayerRequest.objects.filter(family=family, is_hidden=False).count() if family else PrayerRequest.objects.filter(family__isnull=True, is_hidden=False).count(),
+        'open': prayers.filter(status=PrayerRequest.Status.OPEN).count(),
+        'answered': prayers.filter(status=PrayerRequest.Status.ANSWERED).count(),
+    }
+    
+    return render(request, "families/prayer_list.html", {
+        "family": family,
+        "membership": membership,
+        "prayers": prayers[:50],
+        "status_filter": status_filter,
+        "status_counts": status_counts,
+    })
+
+
+@login_required
+def prayer_create(request, family_id=None):
+    """
+    Create a new prayer request.
+    
+    Supports anonymous posting where author is tracked but hidden from display.
+    """
+    from .models import PrayerRequest
+    
+    family = None
+    membership = None
+    
+    if family_id:
+        family, membership = _get_membership_or_deny(request, family_id)
+        if not membership:
+            return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    if request.method == "POST":
+        title = request.POST.get('title', '').strip()
+        content = request.POST.get('content', '').strip()
+        is_anonymous = request.POST.get('is_anonymous') == 'on'
+        
+        if not title or not content:
+            messages.error(request, "Please provide both a title and content for your prayer request.")
+            return render(request, "families/prayer_form.html", {
+                "family": family,
+                "membership": membership,
+                "mode": "create",
+            })
+        
+        prayer = PrayerRequest.objects.create(
+            family=family,
+            author=request.user,
+            title=title,
+            content=content,
+            is_anonymous=is_anonymous,
+        )
+        
+        messages.success(request, "Prayer request submitted. May God bless you!")
+        
+        if family:
+            return redirect("families:prayer_list", family_id=family.id)
+        return redirect("families:global_prayer_list")
+    
+    return render(request, "families/prayer_form.html", {
+        "family": family,
+        "membership": membership,
+        "mode": "create",
+    })
+
+
+@login_required
+def prayer_detail(request, prayer_id, family_id=None):
+    """
+    View a single prayer request with replies.
+    
+    Users can add replies and mark they are praying.
+    """
+    from .models import PrayerRequest, PrayerReply
+    
+    family = None
+    membership = None
+    
+    if family_id:
+        family, membership = _get_membership_or_deny(request, family_id)
+        if not membership:
+            return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family=family, is_hidden=False)
+    else:
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family__isnull=True, is_hidden=False)
+    
+    replies = prayer.replies.filter(is_hidden=False).select_related('author').order_by('created_at')
+    
+    # Check if user is praying
+    is_praying = request.user in prayer.praying_users.all()
+    
+    # Check if user owns this prayer
+    is_owner = prayer.author == request.user
+    
+    return render(request, "families/prayer_detail.html", {
+        "family": family,
+        "membership": membership,
+        "prayer": prayer,
+        "replies": replies,
+        "is_praying": is_praying,
+        "is_owner": is_owner,
+    })
+
+
+@login_required
+def prayer_edit(request, prayer_id, family_id=None):
+    """
+    Edit a prayer request (owner only).
+    """
+    from .models import PrayerRequest
+    
+    family = None
+    membership = None
+    
+    if family_id:
+        family, membership = _get_membership_or_deny(request, family_id)
+        if not membership:
+            return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family=family)
+    else:
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family__isnull=True)
+    
+    # Only owner can edit
+    if prayer.author != request.user:
+        messages.error(request, "You can only edit your own prayer requests.")
+        if family:
+            return redirect("families:prayer_detail", family_id=family.id, prayer_id=prayer.id)
+        return redirect("families:global_prayer_detail", prayer_id=prayer.id)
+    
+    if request.method == "POST":
+        prayer.title = request.POST.get('title', '').strip()
+        prayer.content = request.POST.get('content', '').strip()
+        prayer.is_anonymous = request.POST.get('is_anonymous') == 'on'
+        prayer.save()
+        
+        messages.success(request, "Prayer request updated.")
+        
+        if family:
+            return redirect("families:prayer_detail", family_id=family.id, prayer_id=prayer.id)
+        return redirect("families:global_prayer_detail", prayer_id=prayer.id)
+    
+    return render(request, "families/prayer_form.html", {
+        "family": family,
+        "membership": membership,
+        "prayer": prayer,
+        "mode": "edit",
+    })
+
+
+@login_required
+def prayer_delete(request, prayer_id, family_id=None):
+    """
+    Delete a prayer request (owner only).
+    """
+    from .models import PrayerRequest
+    
+    family = None
+    membership = None
+    
+    if family_id:
+        family, membership = _get_membership_or_deny(request, family_id)
+        if not membership:
+            return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family=family)
+    else:
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family__isnull=True)
+    
+    # Only owner can delete
+    if prayer.author != request.user:
+        messages.error(request, "You can only delete your own prayer requests.")
+        if family:
+            return redirect("families:prayer_detail", family_id=family.id, prayer_id=prayer.id)
+        return redirect("families:global_prayer_detail", prayer_id=prayer.id)
+    
+    if request.method == "POST":
+        prayer.delete()
+        messages.success(request, "Prayer request deleted.")
+        
+        if family:
+            return redirect("families:prayer_list", family_id=family.id)
+        return redirect("families:global_prayer_list")
+    
+    return render(request, "families/prayer_delete.html", {
+        "family": family,
+        "membership": membership,
+        "prayer": prayer,
+    })
+
+
+@login_required
+def prayer_toggle_praying(request, prayer_id, family_id=None):
+    """
+    Toggle whether the user is praying for this request.
+    """
+    from .models import PrayerRequest
+    
+    if family_id:
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family_id=family_id)
+    else:
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family__isnull=True)
+    
+    if request.user in prayer.praying_users.all():
+        prayer.praying_users.remove(request.user)
+        is_praying = False
+    else:
+        prayer.praying_users.add(request.user)
+        is_praying = True
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            "success": True,
+            "is_praying": is_praying,
+            "prayer_count": prayer.prayer_count,
+        })
+    
+    if family_id:
+        return redirect("families:prayer_detail", family_id=family_id, prayer_id=prayer.id)
+    return redirect("families:global_prayer_detail", prayer_id=prayer.id)
+
+
+@login_required
+def prayer_reply_create(request, prayer_id, family_id=None):
+    """
+    Add a reply to a prayer request.
+    """
+    from .models import PrayerRequest, PrayerReply
+    
+    if family_id:
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family_id=family_id)
+    else:
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family__isnull=True)
+    
+    if request.method == "POST":
+        content = request.POST.get('content', '').strip()
+        is_anonymous = request.POST.get('is_anonymous') == 'on'
+        
+        if content:
+            PrayerReply.objects.create(
+                prayer_request=prayer,
+                author=request.user,
+                content=content,
+                is_anonymous=is_anonymous,
+            )
+            messages.success(request, "Reply added.")
+    
+    if family_id:
+        return redirect("families:prayer_detail", family_id=family_id, prayer_id=prayer.id)
+    return redirect("families:global_prayer_detail", prayer_id=prayer.id)
+
+
+@login_required
+def prayer_reply_delete(request, reply_id, family_id=None):
+    """
+    Delete a reply (owner only).
+    """
+    from .models import PrayerReply
+    
+    reply = get_object_or_404(PrayerReply, id=reply_id)
+    prayer = reply.prayer_request
+    
+    # Check permission
+    if reply.author != request.user:
+        messages.error(request, "You can only delete your own replies.")
+    elif request.method == "POST":
+        reply.delete()
+        messages.success(request, "Reply deleted.")
+    
+    if family_id:
+        return redirect("families:prayer_detail", family_id=family_id, prayer_id=prayer.id)
+    return redirect("families:global_prayer_detail", prayer_id=prayer.id)
+
+
+@login_required
+def prayer_mark_answered(request, prayer_id, family_id=None):
+    """
+    Mark a prayer as answered and add testimony.
+    """
+    from .models import PrayerRequest, PrayerTestimony
+    
+    if family_id:
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family_id=family_id)
+        family, membership = _get_membership_or_deny(request, family_id)
+    else:
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family__isnull=True)
+        family = None
+        membership = None
+    
+    # Only owner can mark as answered
+    if prayer.author != request.user:
+        messages.error(request, "Only the prayer author can mark it as answered.")
+        if family_id:
+            return redirect("families:prayer_detail", family_id=family_id, prayer_id=prayer.id)
+        return redirect("families:global_prayer_detail", prayer_id=prayer.id)
+    
+    if request.method == "POST":
+        testimony_content = request.POST.get('testimony', '').strip()
+        is_anonymous = request.POST.get('is_anonymous') == 'on'
+        answered_date = request.POST.get('answered_date') or None
+        
+        # Update prayer status
+        prayer.status = PrayerRequest.Status.ANSWERED
+        prayer.save()
+        
+        # Create or update testimony
+        if testimony_content:
+            testimony, created = PrayerTestimony.objects.update_or_create(
+                prayer_request=prayer,
+                defaults={
+                    'author': request.user,
+                    'content': testimony_content,
+                    'is_anonymous': is_anonymous,
+                    'answered_date': answered_date,
+                }
+            )
+        
+        messages.success(request, "Praise God! Your testimony has been shared.")
+        
+        if family_id:
+            return redirect("families:prayer_detail", family_id=family_id, prayer_id=prayer.id)
+        return redirect("families:global_prayer_detail", prayer_id=prayer.id)
+    
+    return render(request, "families/prayer_testimony_form.html", {
+        "family": family,
+        "membership": membership,
+        "prayer": prayer,
+    })
+
+
+@login_required
+def prayer_testimony_edit(request, prayer_id, family_id=None):
+    """
+    Edit the testimony for an answered prayer.
+    """
+    from .models import PrayerRequest, PrayerTestimony
+    
+    if family_id:
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family_id=family_id)
+        family, membership = _get_membership_or_deny(request, family_id)
+    else:
+        prayer = get_object_or_404(PrayerRequest, id=prayer_id, family__isnull=True)
+        family = None
+        membership = None
+    
+    testimony = get_object_or_404(PrayerTestimony, prayer_request=prayer)
+    
+    # Only owner can edit
+    if testimony.author != request.user:
+        messages.error(request, "You can only edit your own testimony.")
+        if family_id:
+            return redirect("families:prayer_detail", family_id=family_id, prayer_id=prayer.id)
+        return redirect("families:global_prayer_detail", prayer_id=prayer.id)
+    
+    if request.method == "POST":
+        testimony.content = request.POST.get('testimony', '').strip()
+        testimony.is_anonymous = request.POST.get('is_anonymous') == 'on'
+        testimony.answered_date = request.POST.get('answered_date') or None
+        testimony.save()
+        
+        messages.success(request, "Testimony updated.")
+        
+        if family_id:
+            return redirect("families:prayer_detail", family_id=family_id, prayer_id=prayer.id)
+        return redirect("families:global_prayer_detail", prayer_id=prayer.id)
+    
+    return render(request, "families/prayer_testimony_form.html", {
+        "family": family,
+        "membership": membership,
+        "prayer": prayer,
+        "testimony": testimony,
+        "mode": "edit",
+    })

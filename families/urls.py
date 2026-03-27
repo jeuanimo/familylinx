@@ -311,4 +311,39 @@ urlpatterns = [
     path("<int:family_id>/tree-merge/request/<int:target_family_id>/", views.tree_merge_request, name="tree_merge_request"),
     path("<int:family_id>/tree-merge/approve/<int:merge_id>/", views.tree_merge_approve, name="tree_merge_approve"),
     path("<int:family_id>/tree-merge/reject/<int:merge_id>/", views.tree_merge_reject, name="tree_merge_reject"),
+    
+    # ==========================================================================
+    # Prayer Requests & Testimonies (Family-scoped)
+    # ==========================================================================
+    
+    # Prayer list and create (family-scoped)
+    path("<int:family_id>/prayers/", views.prayer_list, name="prayer_list"),
+    path("<int:family_id>/prayers/new/", views.prayer_create, name="prayer_create"),
+    
+    # Prayer detail and CRUD (family-scoped)
+    path("<int:family_id>/prayers/<int:prayer_id>/", views.prayer_detail, name="prayer_detail"),
+    path("<int:family_id>/prayers/<int:prayer_id>/edit/", views.prayer_edit, name="prayer_edit"),
+    path("<int:family_id>/prayers/<int:prayer_id>/delete/", views.prayer_delete, name="prayer_delete"),
+    
+    # Prayer interactions (family-scoped)
+    path("<int:family_id>/prayers/<int:prayer_id>/pray/", views.prayer_toggle_praying, name="prayer_toggle_praying"),
+    path("<int:family_id>/prayers/<int:prayer_id>/reply/", views.prayer_reply_create, name="prayer_reply_create"),
+    path("<int:family_id>/prayers/<int:prayer_id>/answered/", views.prayer_mark_answered, name="prayer_mark_answered"),
+    path("<int:family_id>/prayers/<int:prayer_id>/testimony/edit/", views.prayer_testimony_edit, name="prayer_testimony_edit"),
+    path("<int:family_id>/prayers/reply/<int:reply_id>/delete/", views.prayer_reply_delete, name="prayer_reply_delete"),
+    
+    # ==========================================================================
+    # Global Prayer Requests (no family scope)
+    # ==========================================================================
+    
+    path("prayers/", views.prayer_list, name="global_prayer_list"),
+    path("prayers/new/", views.prayer_create, name="global_prayer_create"),
+    path("prayers/<int:prayer_id>/", views.prayer_detail, name="global_prayer_detail"),
+    path("prayers/<int:prayer_id>/edit/", views.prayer_edit, name="global_prayer_edit"),
+    path("prayers/<int:prayer_id>/delete/", views.prayer_delete, name="global_prayer_delete"),
+    path("prayers/<int:prayer_id>/pray/", views.prayer_toggle_praying, name="global_prayer_toggle_praying"),
+    path("prayers/<int:prayer_id>/reply/", views.prayer_reply_create, name="global_prayer_reply_create"),
+    path("prayers/<int:prayer_id>/answered/", views.prayer_mark_answered, name="global_prayer_mark_answered"),
+    path("prayers/<int:prayer_id>/testimony/edit/", views.prayer_testimony_edit, name="global_prayer_testimony_edit"),
+    path("prayers/reply/<int:reply_id>/delete/", views.prayer_reply_delete, name="global_prayer_reply_delete"),
 ]

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if mode == 'edit' %}Edit{% else %}New{% endif %} Prayer Request{% if family %} - {{ family.name }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="bi bi-heart-pulse"></i>
+                        {% if mode == 'edit' %}Edit Prayer Request{% else %}Share Your Prayer Request{% endif %}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Prayer Title <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="title" name="title" 
+                                   value="{% if prayer %}{{ prayer.title }}{% endif %}"
+                                   placeholder="Brief title for your prayer request" required maxlength="200">
+                            <div class="form-text">Keep it short and meaningful.</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="content" class="form-label">Prayer Details <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="content" name="content" rows="6" 
+                                      placeholder="Share the details of your prayer request..." required>{% if prayer %}{{ prayer.content }}{% endif %}</textarea>
+                            <div class="form-text">Share as much or as little as you're comfortable with.</div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="is_anonymous" name="is_anonymous"
+                                       {% if prayer and prayer.is_anonymous %}checked{% endif %}>
+                                <label class="form-check-label" for="is_anonymous">
+                                    <i class="bi bi-incognito"></i> Post Anonymously
+                                </label>
+                                <div class="form-text">Your name will be hidden from others, but we'll still track it for your records.</div>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Remember:</strong> "Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God." - Philippians 4:6
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            {% if family %}
+                                {% if mode == 'edit' %}
+                                <a href="{% url 'families:prayer_detail' family_id=family.id prayer_id=prayer.id %}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-left"></i> Cancel
+                                </a>
+                                {% else %}
+                                <a href="{% url 'families:prayer_list' family_id=family.id %}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-left"></i> Cancel
+                                </a>
+                                {% endif %}
+                            {% else %}
+                                {% if mode == 'edit' %}
+                                <a href="{% url 'families:global_prayer_detail' prayer_id=prayer.id %}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-left"></i> Cancel
+                                </a>
+                                {% else %}
+                                <a href="{% url 'families:global_prayer_list' %}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-left"></i> Cancel
+                                </a>
+                                {% endif %}
+                            {% endif %}
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-send"></i> {% if mode == 'edit' %}Update{% else %}Submit{% endif %} Prayer Request
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

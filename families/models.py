@@ -3948,3 +3948,224 @@ class ActiveRelationshipManager(models.Manager):
     """Manager that returns only non-deleted relationships."""
     def get_queryset(self):
         return super().get_queryset().filter(is_deleted=False)
+
+
+# =============================================================================
+# Phase 10: Prayer Requests & Testimonies
+# =============================================================================
+
+class PrayerRequest(models.Model):
+    """
+    A prayer request that can be posted anonymously or with identity.
+    
+    Users can share prayer needs with the community. Requests can be
+    anonymous for sensitive matters. When prayers are answered, the
+    requester can add a testimony.
+    
+    Attributes:
+        family (FamilySpace): Optional - scoped to family or global
+        author (User): User who posted (null if anonymous to others)
+        title (str): Short title for the prayer request
+        content (str): Full prayer request details
+        is_anonymous (bool): Hide author identity from others
+        status (str): Open, Answered, or Closed
+        prayer_count (int): Number of people praying
+        created_at (datetime): When request was posted
+        updated_at (datetime): When request was last modified
+    """
+    
+    class Status(models.TextChoices):
+        OPEN = 'OPEN', 'Open - Requesting Prayer'
+        ANSWERED = 'ANSWERED', 'Answered - Praise Report'
+        CLOSED = 'CLOSED', 'Closed'
+    
+    family = models.ForeignKey(
+        FamilySpace,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="prayer_requests",
+        help_text="Family space (null for global prayers)"
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="prayer_requests",
+        help_text="User who posted the request"
+    )
+    title = models.CharField(
+        max_length=200,
+        help_text="Short title for the prayer request"
+    )
+    content = models.TextField(
+        help_text="Full prayer request details"
+    )
+    is_anonymous = models.BooleanField(
+        default=False,
+        help_text="Hide author identity from other users"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.OPEN,
+        help_text="Current status of the prayer request"
+    )
+    praying_users = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="prayers_committed",
+        help_text="Users who committed to pray"
+    )
+    is_pinned = models.BooleanField(
+        default=False,
+        help_text="Pin to top of prayer list"
+    )
+    is_hidden = models.BooleanField(
+        default=False,
+        help_text="Hide from public view (moderation)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    @property
+    def prayer_count(self):
+        """Number of users praying for this request."""
+        return self.praying_users.count()
+    
+    @property
+    def display_author(self):
+        """Return author info or 'Anonymous' based on settings."""
+        if self.is_anonymous or not self.author:
+            return "Anonymous"
+        return self.author.get_full_name() or self.author.email
+    
+    def __str__(self):
+        return f"{self.title} ({self.get_status_display()})"
+    
+    class Meta:
+        verbose_name = "Prayer Request"
+        verbose_name_plural = "Prayer Requests"
+        ordering = ['-is_pinned', '-created_at']
+        indexes = [
+            models.Index(fields=['family', '-created_at']),
+            models.Index(fields=['status', '-created_at']),
+        ]
+
+
+class PrayerReply(models.Model):
+    """
+    A reply/comment on a prayer request.
+    
+    Allows community members to offer encouragement, scripture,
+    or updates to prayer requests.
+    
+    Attributes:
+        prayer_request (PrayerRequest): The prayer being replied to
+        author (User): User who wrote the reply
+        content (str): Reply text
+        is_anonymous (bool): Hide author identity
+        created_at (datetime): When reply was posted
+    """
+    
+    prayer_request = models.ForeignKey(
+        PrayerRequest,
+        on_delete=models.CASCADE,
+        related_name="replies",
+        help_text="The prayer request this replies to"
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="prayer_replies",
+        help_text="User who wrote this reply"
+    )
+    content = models.TextField(
+        max_length=2000,
+        help_text="Reply content"
+    )
+    is_anonymous = models.BooleanField(
+        default=False,
+        help_text="Hide author identity"
+    )
+    is_hidden = models.BooleanField(
+        default=False,
+        help_text="Hide from view (moderation)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    @property
+    def display_author(self):
+        """Return author info or 'Anonymous' based on settings."""
+        if self.is_anonymous or not self.author:
+            return "Anonymous"
+        return self.author.get_full_name() or self.author.email
+    
+    def __str__(self):
+        return f"Reply to '{self.prayer_request.title}' by {self.display_author}"
+    
+    class Meta:
+        verbose_name = "Prayer Reply"
+        verbose_name_plural = "Prayer Replies"
+        ordering = ['created_at']
+
+
+class PrayerTestimony(models.Model):
+    """
+    A testimony of answered prayer.
+    
+    When a prayer is marked as answered, the requester can share
+    how God answered their prayer as encouragement to others.
+    
+    Attributes:
+        prayer_request (PrayerRequest): The answered prayer (one-to-one)
+        author (User): User who wrote the testimony
+        content (str): The testimony/praise report
+        is_anonymous (bool): Keep testimony anonymous
+        answered_date (date): When the prayer was answered
+        created_at (datetime): When testimony was posted
+    """
+    
+    prayer_request = models.OneToOneField(
+        PrayerRequest,
+        on_delete=models.CASCADE,
+        related_name="testimony",
+        help_text="The prayer request this testimony is for"
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="prayer_testimonies",
+        help_text="User who wrote this testimony"
+    )
+    content = models.TextField(
+        help_text="The testimony of how prayer was answered"
+    )
+    is_anonymous = models.BooleanField(
+        default=False,
+        help_text="Keep testimony anonymous"
+    )
+    answered_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date the prayer was answered"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    @property
+    def display_author(self):
+        """Return author info or 'Anonymous' based on settings."""
+        if self.is_anonymous or not self.author:
+            return "Anonymous"
+        return self.author.get_full_name() or self.author.email
+    
+    def __str__(self):
+        return f"Testimony: {self.prayer_request.title}"
+    
+    class Meta:
+        verbose_name = "Prayer Testimony"
+        verbose_name_plural = "Prayer Testimonies"
+        ordering = ['-created_at']

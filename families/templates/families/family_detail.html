@@ -439,6 +439,25 @@
                 </a>
             </div>
         </div>
+        
+        <!-- Prayer Requests -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-heart-pulse"></i> Prayer Requests</span>
+            </div>
+            <div class="card-body">
+                <div class="stack-sm">
+                    <a href="{% url 'families:prayer_list' family_id=family.id %}" class="btn btn-primary w-full">
+                        <i class="bi bi-heart-pulse"></i> View Prayers
+                    </a>
+                    {% if membership.role != 'VIEWER' %}
+                    <a href="{% url 'families:prayer_create' family_id=family.id %}" class="btn btn-outline w-full">
+                        <i class="bi bi-plus-lg"></i> New Request
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
