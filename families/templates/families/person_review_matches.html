@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Potential Matches Found - {{ family.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav class="breadcrumb" aria-label="breadcrumb">
+        <a href="{% url 'home' %}">Dashboard</a>
+        <span class="separator">/</span>
+        <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+        <span class="separator">/</span>
+        <a href="{% url 'families:person_create' family_id=family.id %}">Add Person</a>
+        <span class="separator">/</span>
+        <span class="current">Review Matches</span>
+    </nav>
+    
+    <div class="card">
+        <div class="card-header bg-warning text-dark">
+            <h4 class="mb-0">
+                <i class="bi bi-exclamation-triangle"></i> 
+                Similar Person Found
+            </h4>
+        </div>
+        <div class="card-body">
+            <p class="lead">
+                We found <strong>{{ matches|length }}</strong> existing person{{ matches|length|pluralize }} on the family tree that may be the same as 
+                <strong>{{ pending_name }}</strong>.
+            </p>
+            <p>
+                To avoid duplicates, please review the matches below. You can either 
+                <strong>merge</strong> with an existing person or <strong>create a new person</strong> if none match.
+            </p>
+            
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                <strong>Tip:</strong> Merging will add any missing information from your form to the existing person record, 
+                keeping the family tree clean and connected.
+            </div>
+            
+            <hr>
+            
+            <h5 class="mb-3">Potential Matches:</h5>
+            
+            <div class="row">
+                {% for match in matches %}
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100 {% if match.score >= 70 %}border-danger{% elif match.score >= 50 %}border-warning{% else %}border-secondary{% endif %}">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <strong>{{ match.person.full_name }}</strong>
+                            <span class="badge bg-{% if match.score >= 70 %}danger{% elif match.score >= 50 %}warning{% else %}secondary{% endif %}">
+                                {{ match.score }}% match
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled mb-3">
+                                {% if match.person.birth_date %}
+                                <li><i class="bi bi-calendar"></i> Born: {{ match.person.birth_date }}</li>
+                                {% endif %}
+                                {% if match.person.birth_place %}
+                                <li><i class="bi bi-geo-alt"></i> {{ match.person.birth_place }}</li>
+                                {% endif %}
+                                {% if match.person.gender %}
+                                <li><i class="bi bi-person"></i> {{ match.person.get_gender_display }}</li>
+                                {% endif %}
+                            </ul>
+                            
+                            <p class="small text-muted mb-2"><strong>Match reasons:</strong></p>
+                            <ul class="small">
+                                {% for reason in match.reasons %}
+                                <li>{{ reason }}</li>
+                                {% empty %}
+                                <li class="text-muted">Name similarity</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-flex gap-2">
+                                <a href="{% url 'families:person_detail' family_id=family.id person_id=match.person.id %}" 
+                                   class="btn btn-outline-secondary btn-sm flex-grow-1" target="_blank">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                                <a href="{% url 'families:merge_with_person' family_id=family.id person_id=match.person.id %}" 
+                                   class="btn btn-primary btn-sm flex-grow-1">
+                                    <i class="bi bi-arrow-repeat"></i> Merge
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <hr>
+            
+            <div class="d-flex justify-content-between align-items-center">
+                <a href="{% url 'families:person_create' family_id=family.id %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Go Back & Edit
+                </a>
+                
+                <form method="post" action="{% url 'families:person_create' family_id=family.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="confirm_create" value="yes">
+                    <input type="hidden" name="first_name" value="{{ form_data.first_name }}">
+                    <input type="hidden" name="last_name" value="{{ form_data.last_name }}">
+                    <input type="hidden" name="maiden_name" value="{{ form_data.maiden_name }}">
+                    <input type="hidden" name="gender" value="{{ form_data.gender }}">
+                    <input type="hidden" name="birth_date" value="{{ form_data.birth_date }}">
+                    <input type="hidden" name="death_date" value="{{ form_data.death_date }}">
+                    <input type="hidden" name="birth_place" value="{{ form_data.birth_place }}">
+                    <input type="hidden" name="death_place" value="{{ form_data.death_place }}">
+                    <input type="hidden" name="bio" value="{{ form_data.bio }}">
+                    {% if form_data.father_id %}
+                    <input type="hidden" name="father" value="{{ form_data.father_id }}">
+                    {% endif %}
+                    {% if form_data.mother_id %}
+                    <input type="hidden" name="mother" value="{{ form_data.mother_id }}">
+                    {% endif %}
+                    {% if form_data.spouse_id %}
+                    <input type="hidden" name="spouse" value="{{ form_data.spouse_id }}">
+                    {% endif %}
+                    {% for child_id in form_data.children_ids %}
+                    <input type="hidden" name="children" value="{{ child_id }}">
+                    {% endfor %}
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-plus-circle"></i> None of These - Create New Person
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

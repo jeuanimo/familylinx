@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Find Yourself on the Tree - {{ family.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav class="breadcrumb" aria-label="breadcrumb">
+        <a href="{% url 'home' %}">Dashboard</a>
+        <span class="separator">/</span>
+        <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+        <span class="separator">/</span>
+        <span class="current">Find Yourself</span>
+    </nav>
+    
+    <div class="page-header">
+        <div class="page-header-content">
+            <h1><i class="bi bi-person-check"></i> Find Yourself on the Family Tree</h1>
+            <p class="muted">Link your account to your person record on the family tree.</p>
+        </div>
+    </div>
+    
+    {% if pending_claims %}
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-hourglass-split"></i>
+        <strong>Pending Claims:</strong> You have {{ pending_claims.count }} pending claim{{ pending_claims.count|pluralize }} awaiting verification.
+    </div>
+    {% endif %}
+    
+    {% if matches %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-search"></i> We Found Potential Matches</h5>
+        </div>
+        <div class="card-body">
+            <p>Based on your profile name, we found {{ matches|length }} potential match{{ matches|length|pluralize }} on the family tree. 
+               Select the one that's you!</p>
+            
+            <div class="row">
+                {% for match in matches %}
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start gap-3">
+                                {% if match.person.photo %}
+                                <img src="{{ match.person.photo.url }}" alt="{{ match.person.full_name }}" 
+                                     class="rounded" style="width: 60px; height: 60px; object-fit: cover;">
+                                {% else %}
+                                <div class="bg-secondary rounded d-flex align-items-center justify-content-center" 
+                                     style="width: 60px; height: 60px;">
+                                    <i class="bi bi-person text-white" style="font-size: 1.5rem;"></i>
+                                </div>
+                                {% endif %}
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-1">{{ match.person.full_name }}</h5>
+                                    <div class="small text-muted mb-2">
+                                        {% if match.person.birth_date %}
+                                        <i class="bi bi-calendar"></i> {{ match.person.birth_date|date:"M j, Y" }}
+                                        {% endif %}
+                                        {% if match.person.birth_place %}
+                                        <br><i class="bi bi-geo-alt"></i> {{ match.person.birth_place }}
+                                        {% endif %}
+                                    </div>
+                                    <span class="badge bg-{% if match.score >= 60 %}success{% elif match.score >= 40 %}warning{% else %}secondary{% endif %}">
+                                        {{ match.score }}% name match
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            {% if match.reasons %}
+                            <ul class="small text-muted mt-2 mb-0">
+                                {% for reason in match.reasons %}
+                                <li>{{ reason }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </div>
+                        <div class="card-footer d-flex gap-2">
+                            <a href="{% url 'families:person_detail' family_id=family.id person_id=match.person.id %}" 
+                               class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-eye"></i> View Profile
+                            </a>
+                            <a href="{% url 'families:claim_person' family_id=family.id person_id=match.person.id %}" 
+                               class="btn btn-primary btn-sm flex-grow-1">
+                                <i class="bi bi-check-circle"></i> That's Me!
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card mb-4">
+        <div class="card-body text-center py-5">
+            <div class="mb-3">
+                <i class="bi bi-search text-muted" style="font-size: 3rem;"></i>
+            </div>
+            <h4>No Matches Found</h4>
+            <p class="text-muted">
+                We couldn't find anyone on the family tree that matches your profile name.<br>
+                You may not be added to the tree yet.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-person-plus"></i> Not on the Tree Yet?</h5>
+        </div>
+        <div class="card-body">
+            <p>If you're not already on the family tree, you can add yourself!</p>
+            <div class="d-flex gap-2">
+                <a href="{% url 'families:add_self_to_tree' family_id=family.id %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Add Myself to the Tree
+                </a>
+                <a href="{% url 'families:person_list' family_id=family.id %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-people"></i> Browse All People
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

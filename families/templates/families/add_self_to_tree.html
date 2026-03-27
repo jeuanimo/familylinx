@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Add Yourself to the Tree - {{ family.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav class="breadcrumb" aria-label="breadcrumb">
+        <a href="{% url 'home' %}">Dashboard</a>
+        <span class="separator">/</span>
+        <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+        <span class="separator">/</span>
+        <a href="{% url 'families:claim_my_spot' family_id=family.id %}">Find Yourself</a>
+        <span class="separator">/</span>
+        <span class="current">Add Yourself</span>
+    </nav>
+    
+    <div class="page-header">
+        <div class="page-header-content">
+            <h1><i class="bi bi-person-plus"></i> Add Yourself to the Family Tree</h1>
+            <p class="muted">Create your own record on the family tree and link it to your account.</p>
+        </div>
+    </div>
+    
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i>
+        <strong>Note:</strong> This will create a new person record on the family tree and automatically link it to your account.
+        You can then add your relationships (parents, spouse, children) to connect yourself to the rest of the tree.
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Your Information</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.first_name.id_for_label }}" class="form-label">
+                            First Name <span class="text-danger">*</span>
+                        </label>
+                        {{ form.first_name }}
+                        {% if form.first_name.errors %}
+                        <div class="invalid-feedback d-block">{{ form.first_name.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.last_name.id_for_label }}" class="form-label">
+                            Last Name <span class="text-danger">*</span>
+                        </label>
+                        {{ form.last_name }}
+                        {% if form.last_name.errors %}
+                        <div class="invalid-feedback d-block">{{ form.last_name.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.maiden_name.id_for_label }}" class="form-label">
+                            Maiden Name
+                        </label>
+                        {{ form.maiden_name }}
+                        <div class="form-text">Birth surname if different from current last name.</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.gender.id_for_label }}" class="form-label">
+                            Gender <span class="text-danger">*</span>
+                        </label>
+                        {{ form.gender }}
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.birth_date.id_for_label }}" class="form-label">
+                            Birth Date
+                        </label>
+                        {{ form.birth_date }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.birth_place.id_for_label }}" class="form-label">
+                            Birth Place
+                        </label>
+                        {{ form.birth_place }}
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="{{ form.bio.id_for_label }}" class="form-label">About You</label>
+                    {{ form.bio }}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="{{ form.photo.id_for_label }}" class="form-label">Photo</label>
+                    {{ form.photo }}
+                </div>
+                
+                <hr>
+                
+                <h5 class="mb-3">Family Relationships (Optional)</h5>
+                <p class="text-muted small">
+                    Connect yourself to existing people on the tree. You can also add these later.
+                </p>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.father.id_for_label }}" class="form-label">Father</label>
+                        {{ form.father }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.mother.id_for_label }}" class="form-label">Mother</label>
+                        {{ form.mother }}
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.spouse.id_for_label }}" class="form-label">Spouse</label>
+                        {{ form.spouse }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ form.children.id_for_label }}" class="form-label">Children</label>
+                        {{ form.children }}
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple</div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'families:claim_my_spot' family_id=family.id %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Cancel
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-person-plus"></i> Add Myself to the Tree
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

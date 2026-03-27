@@ -381,6 +381,11 @@
                     <a href="{% url 'families:person_list' family_id=family.id %}" class="btn btn-outline w-full">
                         <i class="bi bi-people"></i> All People
                     </a>
+                    {% if not membership.linked_person %}
+                    <a href="{% url 'families:claim_my_spot' family_id=family.id %}" class="btn btn-outline w-full text-primary border-primary">
+                        <i class="bi bi-person-check"></i> Find Me on Tree
+                    </a>
+                    {% endif %}
                     {% if membership.role != 'VIEWER' %}
                     <a href="{% url 'families:person_create' family_id=family.id %}" class="btn btn-outline w-full">
                         <i class="bi bi-person-plus"></i> Add Person

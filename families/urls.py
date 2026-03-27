@@ -139,6 +139,12 @@ urlpatterns = [
     path("<int:family_id>/people/<int:person_id>/delete/", views.person_delete, name="person_delete"),
     path("<int:family_id>/people/<int:person_id>/add-ancestor/", views.add_ancestor, name="add_ancestor"),
     path("<int:family_id>/people/<int:person_id>/add-child/", views.add_child, name="add_child"),
+    
+    # Person self-linking & duplicate detection
+    path("<int:family_id>/claim-my-spot/", views.claim_my_spot, name="claim_my_spot"),
+    path("<int:family_id>/people/<int:person_id>/claim/", views.claim_person, name="claim_person"),
+    path("<int:family_id>/add-self-to-tree/", views.add_self_to_tree, name="add_self_to_tree"),
+    path("<int:family_id>/people/<int:person_id>/merge/", views.merge_with_person, name="merge_with_person"),
 
     # Legacy alias routes for older front-end links that used "/persons/" instead of "/people/"
     path("<int:family_id>/persons/<int:person_id>/", views.person_detail, name="person_detail_alias"),

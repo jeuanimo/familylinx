@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Claim {{ person.full_name }} - {{ family.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav class="breadcrumb" aria-label="breadcrumb">
+        <a href="{% url 'home' %}">Dashboard</a>
+        <span class="separator">/</span>
+        <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+        <span class="separator">/</span>
+        <a href="{% url 'families:claim_my_spot' family_id=family.id %}">Find Yourself</a>
+        <span class="separator">/</span>
+        <span class="current">Claim Identity</span>
+    </nav>
+    
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="bi bi-person-check"></i> Confirm Your Identity
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3 mb-4 p-3 bg-light rounded">
+                        {% if person.photo %}
+                        <img src="{{ person.photo.url }}" alt="{{ person.full_name }}" 
+                             class="rounded" style="width: 80px; height: 80px; object-fit: cover;">
+                        {% else %}
+                        <div class="bg-secondary rounded d-flex align-items-center justify-content-center" 
+                             style="width: 80px; height: 80px;">
+                            <i class="bi bi-person text-white" style="font-size: 2rem;"></i>
+                        </div>
+                        {% endif %}
+                        <div>
+                            <h4 class="mb-1">{{ person.full_name }}</h4>
+                            {% if person.birth_date %}
+                            <p class="mb-0 text-muted">
+                                <i class="bi bi-calendar"></i> Born {{ person.birth_date|date:"F j, Y" }}
+                            </p>
+                            {% endif %}
+                            {% if person.birth_place %}
+                            <p class="mb-0 text-muted">
+                                <i class="bi bi-geo-alt"></i> {{ person.birth_place }}
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    {% if requires_verification %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-shield-check"></i>
+                        <strong>Verification Required:</strong> 
+                        To protect the privacy of family records, please verify your identity by providing some details that match our records.
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="birth_date" class="form-label">Your Birth Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="birth_date" name="birth_date" required>
+                            <div class="form-text">This must match the date on record.</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="birth_place" class="form-label">Birth Place (optional)</label>
+                            <input type="text" class="form-control" id="birth_place" name="birth_place" 
+                                   placeholder="City, State or Country">
+                        </div>
+                        
+                        {% if father or mother %}
+                        <div class="row">
+                            {% if father %}
+                            <div class="col-md-6 mb-3">
+                                <label for="father_name" class="form-label">Father's Name (optional)</label>
+                                <input type="text" class="form-control" id="father_name" name="father_name" 
+                                       placeholder="Father's first name">
+                            </div>
+                            {% endif %}
+                            {% if mother %}
+                            <div class="col-md-6 mb-3">
+                                <label for="mother_name" class="form-label">Mother's Name (optional)</label>
+                                <input type="text" class="form-control" id="mother_name" name="mother_name" 
+                                       placeholder="Mother's first name">
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'families:claim_my_spot' family_id=family.id %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Back
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i> Verify & Claim Identity
+                            </button>
+                        </div>
+                    </form>
+                    
+                    {% else %}
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i>
+                        <strong>No Verification Needed:</strong> 
+                        This person record doesn't have enough identifying information on file, so we can link you directly.
+                    </div>
+                    
+                    <p>Are you sure you want to claim this person record as your own?</p>
+                    <p class="text-muted small">
+                        Once claimed, this record will be linked to your account and you'll be able to manage your own information on the family tree.
+                    </p>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'families:claim_my_spot' family_id=family.id %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Back
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-link-45deg"></i> Yes, Link This to My Account
+                            </button>
+                        </div>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

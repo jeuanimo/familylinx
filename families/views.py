@@ -2550,7 +2550,9 @@ def _notify_new_person(request, family, person):
 
 @login_required
 def person_create(request, family_id):
-    """Create a new person in the family tree."""
+    """Create a new person in the family tree with duplicate checking."""
+    from .tree_matching import find_duplicates_in_family
+    
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
         return render(request, TEMPLATE_NO_ACCESS, {"family": None})
@@ -2558,9 +2560,55 @@ def person_create(request, family_id):
     if membership.role == Membership.Role.VIEWER:
         return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
+    # Check if we're confirming creation after reviewing matches
+    confirm_create = request.POST.get('confirm_create') == 'yes'
+    
     if request.method == "POST":
         form = PersonForm(request.POST, request.FILES, family=family)
         if form.is_valid():
+            # Check for potential duplicates (unless user confirmed)
+            if not confirm_create:
+                first_name = form.cleaned_data.get('first_name', '')
+                last_name = form.cleaned_data.get('last_name', '')
+                birth_date = form.cleaned_data.get('birth_date')
+                gender = form.cleaned_data.get('gender')
+                
+                matches = find_duplicates_in_family(
+                    first_name=first_name,
+                    last_name=last_name,
+                    family=family,
+                    birth_date=birth_date,
+                    gender=gender,
+                    threshold=40
+                )
+                
+                if matches:
+                    # Store form data in session for later use
+                    request.session['pending_person_data'] = {
+                        'first_name': first_name,
+                        'last_name': last_name,
+                        'maiden_name': form.cleaned_data.get('maiden_name', ''),
+                        'gender': gender or '',
+                        'birth_date': str(form.cleaned_data.get('birth_date') or ''),
+                        'death_date': str(form.cleaned_data.get('death_date') or ''),
+                        'birth_place': form.cleaned_data.get('birth_place', ''),
+                        'death_place': form.cleaned_data.get('death_place', ''),
+                        'bio': form.cleaned_data.get('bio', ''),
+                        'father_id': form.cleaned_data.get('father').id if form.cleaned_data.get('father') else None,
+                        'mother_id': form.cleaned_data.get('mother').id if form.cleaned_data.get('mother') else None,
+                        'spouse_id': form.cleaned_data.get('spouse').id if form.cleaned_data.get('spouse') else None,
+                        'children_ids': [c.id for c in form.cleaned_data.get('children', [])],
+                    }
+                    
+                    return render(request, "families/person_review_matches.html", {
+                        "family": family,
+                        "membership": membership,
+                        "matches": matches,
+                        "pending_name": f"{first_name} {last_name}",
+                        "form_data": request.session['pending_person_data'],
+                    })
+            
+            # Create the person
             person = form.save(commit=False)
             person.family = family
             person.created_by = request.user
@@ -2578,6 +2626,11 @@ def person_create(request, family_id):
                 form.cleaned_data.get('children')
             )
             _notify_new_person(request, family, person)
+            
+            # Clear pending data
+            request.session.pop('pending_person_data', None)
+            
+            messages.success(request, f"{person.full_name} has been added to the family tree.")
             return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id)
     else:
         form = PersonForm(family=family)
@@ -6986,4 +7039,319 @@ def prayer_testimony_edit(request, prayer_id, family_id=None):
         "prayer": prayer,
         "testimony": testimony,
         "mode": "edit",
+    })
+
+
+# =============================================================================
+# Person Duplicate Detection & Self-Linking Views
+# =============================================================================
+
+@login_required
+def claim_my_spot(request, family_id):
+    """
+    Allow a member to find and link themselves to an existing person on the tree.
+    
+    When a new member joins or when viewing this page, the system searches
+    for potential matches based on the user's name and shows suggestions.
+    """
+    from .tree_matching import find_member_on_tree
+    from .models import PersonClaim
+    
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    # Check if already linked
+    if membership.linked_person:
+        messages.info(request, f"You are already linked to {membership.linked_person.full_name} on this family tree.")
+        return redirect("families:person_detail", family_id=family.id, person_id=membership.linked_person.id)
+    
+    # Find potential matches
+    matches = find_member_on_tree(request.user, family)
+    
+    # Check for pending claims
+    pending_claims = PersonClaim.objects.filter(
+        user=request.user,
+        family=family,
+        status=PersonClaim.Status.PENDING
+    )
+    
+    return render(request, "families/claim_my_spot.html", {
+        "family": family,
+        "membership": membership,
+        "matches": matches,
+        "pending_claims": pending_claims,
+    })
+
+
+@login_required
+def claim_person(request, family_id, person_id):
+    """
+    Claim a person record as the current user's identity.
+    
+    If the person doesn't have required verification data (birth date, etc.),
+    just link directly. Otherwise, show verification form.
+    """
+    from .models import PersonClaim
+    
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+    
+    # Check if already linked to another user
+    if person.linked_user and person.linked_user != request.user:
+        messages.error(request, f"This person is already linked to another member.")
+        return redirect("families:claim_my_spot", family_id=family.id)
+    
+    # Check if user already has a pending claim for this person
+    existing_claim = PersonClaim.objects.filter(
+        user=request.user,
+        person=person,
+        family=family,
+        status=PersonClaim.Status.PENDING
+    ).first()
+    
+    if existing_claim:
+        messages.info(request, "You already have a pending claim for this person.")
+        return redirect("families:claim_my_spot", family_id=family.id)
+    
+    if request.method == "POST":
+        # For persons without birth date, link directly without verification
+        if not person.birth_date:
+            # Direct link
+            membership.linked_person = person
+            membership.save()
+            
+            person.linked_user = request.user
+            person.save()
+            
+            messages.success(request, f"You are now linked to {person.full_name} on this family tree!")
+            return redirect("families:person_detail", family_id=family.id, person_id=person.id)
+        
+        # Create a verification claim
+        provided_birth_date = request.POST.get('birth_date')
+        provided_birth_place = request.POST.get('birth_place', '')
+        provided_mother_name = request.POST.get('mother_name', '')
+        provided_father_name = request.POST.get('father_name', '')
+        
+        # Check if verification matches
+        verified = True
+        if person.birth_date and provided_birth_date:
+            from datetime import datetime
+            try:
+                pbd = datetime.strptime(provided_birth_date, '%Y-%m-%d').date()
+                if pbd != person.birth_date:
+                    verified = False
+            except:
+                verified = False
+        
+        if verified:
+            # Direct link on successful verification
+            membership.linked_person = person
+            membership.save()
+            
+            person.linked_user = request.user
+            person.save()
+            
+            PersonClaim.objects.create(
+                user=request.user,
+                person=person,
+                family=family,
+                status=PersonClaim.Status.VERIFIED,
+                provided_birth_date=provided_birth_date or None,
+                provided_birth_place=provided_birth_place,
+                provided_mother_name=provided_mother_name,
+                provided_father_name=provided_father_name,
+                auto_matched=False
+            )
+            
+            messages.success(request, f"Verified! You are now linked to {person.full_name}.")
+            return redirect("families:person_detail", family_id=family.id, person_id=person.id)
+        else:
+            messages.error(request, "Verification failed. The birth date doesn't match our records.")
+            return redirect("families:claim_person", family_id=family.id, person_id=person.id)
+    
+    # Get parents for verification hints
+    parents = Relationship.objects.filter(
+        person2=person,
+        relationship_type=Relationship.Type.PARENT_CHILD
+    ).select_related('person1')
+    
+    father = mother = None
+    for rel in parents:
+        if rel.person1.gender == 'M':
+            father = rel.person1
+        elif rel.person1.gender == 'F':
+            mother = rel.person1
+    
+    return render(request, "families/claim_person.html", {
+        "family": family,
+        "membership": membership,
+        "person": person,
+        "requires_verification": bool(person.birth_date),
+        "father": father,
+        "mother": mother,
+    })
+
+
+@login_required
+def add_self_to_tree(request, family_id):
+    """
+    Add the current user as a new person on the tree and link them.
+    
+    Used when the user confirms they're not already on the tree.
+    Shows a pre-filled form with the user's profile data.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    if membership.role == Membership.Role.VIEWER:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
+    
+    if membership.linked_person:
+        messages.info(request, "You are already linked to a person on this tree.")
+        return redirect("families:person_detail", family_id=family.id, person_id=membership.linked_person.id)
+    
+    if request.method == "POST":
+        form = PersonForm(request.POST, request.FILES, family=family)
+        if form.is_valid():
+            person = form.save(commit=False)
+            person.family = family
+            person.created_by = request.user
+            person.linked_user = request.user  # Link to current user
+            person.save()
+            
+            content_file, filename = process_cropped_image(request)
+            if content_file and filename:
+                person.photo.save(filename, content_file, save=True)
+            
+            _create_person_relationships(
+                family, person,
+                form.cleaned_data.get('father'),
+                form.cleaned_data.get('mother'),
+                form.cleaned_data.get('spouse'),
+                form.cleaned_data.get('children')
+            )
+            
+            # Link membership to person
+            membership.linked_person = person
+            membership.save()
+            
+            messages.success(request, f"You've been added to the family tree as {person.full_name}!")
+            return redirect("families:person_detail", family_id=family.id, person_id=person.id)
+    else:
+        # Pre-fill with user's profile data
+        profile = getattr(request.user, 'profile', None)
+        initial = {
+            'first_name': request.user.first_name,
+            'last_name': request.user.last_name,
+        }
+        if profile:
+            if profile.date_of_birth:
+                initial['birth_date'] = profile.date_of_birth
+            if profile.location:
+                initial['birth_place'] = profile.location
+        
+        form = PersonForm(family=family, initial=initial)
+    
+    return render(request, "families/add_self_to_tree.html", {
+        "family": family,
+        "membership": membership,
+        "form": form,
+    })
+
+
+@login_required
+def merge_with_person(request, family_id, person_id):
+    """
+    Merge pending person data with an existing person.
+    
+    Used when creating a new person and a potential duplicate is found.
+    The user can choose to merge their new data with the existing person.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    if membership.role == Membership.Role.VIEWER:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": family})
+    
+    person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+    pending_data = request.session.get('pending_person_data')
+    
+    if not pending_data:
+        messages.error(request, "No pending person data found.")
+        return redirect("families:person_create", family_id=family.id)
+    
+    if request.method == "POST":
+        # Merge mode: update or keep existing
+        merge_mode = request.POST.get('merge_mode', 'keep_existing')
+        
+        if merge_mode == 'update_existing':
+            # Update the existing person with new data (only fill in blanks)
+            if not person.first_name and pending_data.get('first_name'):
+                person.first_name = pending_data['first_name']
+            if not person.last_name and pending_data.get('last_name'):
+                person.last_name = pending_data['last_name']
+            if not person.maiden_name and pending_data.get('maiden_name'):
+                person.maiden_name = pending_data['maiden_name']
+            if not person.birth_date and pending_data.get('birth_date'):
+                from datetime import datetime
+                try:
+                    person.birth_date = datetime.strptime(pending_data['birth_date'], '%Y-%m-%d').date()
+                except:
+                    pass
+            if not person.death_date and pending_data.get('death_date'):
+                from datetime import datetime
+                try:
+                    person.death_date = datetime.strptime(pending_data['death_date'], '%Y-%m-%d').date()
+                except:
+                    pass
+            if not person.birth_place and pending_data.get('birth_place'):
+                person.birth_place = pending_data['birth_place']
+            if not person.death_place and pending_data.get('death_place'):
+                person.death_place = pending_data['death_place']
+            if not person.bio and pending_data.get('bio'):
+                person.bio = pending_data['bio']
+            if not person.gender and pending_data.get('gender'):
+                person.gender = pending_data['gender']
+            
+            person.save()
+            
+            # Add relationships from pending data
+            father_id = pending_data.get('father_id')
+            mother_id = pending_data.get('mother_id')
+            spouse_id = pending_data.get('spouse_id')
+            children_ids = pending_data.get('children_ids', [])
+            
+            if father_id:
+                father = Person.objects.filter(id=father_id, family=family).first()
+                if father:
+                    _update_parent_relationship(family, person, father, 'M')
+            if mother_id:
+                mother = Person.objects.filter(id=mother_id, family=family).first()
+                if mother:
+                    _update_parent_relationship(family, person, mother, 'F')
+            if spouse_id:
+                spouse = Person.objects.filter(id=spouse_id, family=family).first()
+                if spouse:
+                    _update_spouse_relationship(family, person, spouse)
+            if children_ids:
+                children = Person.objects.filter(id__in=children_ids, family=family)
+                _update_children_relationships(family, person, children)
+        
+        # Clear session data
+        request.session.pop('pending_person_data', None)
+        
+        messages.success(request, f"Merged with {person.full_name}.")
+        return redirect("families:person_detail", family_id=family.id, person_id=person.id)
+    
+    return render(request, "families/merge_with_person.html", {
+        "family": family,
+        "membership": membership,
+        "person": person,
+        "pending_data": pending_data,
     })

@@ -369,3 +369,172 @@ def create_person_link(person1, person2, proposed_by, score, reasons):
     )
     
     return link
+
+
+def find_duplicates_in_family(first_name, last_name, family, birth_date=None, gender=None, exclude_id=None, threshold=40):
+    """
+    Find potential duplicate persons within the same family tree.
+    
+    Used when creating a new person to prevent duplicates.
+    
+    Args:
+        first_name: First name to match
+        last_name: Last name to match
+        family: The FamilySpace to search in
+        birth_date: Optional birth date for additional matching
+        gender: Optional gender (M/F/O/U)
+        exclude_id: Person ID to exclude (for edit scenarios)
+        threshold: Minimum score (0-100) to include
+    
+    Returns:
+        List of dicts with 'person', 'score', 'reasons'
+    """
+    from .models import Person
+    
+    # Build query for candidates
+    candidates = Person.objects.filter(
+        family=family,
+        is_deleted=False
+    )
+    
+    if exclude_id:
+        candidates = candidates.exclude(id=exclude_id)
+    
+    # Pre-filter by last name similarity using Soundex
+    if last_name:
+        target_soundex = soundex(last_name)
+        # Get all persons and filter by Soundex (can't do this in DB easily)
+        candidates = [p for p in candidates if soundex(p.last_name) == target_soundex or 
+                      normalize_name(p.last_name) == normalize_name(last_name)]
+    else:
+        candidates = list(candidates)
+    
+    # Also include first name matches
+    if first_name:
+        fn_normalized = normalize_name(first_name)
+        additional = Person.objects.filter(
+            family=family,
+            is_deleted=False
+        ).exclude(id__in=[p.id for p in candidates])
+        if exclude_id:
+            additional = additional.exclude(id=exclude_id)
+        for p in additional:
+            if normalize_name(p.first_name) == fn_normalized:
+                candidates.append(p)
+    
+    matches = []
+    
+    # Create a temporary "person-like" object for comparison
+    class TempPerson:
+        def __init__(self, fn, ln, bd, g):
+            self.first_name = fn
+            self.last_name = ln
+            self.maiden_name = ""
+            self.birth_date = bd
+            self.death_date = None
+            self.birth_place = ""
+            self.death_place = ""
+            self.gender = g or 'U'
+            self.is_living = True
+    
+    temp = TempPerson(first_name, last_name, birth_date, gender)
+    
+    for candidate in candidates:
+        score, reasons = calculate_match_score(temp, candidate)
+        if score >= threshold:
+            matches.append({
+                'person': candidate,
+                'score': score,
+                'reasons': reasons
+            })
+    
+    # Sort by score descending
+    matches.sort(key=lambda x: -x['score'])
+    
+    return matches
+
+
+def find_member_on_tree(user, family, threshold=35):
+    """
+    Find potential matches for a user on the family tree.
+    
+    Used when a new member joins to suggest if they already exist on the tree.
+    
+    Args:
+        user: The User to match
+        family: The FamilySpace to search
+        threshold: Minimum score (0-100) to include
+    
+    Returns:
+        List of dicts with 'person', 'score', 'reasons'
+    """
+    from .models import Person
+    
+    profile = getattr(user, 'profile', None)
+    
+    # Get user's name parts
+    first_name = user.first_name
+    last_name = user.last_name
+    
+    if not first_name and profile and profile.display_name:
+        # Try to parse display name
+        parts = profile.display_name.strip().split()
+        if parts:
+            first_name = parts[0]
+            if len(parts) > 1:
+                last_name = parts[-1]
+    
+    if not (first_name or last_name):
+        return []
+    
+    birth_date = profile.date_of_birth if profile else None
+    
+    # Find matching persons
+    candidates = Person.objects.filter(
+        family=family,
+        is_deleted=False,
+        linked_user__isnull=True  # Only match persons not already linked to a user
+    )
+    
+    # Pre-filter by name similarity
+    filtered = []
+    fn_normalized = normalize_name(first_name) if first_name else ""
+    ln_normalized = normalize_name(last_name) if last_name else ""
+    
+    for person in candidates:
+        person_fn = normalize_name(person.first_name)
+        person_ln = normalize_name(person.last_name)
+        
+        # Check if any name component matches
+        if (fn_normalized and (fn_normalized in person_fn or person_fn in fn_normalized)) or \
+           (ln_normalized and (soundex(last_name) == soundex(person.last_name) or ln_normalized == person_ln)):
+            filtered.append(person)
+    
+    # Create temp person for matching
+    class TempPerson:
+        def __init__(self, fn, ln, bd):
+            self.first_name = fn
+            self.last_name = ln
+            self.maiden_name = ""
+            self.birth_date = bd
+            self.death_date = None
+            self.birth_place = ""
+            self.death_place = ""
+            self.gender = 'U'
+            self.is_living = True
+    
+    temp = TempPerson(first_name, last_name, birth_date)
+    
+    matches = []
+    for person in filtered:
+        score, reasons = calculate_match_score(temp, person)
+        if score >= threshold:
+            matches.append({
+                'person': person,
+                'score': score,
+                'reasons': reasons
+            })
+    
+    matches.sort(key=lambda x: -x['score'])
+    
+    return matches
