@@ -19,15 +19,25 @@ services:
       - key: DEBUG
         value: "false"
       - key: ALLOWED_HOSTS
-        value: ""
+        value: "fam-linx.org,www.fam-linx.org,familylinx-web.onrender.com"
       - key: CSRF_TRUSTED_ORIGINS
-        value: ""
+        value: "https://fam-linx.org,https://www.fam-linx.org,https://familylinx-web.onrender.com"
       - key: DATABASE_URL
         fromDatabase:
           name: familylinx-db
           property: connectionString
       - key: CLOUDINARY_URL
         sync: false
+      - key: EMAIL_HOST
+        value: "mail.privateemail.com"
+      - key: EMAIL_PORT
+        value: "465"
+      - key: EMAIL_HOST_USER
+        value: "contact@fam-linx.org"
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        value: "contact@fam-linx.org"
       - key: CORS_ALLOWED_ORIGINS
         value: ""
       - key: CORS_ALLOW_CREDENTIALS
