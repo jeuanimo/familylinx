@@ -38,6 +38,8 @@ services:
         sync: false
       - key: DEFAULT_FROM_EMAIL
         value: "contact@fam-linx.org"
+      - key: INVITE_BCC_EMAIL
+        value: "contact@fam-linx.org"
       - key: CORS_ALLOWED_ORIGINS
         value: ""
       - key: CORS_ALLOW_CREDENTIALS

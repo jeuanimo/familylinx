@@ -292,8 +292,10 @@ class InviteEmailWorkflowTests(TestCase):
         )
         self.client.force_login(self.user)
 
-    @patch("families.views.send_mail")
-    def test_invite_create_email_contains_accept_url(self, mock_send_mail):
+    @override_settings(INVITE_BCC_EMAIL="contact@fam-linx.org")
+    @patch("families.views.EmailMessage")
+    def test_invite_create_email_contains_accept_url_and_bcc(self, mock_email_message):
+        mock_email_message.return_value.send.return_value = 1
         response = self.client.post(
             reverse("families:invite_create", kwargs={"family_id": self.family.id}),
             {"email": "cousin@example.com", "role": Membership.Role.MEMBER},
@@ -301,7 +303,7 @@ class InviteEmailWorkflowTests(TestCase):
         )
 
         invite = Invite.objects.get(family=self.family, email="cousin@example.com")
-        message = mock_send_mail.call_args.kwargs["message"]
+        email_kwargs = mock_email_message.call_args.kwargs
 
         self.assertRedirects(
             response,
@@ -310,8 +312,12 @@ class InviteEmailWorkflowTests(TestCase):
         )
         self.assertIn(
             reverse("families:invite_accept", kwargs={"token": invite.token}),
-            message,
+            email_kwargs["body"],
         )
+        self.assertEqual(email_kwargs["to"], ["cousin@example.com"])
+        self.assertEqual(email_kwargs["bcc"], ["contact@fam-linx.org"])
+        self.assertIsNotNone(invite.last_email_attempt_at)
+        self.assertEqual(invite.last_email_error, "")
 
     @override_settings(
         EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",

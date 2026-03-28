@@ -34,7 +34,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.http import JsonResponse
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.core.mail import send_mail
+from django.core.mail import EmailMessage, send_mail
 from django.conf import settings
 from django.db import models
 from django.db.models import Q, Count
@@ -388,6 +388,10 @@ def _send_invite_email(invite, request):
         )
         
         from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'contact@fam-linx.org')
+        invite_bcc_email = getattr(settings, "INVITE_BCC_EMAIL", from_email)
+        bcc_list = []
+        if invite_bcc_email:
+            bcc_list.append(invite_bcc_email)
 
         if getattr(settings, "EMAIL_BACKEND", "") == "django.core.mail.backends.smtp.EmailBackend":
             missing_settings = [
@@ -407,14 +411,15 @@ def _send_invite_email(invite, request):
         
         # Log email attempt
         logger.info(f"Sending invite email to {invite.email} from {from_email}")
-        
-        send_mail(
+
+        email = EmailMessage(
             subject=subject,
-            message=message,
+            body=message,
             from_email=from_email,
-            recipient_list=[invite.email],
-            fail_silently=False,
+            to=[invite.email],
+            bcc=bcc_list,
         )
+        email.send(fail_silently=False)
         _record_invite_email_result(invite)
         logger.info(f"Invite email sent successfully to {invite.email}")
         return True, None

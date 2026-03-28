@@ -197,6 +197,9 @@ LOGIN_REDIRECT_URL = '/'  # After login, go to home
 LOGOUT_REDIRECT_URL = '/'  # After logout, go to home
 LOGIN_URL = '/accounts/login/'
 
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'contact@fam-linx.org')
+INVITE_BCC_EMAIL = os.environ.get('INVITE_BCC_EMAIL', DEFAULT_FROM_EMAIL)
+
 # Email backend (console for development, SMTP for production)
 if DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
@@ -207,7 +210,6 @@ else:
     EMAIL_USE_SSL = True
     EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-    DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'contact@fam-linx.org')
     ACCOUNT_EMAIL_VERIFICATION = 'optional'
 
 
