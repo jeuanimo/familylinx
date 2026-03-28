@@ -25,6 +25,7 @@ Templates Required:
     - families/no_access.html
 """
 
+import logging
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -52,6 +53,9 @@ from .models import (
 from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ChatMessageForm, ConversationMessageForm, LifeStorySectionForm, TimeCapsuleForm, FamilyMilestoneForm
 from utils.image_utils import process_cropped_image
 from .services.tree_builder import build_tree_json
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -2440,8 +2444,10 @@ def gedcom_import(request, family_id):
         return redirect(URL_GEDCOM_IMPORT_REPORT, family_id=family.id, import_id=gedcom_import_record.id)
         
     except GedcomParseError as e:
+        logger.error(f"GEDCOM parse error for family {family_id}: {e}", exc_info=True)
         messages.error(request, f"Parse error: {str(e)}")
     except Exception as e:
+        logger.error(f"GEDCOM import failed for family {family_id}: {e}", exc_info=True)
         messages.error(request, f"Import failed: {str(e)}")
     
     return render(request, TEMPLATE_GEDCOM_IMPORT, {**base_context, "form": form})
