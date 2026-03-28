@@ -53,6 +53,14 @@ urlpatterns = [
     # Access: OWNER and ADMIN roles only
     path("<int:family_id>/invites/<int:invite_id>/resend/", views.invite_resend, name="invite_resend"),
     
+    # Edit an invitation (change role)
+    # Access: OWNER and ADMIN roles only
+    path("<int:family_id>/invites/<int:invite_id>/edit/", views.invite_edit, name="invite_edit"),
+    
+    # Delete/revoke an invitation
+    # Access: OWNER and ADMIN roles only
+    path("<int:family_id>/invites/<int:invite_id>/delete/", views.invite_delete, name="invite_delete"),
+    
     # Accept an invitation via secure token
     # Access: Any authenticated user with valid token
     path("invite/<str:token>/accept/", views.invite_accept, name="invite_accept"),

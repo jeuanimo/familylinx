@@ -286,11 +286,8 @@
                     </div>
                 </div>
                 {% else %}
-                <a href="{% url 'account_login' %}" class="btn btn-secondary btn-sm">
-                    <i class="bi bi-box-arrow-in-right"></i> Sign In
-                </a>
-                <a href="{% url 'account_signup' %}" class="btn btn-primary btn-sm">
-                    <i class="bi bi-person-plus"></i> Sign Up
+                <a href="{% url 'accounts:auth_portal' %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-person-circle"></i> Access Account
                 </a>
                 {% endif %}
             </div>

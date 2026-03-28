@@ -2,7 +2,8 @@ import json
 from datetime import date, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+import smtplib
 
 from django.test import TestCase
 from django.test.utils import override_settings
@@ -148,6 +149,47 @@ class FamilyTreeViewTests(TestCase):
         membership.refresh_from_db()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(membership.linked_person, person)
+
+
+class MessagingEmbedTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.sender = User.objects.create_user(
+            username="sender",
+            email="sender@example.com",
+            password="pass",
+        )
+        self.recipient = User.objects.create_user(
+            username="recipient",
+            email="recipient@example.com",
+            password="pass",
+        )
+        self.family = FamilySpace.objects.create(name="Chat Family", created_by=self.sender)
+        Membership.objects.create(
+            family=self.family,
+            user=self.sender,
+            role=Membership.Role.OWNER,
+        )
+        Membership.objects.create(
+            family=self.family,
+            user=self.recipient,
+            role=Membership.Role.MEMBER,
+        )
+        self.client.force_login(self.sender)
+
+    def test_direct_conversation_room_allows_same_origin_iframe_embedding(self):
+        response = self.client.get(
+            reverse(
+                "families:direct_conversation_start",
+                kwargs={"family_id": self.family.id, "user_id": self.recipient.id},
+            ),
+            secure=True,
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "families/conversation_room.html")
+        self.assertEqual(response.headers.get("X-Frame-Options"), "SAMEORIGIN")
 
 
 class LinkToTreeViewTests(TestCase):
@@ -389,6 +431,117 @@ class InviteEmailWorkflowTests(TestCase):
         )
         self.assertContains(response, "2 invitations were created and sent.")
         self.assertContains(response, "already have a pending invite")
+
+    @override_settings(INVITE_BCC_EMAIL="contact@fam-linx.org")
+    @patch("families.views.EmailMessage")
+    def test_invite_create_retries_without_bcc_when_provider_limit_reached(self, mock_email_message):
+        first_instance = Mock()
+        second_instance = Mock()
+        mock_email_message.side_effect = [first_instance, second_instance]
+        first_instance.send.side_effect = smtplib.SMTPRecipientsRefused({
+            "cousin@example.com": (450, b"4.7.1 Policy Rejection- Sending limit reached"),
+            "contact@fam-linx.org": (450, b"4.7.1 Policy Rejection- Sending limit reached"),
+        })
+        second_instance.send.return_value = 1
+
+        response = self.client.post(
+            reverse("families:invite_create", kwargs={"family_id": self.family.id}),
+            {"email": "cousin@example.com", "role": Membership.Role.MEMBER},
+            secure=True,
+        )
+
+        invite = Invite.objects.get(family=self.family, email="cousin@example.com")
+        first_call_kwargs = mock_email_message.call_args_list[0].kwargs
+        second_call_kwargs = mock_email_message.call_args_list[1].kwargs
+
+        self.assertRedirects(
+            response,
+            reverse("families:family_detail", kwargs={"family_id": self.family.id}),
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(mock_email_message.call_count, 2)
+        self.assertEqual(first_call_kwargs["bcc"], ["contact@fam-linx.org"])
+        self.assertEqual(second_call_kwargs["bcc"], [])
+        self.assertEqual(invite.last_email_error, "")
+        self.assertIsNotNone(invite.last_email_attempt_at)
+
+    @patch("families.views.EmailMessage")
+    def test_invite_create_shows_friendly_message_for_provider_rate_limit(self, mock_email_message):
+        mock_email_message.return_value.send.side_effect = smtplib.SMTPRecipientsRefused({
+            "cousin@example.com": (450, b"4.7.1 Policy Rejection- Sending limit reached"),
+        })
+
+        response = self.client.post(
+            reverse("families:invite_create", kwargs={"family_id": self.family.id}),
+            {"email": "cousin@example.com", "role": Membership.Role.MEMBER},
+            secure=True,
+            follow=True,
+        )
+
+        invite = Invite.objects.get(family=self.family, email="cousin@example.com")
+
+        self.assertContains(response, "sending limit")
+        self.assertContains(response, "manual invite link")
+        self.assertIn("sending limit", invite.last_email_error.lower())
+
+    def test_invite_login_page_preserves_next_on_signup_link(self):
+        invite = Invite.objects.create(
+            family=self.family,
+            created_by=self.user,
+            email="newrelative@example.com",
+            role=Membership.Role.MEMBER,
+            expires_at=timezone.now() + timedelta(days=14),
+        )
+        self.client.logout()
+
+        accept_url = reverse("families:invite_accept", kwargs={"token": invite.token})
+        response = self.client.get(accept_url, secure=True, follow=True)
+
+        self.assertEqual(response.request["PATH_INFO"], reverse("accounts:auth_portal"))
+        self.assertContains(response, "Access FamilyLinx")
+        self.assertContains(response, "Create Account")
+
+    def test_invited_user_can_sign_up_from_auth_portal_and_accept_invite(self):
+        invite = Invite.objects.create(
+            family=self.family,
+            created_by=self.user,
+            email="newrelative@example.com",
+            role=Membership.Role.MEMBER,
+            expires_at=timezone.now() + timedelta(days=14),
+        )
+        self.client.logout()
+
+        accept_url = reverse("families:invite_accept", kwargs={"token": invite.token})
+        portal_url = f'{reverse("accounts:auth_portal")}?next={accept_url}'
+
+        portal_page = self.client.get(portal_url, secure=True)
+        self.assertContains(portal_page, 'name="auth_action" value="signup"')
+        self.assertContains(portal_page, 'name="username"')
+
+        response = self.client.post(
+            reverse("accounts:auth_portal"),
+            {
+                "auth_action": "signup",
+                "username": "newrelative",
+                "email": invite.email,
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+                "next": accept_url,
+            },
+            secure=True,
+            follow=True,
+        )
+
+        invited_user = get_user_model().objects.get(username="newrelative")
+        invite.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Membership.objects.filter(family=self.family, user=invited_user).exists())
+        self.assertIsNotNone(invite.accepted_at)
+        self.assertEqual(
+            response.request["PATH_INFO"],
+            reverse("families:family_detail", kwargs={"family_id": self.family.id}),
+        )
 
 
 class FamilyMilestoneWorkflowTests(TestCase):

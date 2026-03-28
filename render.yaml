@@ -40,6 +40,18 @@ services:
         value: "contact@fam-linx.org"
       - key: INVITE_BCC_EMAIL
         value: "contact@fam-linx.org"
+      - key: SECURITY_BLOCKER_ENABLED
+        value: "true"
+      - key: SECURITY_BLOCKER_RATE_LIMIT_ENABLED
+        value: "true"
+      - key: SECURITY_BLOCKER_RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+      - key: SECURITY_BLOCKER_MAX_REQUESTS_PER_WINDOW
+        value: "240"
+      - key: SECURITY_BLOCKER_RATE_LIMIT_AUTHENTICATED
+        value: "false"
+      - key: SECURITY_BLOCKER_LOG_LEVEL
+        value: "WARNING"
       - key: CORS_ALLOWED_ORIGINS
         value: ""
       - key: CORS_ALLOW_CREDENTIALS

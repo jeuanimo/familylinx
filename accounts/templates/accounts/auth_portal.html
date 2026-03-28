@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Access FamilyLinx{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <div class="auth-shell">
+        <div class="auth-shell-header">
+            <div class="auth-logo">
+                <span class="brand-badge brand-badge-lg">FL</span>
+            </div>
+            <h1>Access FamilyLinx</h1>
+            <p class="muted">Use one page to sign in or create your account.</p>
+        </div>
+
+        <div class="auth-portal-grid">
+            <section class="auth-panel {% if active_mode == 'login' %}auth-panel-active{% endif %}">
+                <div class="auth-panel-header">
+                    <h2>Sign In</h2>
+                    <p class="muted">Already have an account? Pick up where you left off.</p>
+                </div>
+
+                <form method="post" action="{% url 'accounts:auth_portal' %}" class="auth-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="auth_action" value="login">
+                    {% if next_url %}
+                    <input type="hidden" name="next" value="{{ next_url }}">
+                    {% endif %}
+
+                    {% if login_form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in login_form.non_field_errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="form-group">
+                        <label for="id_login" class="form-label">Username or Email</label>
+                        <input type="text"
+                               name="login"
+                               id="id_login"
+                               class="form-control {% if login_form.login.errors %}is-invalid{% endif %}"
+                               placeholder="username or email"
+                               value="{{ login_form.login.value|default:'' }}"
+                               autocomplete="username"
+                               required>
+                        {% if login_form.login.errors %}
+                        <div class="form-error">
+                            {% for error in login_form.login.errors %}{{ error }}{% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <div class="form-label-row">
+                            <label for="id_password" class="form-label">Password</label>
+                            <a href="{% url 'account_reset_password' %}" class="form-link">Forgot password?</a>
+                        </div>
+                        <input type="password"
+                               name="password"
+                               id="id_password"
+                               class="form-control {% if login_form.password.errors %}is-invalid{% endif %}"
+                               placeholder="Enter your password"
+                               required>
+                        {% if login_form.password.errors %}
+                        <div class="form-error">
+                            {% for error in login_form.password.errors %}{{ error }}{% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg w-full">
+                        <i class="bi bi-box-arrow-in-right"></i> Sign In
+                    </button>
+                </form>
+            </section>
+
+            <section class="auth-panel {% if active_mode == 'signup' %}auth-panel-active{% endif %}">
+                <div class="auth-panel-header">
+                    <h2>Create Account</h2>
+                    <p class="muted">New here? Make your account and continue in one step.</p>
+                </div>
+
+                <form method="post" action="{% url 'accounts:auth_portal' %}" class="auth-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="auth_action" value="signup">
+                    {% if next_url %}
+                    <input type="hidden" name="next" value="{{ next_url }}">
+                    {% endif %}
+
+                    {% if signup_form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in signup_form.non_field_errors %}
+                        {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="form-group">
+                        <label for="id_username_signup" class="form-label">Username</label>
+                        <input type="text"
+                               name="username"
+                               id="id_username_signup"
+                               class="form-control {% if signup_form.username.errors %}is-invalid{% endif %}"
+                               placeholder="choose a username"
+                               value="{{ signup_form.username.value|default:'' }}"
+                               autocomplete="username"
+                               required>
+                        {% if signup_form.username.errors %}
+                        <div class="form-error">
+                            {% for error in signup_form.username.errors %}{{ error }}{% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_email_signup" class="form-label">Email Address</label>
+                        <input type="email"
+                               name="email"
+                               id="id_email_signup"
+                               class="form-control {% if signup_form.email.errors %}is-invalid{% endif %}"
+                               placeholder="you@example.com"
+                               value="{{ signup_form.email.value|default:'' }}"
+                               autocomplete="email"
+                               required>
+                        {% if signup_form.email.errors %}
+                        <div class="form-error">
+                            {% for error in signup_form.email.errors %}{{ error }}{% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_password1_signup" class="form-label">Password</label>
+                        <input type="password"
+                               name="password1"
+                               id="id_password1_signup"
+                               class="form-control {% if signup_form.password1.errors %}is-invalid{% endif %}"
+                               placeholder="Create a strong password"
+                               required>
+                        {% if signup_form.password1.errors %}
+                        <div class="form-error">
+                            {% for error in signup_form.password1.errors %}{{ error }}{% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_password2_signup" class="form-label">Confirm Password</label>
+                        <input type="password"
+                               name="password2"
+                               id="id_password2_signup"
+                               class="form-control {% if signup_form.password2.errors %}is-invalid{% endif %}"
+                               placeholder="Enter password again"
+                               required>
+                        {% if signup_form.password2.errors %}
+                        <div class="form-error">
+                            {% for error in signup_form.password2.errors %}{{ error }}{% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg w-full">
+                        <i class="bi bi-person-plus"></i> Create Account
+                    </button>
+                </form>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.auth-page {
+    min-height: calc(100vh - 200px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+.auth-shell {
+    width: 100%;
+    max-width: 1100px;
+}
+
+.auth-shell-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.auth-logo {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.auth-shell-header h1 {
+    font-size: clamp(2rem, 4vw, 2.75rem);
+    margin-bottom: 0.5rem;
+    color: var(--fl-blue);
+}
+
+.auth-portal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+}
+
+.auth-panel {
+    background: var(--fl-surface);
+    border: 1px solid var(--fl-border);
+    border-radius: var(--fl-radius);
+    box-shadow: var(--fl-shadow);
+    padding: 2rem;
+}
+
+.auth-panel-active {
+    border-color: var(--fl-blue);
+    box-shadow: 0 0 0 2px rgba(26, 79, 168, 0.08), var(--fl-shadow);
+}
+
+.auth-panel-header {
+    margin-bottom: 1.5rem;
+}
+
+.auth-panel-header h2 {
+    margin-bottom: 0.35rem;
+    color: var(--fl-blue);
+}
+
+.auth-form .form-group {
+    margin-bottom: 1rem;
+}
+
+.form-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.35rem;
+}
+
+.form-label-row .form-label {
+    margin-bottom: 0;
+}
+
+.form-link {
+    font-size: 0.875rem;
+    color: var(--fl-blue);
+}
+
+.form-link:hover {
+    text-decoration: underline;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: var(--fl-text);
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--fl-blue);
+}
+
+@media (max-width: 860px) {
+    .auth-portal-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-panel {
+        padding: 1.5rem;
+    }
+}
+</style>
+{% endblock %}

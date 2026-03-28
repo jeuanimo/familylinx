@@ -26,6 +26,7 @@ Templates Required:
 """
 
 import logging
+import smtplib
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -38,6 +39,7 @@ from django.core.mail import EmailMessage, send_mail
 from django.conf import settings
 from django.db import models
 from django.db.models import Q, Count
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from datetime import date, timedelta
 from collections import deque
 import json
@@ -386,6 +388,39 @@ def _record_invite_email_result(invite, error_message=None):
     invite.save(update_fields=["last_email_attempt_at", "last_email_error"])
 
 
+def _is_invite_rate_limit_error(error):
+    """Return True when the SMTP provider rejected mail because a sending limit was reached."""
+    message = str(error).lower()
+    return (
+        "sending limit reached" in message
+        or "policy rejection" in message
+        or "outgoing message count" in message
+        or "recipient count" in message
+    )
+
+
+def _friendly_invite_email_error(error):
+    """Return a user-friendly invite delivery error message."""
+    if _is_invite_rate_limit_error(error):
+        return (
+            "Your email provider has temporarily reached its sending limit. "
+            "Please try again later or use the manual invite link below."
+        )
+    return str(error)
+
+
+def _deliver_invite_email(subject, message, from_email, invite_email, bcc_list):
+    """Construct and send an invite email."""
+    email = EmailMessage(
+        subject=subject,
+        body=message,
+        from_email=from_email,
+        to=[invite_email],
+        bcc=bcc_list,
+    )
+    email.send(fail_silently=False)
+
+
 def _send_invite_email(invite, request):
     """
     Send an email invitation to join a FamilySpace.
@@ -433,21 +468,31 @@ def _send_invite_email(invite, request):
         # Log email attempt
         logger.info(f"Sending invite email to {invite.email} from {from_email}")
 
-        email = EmailMessage(
-            subject=subject,
-            body=message,
-            from_email=from_email,
-            to=[invite.email],
-            bcc=bcc_list,
-        )
-        email.send(fail_silently=False)
+        try:
+            _deliver_invite_email(subject, message, from_email, invite.email, bcc_list)
+        except Exception as first_error:
+            if bcc_list and _is_invite_rate_limit_error(first_error):
+                logger.warning(
+                    "Invite email to %s hit provider limits with BCC enabled; retrying without BCC.",
+                    invite.email,
+                )
+                try:
+                    _deliver_invite_email(subject, message, from_email, invite.email, [])
+                except Exception as retry_error:
+                    logger.exception("Failed to send invite email to %s after retry without BCC", invite.email)
+                    reason = _friendly_invite_email_error(retry_error)
+                    _record_invite_email_result(invite, reason)
+                    return False, reason
+            else:
+                raise first_error
+
         _record_invite_email_result(invite)
         logger.info(f"Invite email sent successfully to {invite.email}")
         return True, None
     except Exception as e:
         # Log the error for debugging
         logger.exception("Failed to send invite email to %s", invite.email)
-        reason = str(e)
+        reason = _friendly_invite_email_error(e)
         _record_invite_email_result(invite, reason)
         return False, reason
 
@@ -564,14 +609,23 @@ def invite_create(request, family_id):
                 )
 
             if failed_invites:
-                failed_preview = ", ".join(inv.email for inv, _reason in failed_invites[:3])
-                if len(failed_invites) > 3:
-                    failed_preview += ", ..."
-                messages.error(
-                    request,
-                    f"{len(failed_invites)} invitation email(s) were not sent: {failed_preview}. "
-                    f"Use the manual invite links in the Invitations panel below."
-                )
+                if len(failed_invites) == 1:
+                    failed_invite, failure_reason = failed_invites[0]
+                    messages.error(
+                        request,
+                        f"Invitation created, but the email was not sent to {failed_invite.email}. "
+                        f"Reason: {failure_reason}. "
+                        f"Use the manual invite link in the Invitations panel below."
+                    )
+                else:
+                    failed_preview = ", ".join(inv.email for inv, _reason in failed_invites[:3])
+                    if len(failed_invites) > 3:
+                        failed_preview += ", ..."
+                    messages.error(
+                        request,
+                        f"{len(failed_invites)} invitation email(s) were not sent: {failed_preview}. "
+                        f"Use the manual invite links in the Invitations panel below."
+                    )
 
             if not created_invites and not failed_invites and skipped_existing:
                 messages.info(request, "No new invitations were created.")
@@ -703,6 +757,79 @@ def invite_resend(request, family_id, invite_id):
     if not email_sent:
         redirect_target = f"{family_detail_url}#family-invitations"
     return redirect(redirect_target)
+
+
+@login_required
+def invite_edit(request, family_id, invite_id):
+    """
+    Edit a pending invitation's role.
+    
+    Only OWNER and ADMIN roles can edit invitations.
+    Only pending (not accepted, not expired) invites can be edited.
+    """
+    fam = get_object_or_404(FamilySpace, id=family_id)
+    
+    # Check user's role - only OWNER and ADMIN can edit invites
+    membership = Membership.objects.filter(family=fam, user=request.user).first()
+    if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": fam})
+    
+    invite = get_object_or_404(Invite, id=invite_id, family=fam)
+    
+    # Check if invite is still valid
+    if invite.accepted_at:
+        messages.warning(request, "This invitation has already been accepted and cannot be edited.")
+        return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
+    
+    if not invite.is_valid:
+        messages.warning(request, "This invitation has expired. Please create a new one.")
+        return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
+    
+    if request.method == "POST":
+        new_role = request.POST.get("role")
+        if new_role in [choice[0] for choice in Membership.Role.choices]:
+            invite.role = new_role
+            invite.save(update_fields=["role"])
+            messages.success(request, f"Invitation role updated to {new_role}.")
+        else:
+            messages.error(request, "Invalid role selected.")
+        return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
+    
+    # GET - show the edit form
+    return render(request, "families/invite_edit.html", {
+        "family": fam,
+        "invite": invite,
+        "role_choices": Membership.Role.choices,
+    })
+
+
+@login_required
+def invite_delete(request, family_id, invite_id):
+    """
+    Delete/revoke an invitation.
+    
+    Only OWNER and ADMIN roles can delete invitations.
+    """
+    fam = get_object_or_404(FamilySpace, id=family_id)
+    
+    # Check user's role - only OWNER and ADMIN can delete invites
+    membership = Membership.objects.filter(family=fam, user=request.user).first()
+    if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": fam})
+    
+    invite = get_object_or_404(Invite, id=invite_id, family=fam)
+    
+    if request.method == "POST":
+        email = invite.email
+        invite.delete()
+        messages.success(request, f"Invitation to {email} has been revoked.")
+        return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
+    
+    # GET - show confirmation
+    return render(request, "families/invite_delete.html", {
+        "family": fam,
+        "invite": invite,
+    })
 
 
 # =============================================================================
@@ -5101,6 +5228,7 @@ def messaging_hub(request, family_id):
 
 
 @login_required
+@xframe_options_sameorigin
 def direct_conversation_start(request, family_id, user_id):
     """Create or open a direct conversation with another family member."""
     family, membership = _get_membership_or_deny(request, family_id)
@@ -5140,6 +5268,7 @@ def event_conversation_start(request, family_id, event_id):
 
 
 @login_required
+@xframe_options_sameorigin
 def conversation_room(request, family_id, conversation_id):
     """
     Realtime room for a unified conversation.

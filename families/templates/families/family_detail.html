@@ -408,6 +408,14 @@
                                class="btn btn-outline btn-sm" title="Resend invitation email">
                                 <i class="bi bi-arrow-repeat"></i> Resend
                             </a>
+                            <a href="{% url 'families:invite_edit' family_id=family.id invite_id=invite.id %}" 
+                               class="btn btn-outline btn-sm" title="Edit invitation role">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <a href="{% url 'families:invite_delete' family_id=family.id invite_id=invite.id %}" 
+                               class="btn btn-outline btn-sm btn-danger" title="Delete invitation">
+                                <i class="bi bi-trash"></i>
+                            </a>
                         </div>
                     </div>
                     {% if invite.last_email_error %}

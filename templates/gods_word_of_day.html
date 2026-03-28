@@ -137,8 +137,8 @@
             <i class="bi bi-house"></i> Back to Dashboard
           </a>
           {% else %}
-          <a href="{% url 'account_signup' %}" class="btn btn-outline">
-            <i class="bi bi-person-plus"></i> Join FamilyLinx
+          <a href="{% url 'accounts:auth_portal' %}" class="btn btn-outline">
+            <i class="bi bi-person-circle"></i> Access FamilyLinx
           </a>
           {% endif %}
         </div>

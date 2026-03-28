@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
+from django.test.utils import override_settings
 from django.utils import timezone
 from django.urls import reverse
 
@@ -45,6 +47,103 @@ class UserProfileFormTests(TestCase):
         self.assertEqual(profile.maiden_name, "Smith")
         self.assertEqual(profile.get_full_name(), "Jane Marie Doe")
         self.assertEqual(profile.get_display_name(), "Jane Marie Doe")
+
+
+class AuthPortalTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username="portaluser",
+            email="portaluser@example.com",
+            password="StrongPass123!",
+        )
+
+    def test_auth_portal_renders_both_forms(self):
+        response = self.client.get(reverse("accounts:auth_portal"), secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Access FamilyLinx")
+        self.assertContains(response, "Sign In")
+        self.assertContains(response, "Create Account")
+
+    def test_auth_portal_logs_user_in_and_redirects_to_next(self):
+        target = reverse("home")
+        response = self.client.post(
+            reverse("accounts:auth_portal"),
+            {
+                "auth_action": "login",
+                "login": "portaluser",
+                "password": "StrongPass123!",
+                "next": target,
+            },
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, target)
+
+
+class SecurityBlockerMiddlewareTests(TestCase):
+    def tearDown(self):
+        cache.clear()
+        super().tearDown()
+
+    def test_blocks_known_exploit_paths(self):
+        response = self.client.get(
+            "/vendor/phpunit/eval-stdin.php",
+            secure=True,
+            REMOTE_ADDR="203.0.113.9",
+            HTTP_USER_AGENT="Mozilla/5.0",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_blocks_known_scanner_user_agents(self):
+        response = self.client.get(
+            "/",
+            secure=True,
+            REMOTE_ADDR="203.0.113.10",
+            HTTP_USER_AGENT="Mozilla/5.0 nuclei",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    @override_settings(
+        SECURITY_BLOCKER_RATE_LIMIT_WINDOW_SECONDS=60,
+        SECURITY_BLOCKER_MAX_REQUESTS_PER_WINDOW=2,
+        SECURITY_BLOCKER_RATE_LIMIT_AUTHENTICATED=False,
+    )
+    def test_rate_limits_repeated_requests_from_same_ip(self):
+        for _ in range(2):
+            response = self.client.get(
+                "/",
+                secure=True,
+                REMOTE_ADDR="198.51.100.8",
+                HTTP_USER_AGENT="Mozilla/5.0",
+            )
+            self.assertEqual(response.status_code, 200)
+
+        blocked = self.client.get(
+            "/",
+            secure=True,
+            REMOTE_ADDR="198.51.100.8",
+            HTTP_USER_AGENT="Mozilla/5.0",
+        )
+
+        self.assertEqual(blocked.status_code, 429)
+
+    def test_blocked_requests_are_logged_with_reason(self):
+        with self.assertLogs("familylinx.security.blocker", level="WARNING") as captured:
+            response = self.client.get(
+                "/?payload=%3Cscript%3E",
+                secure=True,
+                HTTP_X_FORWARDED_FOR="198.51.100.44, 10.0.0.1",
+                HTTP_USER_AGENT="Mozilla/5.0",
+            )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(any("reason=blocked_query_signature" in message for message in captured.output))
+        self.assertTrue(any("ip=198.51.100.44" in message for message in captured.output))
 
 
 class UserDirectoryTests(TestCase):

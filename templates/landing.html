@@ -14,11 +14,8 @@
                     Share updates, plan events, and build your family tree together.
                 </p>
                 <div class="hero-actions">
-                    <a href="{% url 'account_signup' %}" class="btn btn-primary btn-lg">
-                        <i class="bi bi-person-plus"></i> Get Started Free
-                    </a>
-                    <a href="{% url 'account_login' %}" class="btn btn-outline btn-lg">
-                        <i class="bi bi-box-arrow-in-right"></i> Sign In
+                    <a href="{% url 'accounts:auth_portal' %}" class="btn btn-primary btn-lg">
+                        <i class="bi bi-person-circle"></i> Access FamilyLinx
                     </a>
                 </div>
             </div>
@@ -89,8 +86,8 @@
     <div class="container">
         <h2>Ready to Connect Your Family?</h2>
         <p>Join FamilyLinx today and start building your family's digital home.</p>
-        <a href="{% url 'account_signup' %}" class="btn btn-primary btn-lg">
-            <i class="bi bi-person-plus"></i> Create Your Free Account
+        <a href="{% url 'accounts:auth_portal' %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-person-circle"></i> Access Your Account
         </a>
     </div>
 </section>

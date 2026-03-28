@@ -45,6 +45,8 @@ urlpatterns = [
     # Profile Views
     # ==========================================================================
 
+    path('access/', views.auth_portal, name='auth_portal'),
+
     # Directory of users who have logged in
     path('directory/', views.user_directory, name='user_directory'),
     path('admin/people/', views.admin_user_directory, name='admin_user_directory'),

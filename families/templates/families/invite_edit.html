@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Invitation - {{ family.name }}{% endblock %}
+
+{% block content %}
+<div class="container narrow py-4">
+    <nav class="breadcrumb mb-3">
+        <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+        <span class="separator">/</span>
+        <span>Edit Invitation</span>
+    </nav>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="bi bi-pencil"></i> Edit Invitation</span>
+        </div>
+        <div class="card-body">
+            <p class="mb-3">
+                Editing invitation for <strong>{{ invite.email }}</strong>
+            </p>
+            
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="form-group mb-3">
+                    <label for="role" class="form-label">Member Role</label>
+                    <select name="role" id="role" class="form-control" required>
+                        {% for value, label in role_choices %}
+                        <option value="{{ value }}" {% if value == invite.role %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text muted">
+                        The role this person will have when they accept the invitation.
+                    </small>
+                </div>
+                
+                <div class="flex-between mt-4">
+                    <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline">
+                        Cancel
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check"></i> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

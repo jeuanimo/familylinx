@@ -80,11 +80,11 @@ class InviteCreateForm(forms.Form):
     """
     Form for creating an invitation to join a FamilySpace.
     
-    This form collects the invitee's email and their intended role.
+    This form collects one or more invitee email addresses and their intended role.
     Other fields (family, created_by, token, expires_at) are set server-side.
     
     Fields:
-        email (str): Required. Email address to send the invitation to
+        email (list[str]): Required. One or more email addresses to send invitations to
         role (str): Required. Role to assign when invite is accepted
     
     Security Notes:
@@ -96,10 +96,13 @@ class InviteCreateForm(forms.Form):
     Example:
         >>> form = InviteCreateForm(request.POST)
         >>> if form.is_valid():
-        ...     invite = form.save(commit=False)
-        ...     invite.family = family_space
-        ...     invite.created_by = request.user
-        ...     invite.save()  # Token auto-generated
+        ...     for email in form.cleaned_data["email"]:
+        ...         Invite.objects.create(
+        ...             family=family_space,
+        ...             created_by=request.user,
+        ...             email=email,
+        ...             role=form.cleaned_data["role"],
+        ...         )
     """
     
     email = forms.CharField(

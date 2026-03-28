@@ -56,9 +56,16 @@ from django.contrib import messages
 from django.http import JsonResponse, Http404
 from django.core.exceptions import PermissionDenied
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.db.models import Q, Count
 from django.db.models.functions import Coalesce
 from django.core.files.base import ContentFile
+from django.views.decorators.cache import never_cache
+from django.views.decorators.debug import sensitive_post_parameters
+
+from allauth.account.forms import LoginForm, SignupForm
+from allauth.account.internal import flows as account_flows
+from allauth.core.exceptions import ImmediateHttpResponse
 
 from .models import UserProfile, ProfilePost, ProfilePostComment, ProfileMessage
 from .forms import (
@@ -68,6 +75,18 @@ from .forms import (
 from utils.image_utils import process_cropped_image
 
 User = get_user_model()
+
+
+def _get_safe_next_url(request, default=None):
+    """Return a same-site redirect target from GET/POST next params."""
+    next_url = request.POST.get("next") or request.GET.get("next")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return next_url
+    return default
 
 
 def _get_or_create_profile(user):
@@ -102,6 +121,59 @@ def _ensure_site_admin(request):
     """Require a Django staff/superuser account."""
     if not (request.user.is_staff or request.user.is_superuser):
         raise PermissionDenied("You do not have access to this page.")
+
+
+@never_cache
+@sensitive_post_parameters("password", "password1", "password2")
+def auth_portal(request):
+    """Combined sign-in and sign-up page for FamilyLinx."""
+    redirect_url = _get_safe_next_url(request, default="/")
+    if request.user.is_authenticated:
+        return redirect(redirect_url)
+
+    active_mode = request.GET.get("mode", "login")
+    login_form = LoginForm(request=request)
+    signup_form = SignupForm()
+
+    if request.method == "POST":
+        action = request.POST.get("auth_action")
+        if action == "signup":
+            active_mode = "signup"
+            signup_form = SignupForm(request.POST)
+            if signup_form.is_valid():
+                user, response = signup_form.try_save(request)
+                if response:
+                    return response
+                try:
+                    return account_flows.signup.complete_signup(
+                        request,
+                        user=user,
+                        redirect_url=redirect_url,
+                        by_passkey=getattr(signup_form, "by_passkey", False),
+                    )
+                except ImmediateHttpResponse as exc:
+                    return exc.response
+            login_form = LoginForm(request=request)
+        else:
+            active_mode = "login"
+            login_form = LoginForm(request.POST, request=request)
+            if login_form.is_valid():
+                try:
+                    return login_form.login(request, redirect_url=redirect_url)
+                except ImmediateHttpResponse as exc:
+                    return exc.response
+            signup_form = SignupForm()
+
+    return render(
+        request,
+        "accounts/auth_portal.html",
+        {
+            "login_form": login_form,
+            "signup_form": signup_form,
+            "active_mode": active_mode,
+            "next_url": redirect_url,
+        },
+    )
 
 
 @login_required

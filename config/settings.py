@@ -54,6 +54,29 @@ DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',') if os.environ.get('ALLOWED_HOSTS') else []
 
 
+def _env_bool(name, default=False):
+    """Parse a boolean environment variable."""
+    return os.environ.get(name, str(default)).lower() in ('true', '1', 'yes', 'on')
+
+
+# =============================================================================
+# REQUEST BLOCKING / BOT PROTECTION
+# =============================================================================
+SECURITY_BLOCKER_ENABLED = _env_bool('SECURITY_BLOCKER_ENABLED', True)
+SECURITY_BLOCKER_RATE_LIMIT_ENABLED = _env_bool('SECURITY_BLOCKER_RATE_LIMIT_ENABLED', True)
+SECURITY_BLOCKER_RATE_LIMIT_AUTHENTICATED = _env_bool(
+    'SECURITY_BLOCKER_RATE_LIMIT_AUTHENTICATED',
+    False,
+)
+SECURITY_BLOCKER_RATE_LIMIT_WINDOW_SECONDS = int(
+    os.environ.get('SECURITY_BLOCKER_RATE_LIMIT_WINDOW_SECONDS', '60')
+)
+SECURITY_BLOCKER_MAX_REQUESTS_PER_WINDOW = int(
+    os.environ.get('SECURITY_BLOCKER_MAX_REQUESTS_PER_WINDOW', '240')
+)
+SECURITY_BLOCKER_LOG_LEVEL = os.environ.get('SECURITY_BLOCKER_LOG_LEVEL', 'WARNING')
+
+
 # =============================================================================
 # APPLICATION DEFINITION
 # =============================================================================
@@ -195,7 +218,7 @@ ACCOUNT_SESSION_REMEMBER = True  # Remember me by default
 # Login/Logout redirects
 LOGIN_REDIRECT_URL = '/'  # After login, go to home
 LOGOUT_REDIRECT_URL = '/'  # After logout, go to home
-LOGIN_URL = '/accounts/login/'
+LOGIN_URL = '/u/access/'
 
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'contact@fam-linx.org')
 INVITE_BCC_EMAIL = os.environ.get('INVITE_BCC_EMAIL', DEFAULT_FROM_EMAIL)
@@ -323,6 +346,11 @@ LOGGING = {
         'django.security': {
             'handlers': ['console'],
             'level': 'INFO',
+            'propagate': False,
+        },
+        'familylinx.security.blocker': {
+            'handlers': ['console'],
+            'level': SECURITY_BLOCKER_LOG_LEVEL,
             'propagate': False,
         },
     },
