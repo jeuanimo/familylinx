@@ -259,6 +259,9 @@ STORAGES = {
     },
 }
 
+# Fall back to the unhashed static path if the manifest is stale or incomplete.
+WHITENOISE_MANIFEST_STRICT = False
+
 
 # =============================================================================
 # DEFAULT PRIMARY KEY FIELD TYPE

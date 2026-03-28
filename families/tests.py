@@ -56,6 +56,32 @@ class TreeBuilderServiceTests(TestCase):
         self.assertEqual(edge["type"], Relationship.Type.PARENT_CHILD)
 
 
+class FamilyTreeViewTests(TestCase):
+    @override_settings(ALLOWED_HOSTS=["testserver"])
+    def test_owner_can_open_tree_page_before_any_people_exist(self):
+        User = get_user_model()
+        user = User.objects.create_user(
+            username="emptytreeowner",
+            email="emptytreeowner@example.com",
+            password="pass",
+        )
+        family = FamilySpace.objects.create(name="Empty Tree Family", created_by=user)
+        Membership.objects.create(
+            family=family,
+            user=user,
+            role=Membership.Role.OWNER,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(
+            reverse("families:family_tree", kwargs={"family_id": family.id}),
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Family Tree")
+
+
 class FamilyMilestoneWorkflowTests(TestCase):
     def setUp(self):
         User = get_user_model()
