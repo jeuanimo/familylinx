@@ -32,8 +32,6 @@ services:
         value: ""
       - key: CORS_ALLOW_CREDENTIALS
         value: "true"
-      - key: CSRF_TRUSTED_ORIGINS
-        value: ""
     healthCheckPath: /
     autoSslCert: true
 
