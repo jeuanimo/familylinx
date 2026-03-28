@@ -81,6 +81,39 @@ class FamilyTreeViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Family Tree")
 
+    @override_settings(ALLOWED_HOSTS=["testserver"])
+    def test_interactive_tree_can_match_user_without_full_name_db_field(self):
+        User = get_user_model()
+        user = User.objects.create_user(
+            username="janedoe",
+            email="janedoe@example.com",
+            password="pass",
+            first_name="Jane",
+            last_name="Doe",
+        )
+        family = FamilySpace.objects.create(name="Interactive Tree Family", created_by=user)
+        membership = Membership.objects.create(
+            family=family,
+            user=user,
+            role=Membership.Role.OWNER,
+        )
+        person = Person.objects.create(
+            family=family,
+            first_name="Jane",
+            last_name="Doe",
+            created_by=user,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(
+            reverse("families:family_tree_interactive", kwargs={"family_id": family.id}),
+            secure=True,
+        )
+
+        membership.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(membership.linked_person, person)
+
 
 class FamilyMilestoneWorkflowTests(TestCase):
     def setUp(self):

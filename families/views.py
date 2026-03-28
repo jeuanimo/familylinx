@@ -1825,24 +1825,65 @@ def _sync_from_profile(request, family, membership, person_by_id):
     return None, None
 
 
+def _normalize_person_name(value):
+    """Normalize names for consistent matching."""
+    return " ".join((value or "").split()).strip().lower()
+
+
+def _person_matches_full_name(person, normalized_full_name, normalized_first_name, normalized_last_name):
+    """Check whether a person matches the current user's name."""
+    person_first_name = _normalize_person_name(person.first_name)
+    person_last_name = _normalize_person_name(person.last_name)
+    person_maiden_name = _normalize_person_name(person.maiden_name)
+    person_full_name = _normalize_person_name(person.full_name)
+
+    if person_full_name == normalized_full_name:
+        return True
+
+    if normalized_first_name and normalized_last_name and person_first_name == normalized_first_name:
+        return normalized_last_name in {person_last_name, person_maiden_name}
+
+    return False
+
+
 def _match_by_full_name(request, family, membership, person_by_id):
     """Try to match user by full name."""
     full_name = (request.user.get_full_name() or "").strip()
-    if not full_name:
+    normalized_full_name = _normalize_person_name(full_name)
+    normalized_first_name = _normalize_person_name(request.user.first_name)
+    normalized_last_name = _normalize_person_name(request.user.last_name)
+
+    if not normalized_full_name:
         return None, None
-    
+
     if person_by_id:
-        matches = [p for p in person_by_id.values() if p.full_name.strip().lower() == full_name.lower()]
+        candidates = list(person_by_id.values())
     else:
-        matches = list(Person.objects.filter(
-            family=family, full_name__iexact=full_name, is_deleted=False
-        ))
-    
+        candidates_query = Person.objects.filter(family=family, is_deleted=False)
+        if normalized_first_name:
+            candidates_query = candidates_query.filter(first_name__iexact=request.user.first_name.strip())
+        if normalized_last_name:
+            candidates_query = candidates_query.filter(
+                Q(last_name__iexact=request.user.last_name.strip())
+                | Q(maiden_name__iexact=request.user.last_name.strip())
+            )
+        candidates = list(candidates_query)
+
+    matches = [
+        person for person in candidates
+        if _person_matches_full_name(
+            person,
+            normalized_full_name,
+            normalized_first_name,
+            normalized_last_name,
+        )
+    ]
+
     if len(matches) == 1:
         membership.linked_person = matches[0]
         membership.save(update_fields=["linked_person"])
         return matches[0].id, matches[0]
-    
+
     return None, None
 
 
