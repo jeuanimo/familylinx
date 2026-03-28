@@ -11,6 +11,7 @@ from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils.formats import date_format
 from django.utils import timezone
 
 from .forms import GedcomUploadForm
@@ -538,10 +539,40 @@ class InviteEmailWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(Membership.objects.filter(family=self.family, user=invited_user).exists())
         self.assertIsNotNone(invite.accepted_at)
+        self.assertEqual(invite.accepted_by, invited_user)
         self.assertEqual(
             response.request["PATH_INFO"],
             reverse("families:family_detail", kwargs={"family_id": self.family.id}),
         )
+
+    def test_family_detail_shows_when_and_who_used_an_invitation(self):
+        accepted_user = get_user_model().objects.create_user(
+            username="acceptedrelative",
+            email="acceptedrelative@example.com",
+            password="StrongPass123!",
+            first_name="Accepted",
+            last_name="Relative",
+        )
+        accepted_at = timezone.now().replace(microsecond=0)
+        invite = Invite.objects.create(
+            family=self.family,
+            created_by=self.user,
+            email="acceptedrelative@example.com",
+            role=Membership.Role.MEMBER,
+            expires_at=timezone.now() + timedelta(days=14),
+            accepted_at=accepted_at,
+            accepted_by=accepted_user,
+        )
+
+        response = self.client.get(
+            reverse("families:family_detail", kwargs={"family_id": self.family.id}),
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, invite.email)
+        self.assertContains(response, "Accepted by: Accepted Relative")
+        self.assertContains(response, date_format(timezone.localtime(accepted_at), "M j, Y g:i A"))
 
 
 class FamilyMilestoneWorkflowTests(TestCase):

@@ -228,7 +228,7 @@ def family_detail(request, family_id):
 
     # Fetch related data for display
     # Limit invites to prevent excessive data loading
-    invites = fam.invites.order_by("-created_at")[:20]
+    invites = fam.invites.select_related("accepted_by", "accepted_by__profile").order_by("-created_at")[:20]
     
     # Use select_related to optimize user lookup queries
     members = fam.memberships.select_related("user").order_by("joined_at")
@@ -699,7 +699,8 @@ def invite_accept(request, token):
     
     # Mark invite as accepted
     inv.accepted_at = timezone.now()
-    inv.save(update_fields=["accepted_at"])  # Only update this field
+    inv.accepted_by = request.user
+    inv.save(update_fields=["accepted_at", "accepted_by"])  # Only update acceptance fields
     
     # Check for matching Person records and create auto-claim
     from .models import create_auto_claim_for_user

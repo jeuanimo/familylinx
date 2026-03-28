@@ -15,6 +15,12 @@
                 This invitation has already been accepted.
             </p>
             <p class="muted">
+                Used on {{ invite.accepted_at|date:"F j, Y g:i A" }}
+                {% if invite.accepted_by %}
+                by <strong>{{ invite.accepted_by_display }}</strong>
+                {% endif %}.
+            </p>
+            <p class="muted">
                 If you're already a member of <strong>{{ invite.family.name }}</strong>, 
                 you can access it from your dashboard.
             </p>

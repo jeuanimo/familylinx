@@ -280,6 +280,14 @@ class Invite(models.Model):
         blank=True,
         help_text="When the invite was accepted (null if pending)"
     )
+    accepted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="accepted_family_invites",
+        help_text="User who accepted the invite"
+    )
     last_email_attempt_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -327,6 +335,21 @@ class Invite(models.Model):
     def __str__(self):
         """Return a descriptive string showing email and target family."""
         return f"Invite {self.email} to {self.family}"
+
+    @property
+    def accepted_by_display(self):
+        """Best available label for the user who accepted the invite."""
+        if not self.accepted_by:
+            return ""
+        profile = getattr(self.accepted_by, "profile", None)
+        if profile:
+            display_name = profile.get_display_name()
+            if display_name:
+                return display_name
+        full_name = self.accepted_by.get_full_name()
+        if full_name:
+            return full_name
+        return self.accepted_by.email or self.accepted_by.username
 
     class Meta:
         verbose_name = "Invite"

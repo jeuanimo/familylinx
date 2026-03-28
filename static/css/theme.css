@@ -522,8 +522,8 @@ a:hover { text-decoration: underline; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.25rem;
+  gap: 1.25rem;
+  padding: 1.15rem 1.45rem;
   border-bottom: 1px solid var(--fl-border);
   background: rgba(31,58,95,0.02);
 }
@@ -536,8 +536,43 @@ a:hover { text-decoration: underline; }
 }
 
 .card-body {
-  padding: 1.25rem;
+  padding: 1.5rem;
   color: var(--fl-text);
+}
+
+.card-body > * + * {
+  margin-top: 1rem;
+}
+
+.card .flex-between {
+  gap: 1rem;
+}
+
+.card .gap-xs {
+  gap: 0.55rem;
+}
+
+.card .gap-sm {
+  gap: 0.8rem;
+}
+
+.card .gap-md {
+  gap: 1rem;
+}
+
+.card .gap-lg {
+  gap: 1.3rem;
+}
+
+.card .page-actions,
+.card .form-actions,
+.card .feed-post-actions,
+.card .rsvp-buttons {
+  gap: 0.9rem;
+}
+
+.card .btn {
+  margin: 0.1rem 0;
 }
 
 .card-body h3 {
@@ -560,7 +595,7 @@ h4 { font-size: 1rem; color: var(--fl-blue); }
 
 /* Forms */
 .form-group {
-  margin-bottom: 1rem;
+  margin-bottom: 1.15rem;
 }
 
 .form-label {
@@ -892,7 +927,7 @@ main {
 }
 
 .feed-post {
-  padding: 1.25rem;
+  padding: 1.5rem;
   border-bottom: 1px solid var(--fl-border);
 }
 .feed-post:last-child { border-bottom: none; }
@@ -906,13 +941,13 @@ main {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
+  gap: 1.25rem;
+  margin-bottom: 1rem;
 }
 
 .feed-post-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.75rem;
   flex-shrink: 0;
 }
 
@@ -1025,8 +1060,8 @@ main {
 
 .event-card-content {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  align-items: flex-start;
+  gap: 1.25rem;
 }
 
 .event-date-badge {
@@ -1438,7 +1473,7 @@ main {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 1.25rem;
+  padding: 1.5rem;
   border: 1px solid var(--fl-border);
   border-radius: var(--fl-radius);
   background: var(--fl-surface);
@@ -1453,14 +1488,14 @@ main {
 }
 
 .person-card-photo {
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
   position: relative;
 }
 
 .person-card-info {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.45rem;
 }
 
 /* Online Status Badge */
@@ -2003,8 +2038,8 @@ main {
 .notification-link {
   display: flex;
   align-items: flex-start;
-  gap: 1rem;
-  padding: 1rem 1.25rem;
+  gap: 1.15rem;
+  padding: 1.15rem 1.4rem;
   text-decoration: none;
   color: var(--fl-text);
   transition: background 0.15s;

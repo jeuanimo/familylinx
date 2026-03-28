@@ -392,6 +392,19 @@
                         <span class="badge badge-gold">Pending</span>
                         {% endif %}
                     </div>
+                    {% if invite.accepted_at %}
+                    <div class="stack">
+                        <small class="muted">
+                            Role: {{ invite.role }} ·
+                            Accepted: {{ invite.accepted_at|date:"M j, Y g:i A" }}
+                        </small>
+                        {% if invite.accepted_by %}
+                        <small class="muted">
+                            Accepted by: {{ invite.accepted_by_display }}
+                        </small>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                     {% if invite.is_valid and not invite.accepted_at %}
                     <div class="flex-between">
                         <small class="muted">
