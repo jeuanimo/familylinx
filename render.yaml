@@ -43,7 +43,6 @@ services:
       - key: CORS_ALLOW_CREDENTIALS
         value: "true"
     healthCheckPath: /
-    autoSslCert: true
 
 databases:
   - name: familylinx-db
