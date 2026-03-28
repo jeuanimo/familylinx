@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Delete Custom Milestone – {{ family.name }} | FamilyLinx{% endblock %}
+{% block title %}Delete Kudos – {{ family.name }} | FamilyLinx{% endblock %}
 
 {% block content %}
 <main>
@@ -10,17 +10,17 @@
       <span class="separator">/</span>
       <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
       <span class="separator">/</span>
-      <a href="{% url 'families:milestone_list' family_id=family.id %}">Custom Milestones</a>
+      <a href="{% url 'families:kudos_list' family_id=family.id %}">Kudos</a>
       <span class="separator">/</span>
       <span class="current">Delete</span>
     </nav>
 
     <div class="card">
       <div class="card-header">
-        <span class="card-title">Delete Custom Milestone</span>
+        <span class="card-title">Delete Kudos</span>
       </div>
       <div class="card-body">
-        <p>Are you sure you want to delete "<strong>{{ milestone.title }}</strong>"?</p>
+        <p>Are you sure you want to delete "<strong>{{ kudos.title }}</strong>"?</p>
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="next" value="{{ next_url }}">

@@ -51,6 +51,37 @@
                 <!-- Basic Info -->
                 <fieldset style="border: 1px solid var(--fl-border); padding: 1rem; border-radius: var(--fl-radius); margin-bottom: 1.5rem;">
                     <legend style="font-weight: 600; padding: 0 0.5rem;">Basic Information</legend>
+
+                    <div class="grid-4" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.first_name.id_for_label }}">First Name</label>
+                            {{ form.first_name }}
+                            {% if form.first_name.errors %}
+                            <div class="form-error">{{ form.first_name.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.middle_name.id_for_label }}">Middle Name</label>
+                            {{ form.middle_name }}
+                            {% if form.middle_name.errors %}
+                            <div class="form-error">{{ form.middle_name.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.last_name.id_for_label }}">Last Name</label>
+                            {{ form.last_name }}
+                            {% if form.last_name.errors %}
+                            <div class="form-error">{{ form.last_name.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.maiden_name.id_for_label }}">Maiden Name</label>
+                            {{ form.maiden_name }}
+                            {% if form.maiden_name.errors %}
+                            <div class="form-error">{{ form.maiden_name.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
                     
                     <div class="form-group">
                         <label class="form-label">Display Name</label>

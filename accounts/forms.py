@@ -26,7 +26,10 @@ Security Notes:
 """
 
 from django import forms
+from django.contrib.auth import get_user_model
 from .models import UserProfile, ProfilePost, ProfilePostComment, ProfileMessage
+
+User = get_user_model()
 
 
 class UserProfileForm(forms.ModelForm):
@@ -49,15 +52,39 @@ class UserProfileForm(forms.ModelForm):
         show_email: Whether to display email on profile
         show_birthday: Whether to display birthday on profile
     """
-    
+    first_name = forms.CharField(
+        max_length=User._meta.get_field('first_name').max_length,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'First name'
+        }),
+    )
+    last_name = forms.CharField(
+        max_length=User._meta.get_field('last_name').max_length,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Last name'
+        }),
+    )
+
     class Meta:
         model = UserProfile
         fields = [
-            'display_name', 'bio', 'profile_picture', 'cover_photo',
+            'middle_name', 'maiden_name', 'display_name', 'bio', 'profile_picture', 'cover_photo',
             'location', 'website', 'date_of_birth',
             'profile_visibility', 'show_email', 'show_birthday'
         ]
         widgets = {
+            'middle_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Middle name'
+            }),
+            'maiden_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Maiden name'
+            }),
             'display_name': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Your display name'
@@ -97,6 +124,26 @@ class UserProfileForm(forms.ModelForm):
                 'class': 'form-check-input'
             }),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        user = getattr(self.instance, "user", None)
+        if user:
+            self.fields['first_name'].initial = user.first_name
+            self.fields['last_name'].initial = user.last_name
+
+    def save(self, commit=True):
+        profile = super().save(commit=False)
+        user = profile.user
+        user.first_name = self.cleaned_data.get('first_name', '').strip()
+        user.last_name = self.cleaned_data.get('last_name', '').strip()
+
+        if commit:
+            user.save(update_fields=['first_name', 'last_name'])
+            profile.save()
+            self.save_m2m()
+
+        return profile
 
 
 class ProfilePictureForm(forms.ModelForm):

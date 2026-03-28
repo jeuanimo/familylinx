@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .forms import GedcomUploadForm
-from .models import CrossSpacePersonLink, FamilySpace, FamilyMilestone, Membership, Person, Relationship
+from .models import CrossSpacePersonLink, FamilyKudos, FamilySpace, FamilyMilestone, Invite, Membership, Person, Relationship
 from .services.tree_builder import build_tree_json
 
 
@@ -114,6 +114,228 @@ class FamilyTreeViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(membership.linked_person, person)
 
+    @override_settings(ALLOWED_HOSTS=["testserver"])
+    def test_interactive_tree_can_match_user_by_profile_maiden_name(self):
+        User = get_user_model()
+        user = User.objects.create_user(
+            username="janesmith",
+            email="janesmith@example.com",
+            password="pass",
+            first_name="Jane",
+            last_name="Doe",
+        )
+        user.profile.maiden_name = "Smith"
+        user.profile.save(update_fields=["maiden_name"])
+        family = FamilySpace.objects.create(name="Maiden Match Family", created_by=user)
+        membership = Membership.objects.create(
+            family=family,
+            user=user,
+            role=Membership.Role.OWNER,
+        )
+        person = Person.objects.create(
+            family=family,
+            first_name="Jane",
+            last_name="Smith",
+            created_by=user,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(
+            reverse("families:family_tree_interactive", kwargs={"family_id": family.id}),
+            secure=True,
+        )
+
+        membership.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(membership.linked_person, person)
+
+
+class LinkToTreeViewTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username="linkme",
+            email="linkme@example.com",
+            password="pass",
+            first_name="Jane",
+            last_name="Doe",
+        )
+        self.family = FamilySpace.objects.create(name="Link Family", created_by=self.user)
+        self.membership = Membership.objects.create(
+            family=self.family,
+            user=self.user,
+            role=Membership.Role.OWNER,
+        )
+        self.jane = Person.objects.create(
+            family=self.family,
+            first_name="Jane",
+            last_name="Doe",
+            maiden_name="Smith",
+            birth_date=date(1988, 5, 12),
+            created_by=self.user,
+        )
+        self.other = Person.objects.create(
+            family=self.family,
+            first_name="John",
+            last_name="Johnson",
+            created_by=self.user,
+        )
+        self.client.force_login(self.user)
+
+    def test_link_to_tree_renders_search_page_for_browser_requests(self):
+        response = self.client.get(
+            reverse("families:link_to_tree", kwargs={"family_id": self.family.id}),
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Search by name")
+        self.assertContains(response, "Link Yourself to the Family Tree")
+
+    def test_link_to_tree_json_search_returns_matching_people(self):
+        response = self.client.get(
+            reverse("families:link_to_tree", kwargs={"family_id": self.family.id}),
+            {"format": "json", "q": "Smith"},
+            HTTP_ACCEPT="application/json",
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["linked_person_id"], None)
+        self.assertEqual([person["id"] for person in payload["persons"]], [self.jane.id])
+        self.assertEqual(payload["persons"][0]["maiden_name"], "Smith")
+
+    def test_link_to_tree_form_post_links_membership(self):
+        next_url = reverse("families:family_tree", kwargs={"family_id": self.family.id})
+        response = self.client.post(
+            reverse("families:link_to_tree", kwargs={"family_id": self.family.id}),
+            {"person_id": self.jane.id, "next": next_url},
+            secure=True,
+        )
+
+        self.membership.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, next_url)
+        self.assertEqual(self.membership.linked_person, self.jane)
+
+
+class ClaimMySpotMatchingTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username="middlematch",
+            email="middlematch@example.com",
+            password="pass",
+            first_name="Jane",
+            last_name="Doe",
+        )
+        self.user.profile.middle_name = "Marie"
+        self.user.profile.save(update_fields=["middle_name"])
+        self.family = FamilySpace.objects.create(name="GEDCOM Family", created_by=self.user)
+        Membership.objects.create(
+            family=self.family,
+            user=self.user,
+            role=Membership.Role.OWNER,
+        )
+        self.person = Person.objects.create(
+            family=self.family,
+            first_name="Jane Marie",
+            last_name="Doe",
+            created_by=self.user,
+        )
+        self.client.force_login(self.user)
+
+    def test_claim_my_spot_suggests_person_with_middle_name_in_tree(self):
+        response = self.client.get(
+            reverse("families:claim_my_spot", kwargs={"family_id": self.family.id}),
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Jane Marie Doe")
+        self.assertContains(response, self.person.full_name)
+
+    def test_claim_my_spot_suggests_person_with_profile_maiden_name(self):
+        self.user.profile.maiden_name = "Smith"
+        self.user.profile.save(update_fields=["maiden_name"])
+        maiden_person = Person.objects.create(
+            family=self.family,
+            first_name="Jane Marie",
+            last_name="Smith",
+            created_by=self.user,
+        )
+
+        response = self.client.get(
+            reverse("families:claim_my_spot", kwargs={"family_id": self.family.id}),
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Jane Marie Doe (nee Smith)")
+        self.assertContains(response, maiden_person.full_name)
+
+
+class InviteEmailWorkflowTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username="inviteowner",
+            email="inviteowner@example.com",
+            password="pass",
+        )
+        self.family = FamilySpace.objects.create(name="Invite Family", created_by=self.user)
+        Membership.objects.create(
+            family=self.family,
+            user=self.user,
+            role=Membership.Role.OWNER,
+        )
+        self.client.force_login(self.user)
+
+    @patch("families.views.send_mail")
+    def test_invite_create_email_contains_accept_url(self, mock_send_mail):
+        response = self.client.post(
+            reverse("families:invite_create", kwargs={"family_id": self.family.id}),
+            {"email": "cousin@example.com", "role": Membership.Role.MEMBER},
+            secure=True,
+        )
+
+        invite = Invite.objects.get(family=self.family, email="cousin@example.com")
+        message = mock_send_mail.call_args.kwargs["message"]
+
+        self.assertRedirects(
+            response,
+            reverse("families:family_detail", kwargs={"family_id": self.family.id}),
+            fetch_redirect_response=False,
+        )
+        self.assertIn(
+            reverse("families:invite_accept", kwargs={"token": invite.token}),
+            message,
+        )
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
+        EMAIL_HOST_USER="contact@fam-linx.org",
+        EMAIL_HOST_PASSWORD="",
+        DEFAULT_FROM_EMAIL="contact@fam-linx.org",
+    )
+    def test_invite_create_shows_reason_when_smtp_password_missing(self):
+        response = self.client.post(
+            reverse("families:invite_create", kwargs={"family_id": self.family.id}),
+            {"email": "uncle@example.com", "role": Membership.Role.MEMBER},
+            secure=True,
+            follow=True,
+        )
+
+        invite = Invite.objects.get(family=self.family, email="uncle@example.com")
+
+        self.assertContains(response, "Invitation created but email could not be sent.")
+        self.assertContains(response, "EMAIL_HOST_PASSWORD")
+        self.assertContains(
+            response,
+            reverse("families:invite_accept", kwargs={"token": invite.token}),
+        )
+
 
 class FamilyMilestoneWorkflowTests(TestCase):
     def setUp(self):
@@ -147,6 +369,7 @@ class FamilyMilestoneWorkflowTests(TestCase):
             first_name="John",
             last_name="Ancestor",
             gender=Person.Gender.MALE,
+            birth_date=date(1975, milestone_day.month, milestone_day.day),
             created_by=self.user,
         )
         self.anniversary_relationship = Relationship.objects.create(
@@ -156,48 +379,89 @@ class FamilyMilestoneWorkflowTests(TestCase):
             relationship_type=Relationship.Type.SPOUSE,
             start_date=date(1990, milestone_day.month, milestone_day.day),
         )
+        self.kudos = FamilyKudos.objects.create(
+            family=self.family,
+            title="College acceptance",
+            message="We are celebrating a big achievement this week.",
+            person=self.deceased_person,
+            created_by=self.user,
+        )
         self.client.force_login(self.user)
 
-    def test_family_detail_custom_milestone_card_links_back_to_current_page(self):
+    def test_family_detail_links_to_separate_family_date_pages(self):
         family_detail_url = reverse("families:family_detail", kwargs={"family_id": self.family.id})
-        edit_path = reverse(
-            "families:milestone_edit",
-            kwargs={"family_id": self.family.id, "milestone_id": self.milestone.id},
-        )
-        delete_path = reverse(
-            "families:milestone_delete",
-            kwargs={"family_id": self.family.id, "milestone_id": self.milestone.id},
-        )
-        detail_path = reverse(
-            "families:milestone_detail",
-            kwargs={"family_id": self.family.id, "milestone_id": self.milestone.id},
-        )
 
         response = self.client.get(family_detail_url, secure=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, detail_path)
-        self.assertContains(response, edit_path)
-        self.assertContains(response, delete_path)
-        self.assertContains(response, "next=")
+        self.assertContains(
+            response,
+            reverse("families:birthday_list", kwargs={"family_id": self.family.id}),
+        )
+        self.assertContains(
+            response,
+            reverse("families:wedding_anniversary_list", kwargs={"family_id": self.family.id}),
+        )
+        self.assertContains(
+            response,
+            reverse("families:in_memoriam_list", kwargs={"family_id": self.family.id}),
+        )
+        self.assertContains(
+            response,
+            reverse("families:milestone_list", kwargs={"family_id": self.family.id}),
+        )
+        self.assertContains(
+            response,
+            reverse("families:kudos_list", kwargs={"family_id": self.family.id}),
+        )
 
-    def test_family_detail_imported_milestone_cards_offer_edit_actions(self):
-        family_detail_url = reverse("families:family_detail", kwargs={"family_id": self.family.id})
+    def test_birthday_list_displays_people_with_edit_actions(self):
+        person_edit_path = reverse(
+            "families:person_edit",
+            kwargs={"family_id": self.family.id, "person_id": self.spouse_person.id},
+        )
+
+        response = self.client.get(
+            reverse("families:birthday_list", kwargs={"family_id": self.family.id}),
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Birthdays")
+        self.assertContains(response, self.spouse_person.full_name)
+        self.assertContains(response, person_edit_path)
+
+    def test_in_memoriam_list_displays_people_with_edit_actions(self):
         person_edit_path = reverse(
             "families:person_edit",
             kwargs={"family_id": self.family.id, "person_id": self.deceased_person.id},
         )
+
+        response = self.client.get(
+            reverse("families:in_memoriam_list", kwargs={"family_id": self.family.id}),
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "In Memoriam")
+        self.assertContains(response, self.deceased_person.full_name)
+        self.assertContains(response, person_edit_path)
+
+    def test_wedding_anniversary_list_displays_relationship_edit_actions(self):
         relationship_edit_path = reverse(
             "families:relationship_edit",
             kwargs={"family_id": self.family.id, "relationship_id": self.anniversary_relationship.id},
         )
 
-        response = self.client.get(family_detail_url, secure=True)
+        response = self.client.get(
+            reverse("families:wedding_anniversary_list", kwargs={"family_id": self.family.id}),
+            secure=True,
+        )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Edit Person")
-        self.assertContains(response, "Edit Relationship")
-        self.assertContains(response, person_edit_path)
+        self.assertContains(response, "Wedding Anniversaries")
+        self.assertContains(response, self.deceased_person.full_name)
+        self.assertContains(response, self.spouse_person.full_name)
         self.assertContains(response, relationship_edit_path)
 
     def test_milestone_detail_displays_saved_card(self):
@@ -212,7 +476,75 @@ class FamilyMilestoneWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.milestone.title)
         self.assertContains(response, self.milestone.description)
-        self.assertContains(response, "Milestone Card")
+        self.assertContains(response, "Custom Milestone Card")
+
+    def test_kudos_detail_displays_saved_announcement(self):
+        response = self.client.get(
+            reverse(
+                "families:kudos_detail",
+                kwargs={"family_id": self.family.id, "kudos_id": self.kudos.id},
+            ),
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.kudos.title)
+        self.assertContains(response, self.kudos.message)
+        self.assertContains(response, "Announcement")
+
+    def test_kudos_create_redirects_back_to_next_url(self):
+        family_detail_url = reverse("families:family_detail", kwargs={"family_id": self.family.id})
+        response = self.client.post(
+            reverse("families:kudos_create", kwargs={"family_id": self.family.id}),
+            {
+                "title": "New baby announcement",
+                "message": "A beautiful new branch has arrived.",
+                "person": self.spouse_person.id,
+                "next": family_detail_url,
+            },
+            secure=True,
+        )
+
+        self.assertRedirects(response, family_detail_url, fetch_redirect_response=False)
+        self.assertTrue(
+            FamilyKudos.objects.filter(family=self.family, title="New baby announcement").exists()
+        )
+
+    def test_kudos_edit_redirects_back_to_next_url(self):
+        family_detail_url = reverse("families:family_detail", kwargs={"family_id": self.family.id})
+        response = self.client.post(
+            reverse(
+                "families:kudos_edit",
+                kwargs={"family_id": self.family.id, "kudos_id": self.kudos.id},
+            ),
+            {
+                "title": "Updated celebration",
+                "message": "Updated announcement text",
+                "person": self.spouse_person.id,
+                "next": family_detail_url,
+            },
+            secure=True,
+        )
+
+        self.assertRedirects(response, family_detail_url, fetch_redirect_response=False)
+        self.kudos.refresh_from_db()
+        self.assertEqual(self.kudos.title, "Updated celebration")
+
+    def test_kudos_delete_redirects_back_to_next_url(self):
+        family_detail_url = reverse("families:family_detail", kwargs={"family_id": self.family.id})
+        response = self.client.post(
+            reverse(
+                "families:kudos_delete",
+                kwargs={"family_id": self.family.id, "kudos_id": self.kudos.id},
+            ),
+            {"next": family_detail_url},
+            secure=True,
+        )
+
+        self.assertRedirects(response, family_detail_url, fetch_redirect_response=False)
+        self.assertFalse(
+            FamilyKudos.objects.filter(id=self.kudos.id, family=self.family).exists()
+        )
 
     def test_milestone_create_redirects_back_to_next_url(self):
         family_detail_url = reverse("families:family_detail", kwargs={"family_id": self.family.id})

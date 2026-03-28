@@ -46,7 +46,7 @@
             {% endif %}
             
             {% if matches %}
-            <h5 class="mt-4"><i class="bi bi-search me-2"></i>Potential Matches for "{{ request.user.first_name }} {{ request.user.last_name }}"</h5>
+            <h5 class="mt-4"><i class="bi bi-search me-2"></i>Potential Matches for "{{ profile_name }}"</h5>
             <p class="text-muted">Based on your profile name, these people might be you:</p>
             
             <div class="list-group">
@@ -75,7 +75,7 @@
               <h6><i class="bi bi-exclamation-triangle me-2"></i>No Matches Found</h6>
               <p class="mb-0">
                 We couldn't find anyone in the tree matching your name 
-                ({{ request.user.first_name }} {{ request.user.last_name }}).
+                ({{ profile_name }}).
               </p>
               <hr>
               <p class="mb-0">
@@ -83,7 +83,7 @@
                 <ul class="mb-0">
                   <li>Make sure your profile name matches how you appear in the family tree</li>
                   <li>Try <a href="{% url 'accounts:my_profile' %}">updating your profile</a> with your full legal name</li>
-                  <li>You can also <a href="{% url 'families:link_to_tree' family.id %}">manually search and link</a> from the tree view</li>
+                  <li>You can also <a href="{% url 'families:link_to_tree' family.id %}">search by name and link yourself manually</a></li>
                 </ul>
               </p>
             </div>

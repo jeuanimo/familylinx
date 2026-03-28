@@ -1942,8 +1942,11 @@
   async function searchPersonsToLink(query) {
     const resultsDiv = document.getElementById('linkSearchResults');
     try {
-      const res = await fetch(`${linkToTreeUrl}?q=${encodeURIComponent(query)}`, {
-        credentials: 'include'
+      const res = await fetch(`${linkToTreeUrl}?format=json&q=${encodeURIComponent(query)}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
       });
       const data = await res.json();
       
@@ -1965,7 +1968,7 @@
   
   async function linkToPerson(personId, personName) {
     try {
-      const res = await fetch(linkToTreeUrl, {
+      const res = await fetch(`${linkToTreeUrl}?format=json`, {
         method: 'POST',
         credentials: 'include',
         headers: {

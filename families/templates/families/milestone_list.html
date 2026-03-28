@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Milestones – {{ family.name }} | FamilyLinx{% endblock %}
+{% block title %}Custom Milestones – {{ family.name }} | FamilyLinx{% endblock %}
 
 {% block content %}
 <main>
@@ -10,13 +10,13 @@
       <span class="separator">/</span>
       <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
       <span class="separator">/</span>
-      <span class="current">Milestones</span>
+      <span class="current">Custom Milestones</span>
     </nav>
 
     <div class="page-header">
       <div class="page-header-content">
-        <h1><i class="bi bi-stars"></i> Family Milestones</h1>
-        <p class="muted">Add stories, achievements, and special dates with photos.</p>
+        <h1><i class="bi bi-stars"></i> Custom Milestones</h1>
+        <p class="muted">Manage the milestone cards your family adds manually.</p>
       </div>
       {% if membership.role != 'VIEWER' %}
       <div class="page-actions">
@@ -70,8 +70,8 @@
       <div class="card-body">
         <div class="empty-state">
           <div class="empty-state-icon"><i class="bi bi-stars"></i></div>
-          <h3>No milestones yet</h3>
-          <p class="muted">Add the first milestone to capture your family’s stories.</p>
+          <h3>No custom milestones yet</h3>
+          <p class="muted">Add the first custom milestone to capture your family’s stories.</p>
         </div>
       </div>
     </div>

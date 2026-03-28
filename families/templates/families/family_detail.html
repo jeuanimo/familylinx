@@ -75,86 +75,122 @@
         </div>
         {% endif %}
 
-        {% if milestones %}
         <div class="card">
             <div class="card-header flex-between gap-md align-center">
-                <span class="card-title"><i class="bi bi-stars"></i> Family Milestones</span>
+                <span class="card-title"><i class="bi bi-calendar-heart"></i> Family Dates</span>
                 <div class="flex-center gap-sm flex-wrap-yes">
                     {% if membership.role != 'VIEWER' %}
                     <a href="{% url 'families:milestone_create' family_id=family.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-primary btn-sm">
-                        <i class="bi bi-plus-lg"></i> Add
+                        <i class="bi bi-plus-lg"></i> Add Custom
                     </a>
                     {% endif %}
-                    <a href="{% url 'families:milestone_list' family_id=family.id %}" class="btn btn-outline btn-sm">Manage</a>
+                    <a href="{% url 'families:milestone_list' family_id=family.id %}" class="btn btn-outline btn-sm">Custom Milestones</a>
                 </div>
             </div>
             <div class="card-body">
                 <div class="grid-2 gap-md">
-                    {% for milestone in milestones %}
-                    <div class="milestone-card milestone-{{ milestone.kind }}">
-                        <div class="flex-between gap-md align-start">
+                    <a href="{% url 'families:birthday_list' family_id=family.id %}" class="occasion-summary-card occasion-birthdays">
+                        <div class="occasion-summary-head">
                             <div>
-                                <div class="milestone-title">
-                                    <i class="bi {{ milestone.icon }}"></i>
-                                    {% if milestone.kind == 'custom' and milestone.id %}
-                                    <a href="{% url 'families:milestone_detail' family_id=family.id milestone_id=milestone.id %}" class="milestone-link">
-                                        {{ milestone.title }}
-                                    </a>
-                                    {% elif milestone.kind == 'birthday' or milestone.kind == 'memorial' %}
-                                    <a href="{% url 'families:person_detail' family_id=family.id person_id=milestone.person.id %}" class="milestone-link">
-                                        {{ milestone.title }}
-                                    </a>
-                                    {% else %}
-                                    {{ milestone.title }}
-                                    {% endif %}
+                                <div class="occasion-summary-title"><i class="bi bi-cake2"></i> Birthdays</div>
+                                <div class="muted">
+                                    {{ birthday_summary.count }} recorded
                                 </div>
-                                <div class="muted">{{ milestone.subtitle }}</div>
                             </div>
-                            <div class="milestone-meta">
-                                <span class="badge badge-blue">{{ milestone.date|date:"M j" }}</span>
-                                {% if milestone.kind == 'custom' and membership.role != 'VIEWER' and milestone.id %}
-                                <div class="milestone-actions">
-                                    <a href="{% url 'families:milestone_detail' family_id=family.id milestone_id=milestone.id %}" class="btn btn-outline btn-sm" title="View milestone">
-                                        <i class="bi bi-eye"></i> View
-                                    </a>
-                                    <a href="{% url 'families:milestone_edit' family_id=family.id milestone_id=milestone.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-outline btn-sm" title="Edit milestone">
-                                        <i class="bi bi-pencil"></i> Edit
-                                    </a>
-                                    <a href="{% url 'families:milestone_delete' family_id=family.id milestone_id=milestone.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-outline btn-sm" title="Delete milestone">
-                                        <i class="bi bi-trash"></i> Delete
-                                    </a>
-                                </div>
-                                {% elif milestone.kind == 'birthday' or milestone.kind == 'memorial' %}
-                                <div class="milestone-actions">
-                                    <a href="{% url 'families:person_detail' family_id=family.id person_id=milestone.person.id %}" class="btn btn-outline btn-sm" title="View person">
-                                        <i class="bi bi-eye"></i> View
-                                    </a>
-                                    {% if membership.role != 'VIEWER' %}
-                                    <a href="{% url 'families:person_edit' family_id=family.id person_id=milestone.person.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-outline btn-sm" title="Edit person">
-                                        <i class="bi bi-pencil"></i> Edit Person
-                                    </a>
-                                    {% endif %}
-                                </div>
-                                {% elif milestone.kind == 'anniversary' %}
-                                <div class="milestone-actions">
-                                    <a href="{% url 'families:person_detail' family_id=family.id person_id=milestone.relationship.person1.id %}" class="btn btn-outline btn-sm" title="View spouse record">
-                                        <i class="bi bi-eye"></i> View
-                                    </a>
-                                    {% if membership.role != 'VIEWER' %}
-                                    <a href="{% url 'families:relationship_edit' family_id=family.id relationship_id=milestone.relationship.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-outline btn-sm" title="Edit relationship">
-                                        <i class="bi bi-pencil"></i> Edit Relationship
-                                    </a>
-                                    {% endif %}
-                                </div>
-                                {% endif %}
-                            </div>
+                            <span class="badge badge-blue">View</span>
                         </div>
-                    </div>
-                    {% endfor %}
+                        {% if birthday_summary.next_item %}
+                        <div class="occasion-summary-next">
+                            <strong>Next:</strong> {{ birthday_summary.next_item.title }}
+                            <div class="muted">{{ birthday_summary.next_item.date|date:"M j" }} · {{ birthday_summary.next_item.subtitle }}</div>
+                        </div>
+                        {% else %}
+                        <div class="muted">{{ birthday_summary.empty_label }}</div>
+                        {% endif %}
+                    </a>
+
+                    <a href="{% url 'families:wedding_anniversary_list' family_id=family.id %}" class="occasion-summary-card occasion-anniversaries">
+                        <div class="occasion-summary-head">
+                            <div>
+                                <div class="occasion-summary-title"><i class="bi bi-heart"></i> Wedding Anniversaries</div>
+                                <div class="muted">
+                                    {{ anniversary_summary.count }} recorded
+                                </div>
+                            </div>
+                            <span class="badge badge-blue">View</span>
+                        </div>
+                        {% if anniversary_summary.next_item %}
+                        <div class="occasion-summary-next">
+                            <strong>Next:</strong> {{ anniversary_summary.next_item.title }}
+                            <div class="muted">{{ anniversary_summary.next_item.date|date:"M j" }} · {{ anniversary_summary.next_item.subtitle }}</div>
+                        </div>
+                        {% else %}
+                        <div class="muted">{{ anniversary_summary.empty_label }}</div>
+                        {% endif %}
+                    </a>
+
+                    <a href="{% url 'families:in_memoriam_list' family_id=family.id %}" class="occasion-summary-card occasion-memorials">
+                        <div class="occasion-summary-head">
+                            <div>
+                                <div class="occasion-summary-title"><i class="bi bi-flower1"></i> In Memoriam</div>
+                                <div class="muted">
+                                    {{ memorial_summary.count }} recorded
+                                </div>
+                            </div>
+                            <span class="badge badge-blue">View</span>
+                        </div>
+                        {% if memorial_summary.next_item %}
+                        <div class="occasion-summary-next">
+                            <strong>Next:</strong> {{ memorial_summary.next_item.title }}
+                            <div class="muted">{{ memorial_summary.next_item.date|date:"M j" }} · {{ memorial_summary.next_item.subtitle }}</div>
+                        </div>
+                        {% else %}
+                        <div class="muted">{{ memorial_summary.empty_label }}</div>
+                        {% endif %}
+                    </a>
+
+                    <a href="{% url 'families:milestone_list' family_id=family.id %}" class="occasion-summary-card occasion-custom">
+                        <div class="occasion-summary-head">
+                            <div>
+                                <div class="occasion-summary-title"><i class="bi bi-stars"></i> Custom Milestones</div>
+                                <div class="muted">
+                                    {{ custom_milestone_summary.count }} saved
+                                </div>
+                            </div>
+                            <span class="badge badge-blue">Manage</span>
+                        </div>
+                        {% if custom_milestone_summary.next_item %}
+                        <div class="occasion-summary-next">
+                            <strong>Latest:</strong> {{ custom_milestone_summary.next_item.title }}
+                            <div class="muted">{{ custom_milestone_summary.next_item.date|date:"M j, Y" }}</div>
+                        </div>
+                        {% else %}
+                        <div class="muted">{{ custom_milestone_summary.empty_label }}</div>
+                        {% endif %}
+                    </a>
+
+                    <a href="{% url 'families:kudos_list' family_id=family.id %}" class="occasion-summary-card occasion-kudos">
+                        <div class="occasion-summary-head">
+                            <div>
+                                <div class="occasion-summary-title"><i class="bi bi-megaphone"></i> Kudos</div>
+                                <div class="muted">
+                                    {{ kudos_summary.count }} shared
+                                </div>
+                            </div>
+                            <span class="badge badge-blue">View</span>
+                        </div>
+                        {% if kudos_summary.next_item %}
+                        <div class="occasion-summary-next">
+                            <strong>Latest:</strong> {{ kudos_summary.next_item.title }}
+                            <div class="muted">{{ kudos_summary.next_item.created_at|date:"M j, Y" }}</div>
+                        </div>
+                        {% else %}
+                        <div class="muted">{{ kudos_summary.empty_label }}</div>
+                        {% endif %}
+                    </a>
                 </div>
             </div>
         </div>
-        {% endif %}
         
         <!-- Family Feed -->
         <div class="card">
@@ -378,10 +414,16 @@
                         {% endif %}
                     </div>
                     {% if invite.is_valid and not invite.accepted_at %}
-                    <small class="muted">
-                        Role: {{ invite.role }} · 
-                        Expires: {{ invite.expires_at|date:"M j" }}
-                    </small>
+                    <div class="flex-between">
+                        <small class="muted">
+                            Role: {{ invite.role }} · 
+                            Expires: {{ invite.expires_at|date:"M j" }}
+                        </small>
+                        <a href="{% url 'families:invite_resend' family_id=family.id invite_id=invite.id %}" 
+                           class="btn btn-outline btn-sm" title="Resend invitation email">
+                            <i class="bi bi-arrow-repeat"></i> Resend
+                        </a>
+                    </div>
                     {% endif %}
                 </li>
                 {% endfor %}
@@ -517,43 +559,46 @@
 </div>
 
 <style>
-.milestone-card {
+.occasion-summary-card {
     border: 1px solid var(--fl-border);
     border-radius: 14px;
-    padding: 0.9rem 1rem;
+    padding: 1rem 1.1rem;
     background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98));
-}
-.milestone-birthday {
-    border-color: rgba(245, 158, 11, 0.35);
-}
-.milestone-anniversary {
-    border-color: rgba(239, 68, 68, 0.25);
-}
-.milestone-memorial {
-    border-color: rgba(59, 130, 246, 0.25);
-}
-.milestone-title {
-    font-weight: 600;
-    margin-bottom: 0.15rem;
-}
-.milestone-link {
     color: inherit;
     text-decoration: none;
+    display: block;
 }
-.milestone-link:hover {
-    color: var(--fl-blue);
-    text-decoration: underline;
+.occasion-summary-card:hover {
+    border-color: var(--fl-blue);
+    text-decoration: none;
 }
-.milestone-meta {
-    display: grid;
-    justify-items: end;
-    gap: 0.6rem;
+.occasion-birthdays {
+    border-color: rgba(245, 158, 11, 0.35);
 }
-.milestone-actions {
+.occasion-anniversaries {
+    border-color: rgba(239, 68, 68, 0.25);
+}
+.occasion-memorials {
+    border-color: rgba(59, 130, 246, 0.25);
+}
+.occasion-custom {
+    border-color: rgba(99, 102, 241, 0.28);
+}
+.occasion-kudos {
+    border-color: rgba(16, 185, 129, 0.28);
+}
+.occasion-summary-head {
     display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+.occasion-summary-title {
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+}
+.occasion-summary-next {
+    margin-top: 0.75rem;
 }
 .feed-post-tags {
     display: flex;
@@ -563,33 +608,31 @@
     margin-top: 0.75rem;
 }
 
-/* Dark mode milestone cards */
-[data-theme="dark"] .milestone-card {
+/* Dark mode occasion cards */
+[data-theme="dark"] .occasion-summary-card {
     background: linear-gradient(180deg, #1e293b, #0f172a) !important;
     color: #e2e8f0 !important;
 }
-[data-theme="dark"] .milestone-card .milestone-title {
+[data-theme="dark"] .occasion-summary-card .occasion-summary-title {
     color: #f1f5f9 !important;
 }
-[data-theme="dark"] .milestone-card .muted {
+[data-theme="dark"] .occasion-summary-card .muted {
     color: #94a3b8 !important;
 }
-[data-theme="dark"] .milestone-birthday {
+[data-theme="dark"] .occasion-birthdays {
     border-color: rgba(245, 158, 11, 0.5);
 }
-[data-theme="dark"] .milestone-anniversary {
+[data-theme="dark"] .occasion-anniversaries {
     border-color: rgba(239, 68, 68, 0.4);
 }
-[data-theme="dark"] .milestone-memorial {
+[data-theme="dark"] .occasion-memorials {
     border-color: rgba(59, 130, 246, 0.4);
 }
-@media (max-width: 640px) {
-    .milestone-meta {
-        justify-items: start;
-    }
-    .milestone-actions {
-        justify-content: flex-start;
-    }
+[data-theme="dark"] .occasion-custom {
+    border-color: rgba(129, 140, 248, 0.45);
+}
+[data-theme="dark"] .occasion-kudos {
+    border-color: rgba(52, 211, 153, 0.45);
 }
 </style>
 {% endblock content %}

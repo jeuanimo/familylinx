@@ -8,7 +8,8 @@ from django.contrib import admin
 from .models import (
     FamilySpace, Membership, Invite, Post, Comment, Event, RSVP, 
     Person, Relationship, Album, Photo, Notification, ChatMessage, 
-    GedcomImport, PotentialDuplicate, DNAKit, DNAMatch, RelationshipSuggestion
+    GedcomImport, PotentialDuplicate, DNAKit, DNAMatch, RelationshipSuggestion,
+    FamilyKudos
 )
 
 
@@ -200,6 +201,16 @@ class EventAdmin(admin.ModelAdmin):
         """Return count of RSVPs."""
         return obj.rsvps.count()
     rsvp_count.short_description = 'RSVPs'
+
+
+@admin.register(FamilyKudos)
+class FamilyKudosAdmin(admin.ModelAdmin):
+    """Admin configuration for FamilyKudos model."""
+    list_display = ("title", "family", "person", "created_by", "created_at")
+    list_filter = ("family", "created_at")
+    search_fields = ("title", "message", "family__name", "person__first_name", "person__last_name")
+    readonly_fields = ("created_at", "updated_at")
+    raw_id_fields = ("family", "person", "created_by")
 
 
 @admin.register(RSVP)

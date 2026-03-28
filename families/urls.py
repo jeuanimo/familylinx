@@ -49,6 +49,10 @@ urlpatterns = [
     # Access: OWNER and ADMIN roles only
     path("<int:family_id>/invites/new/", views.invite_create, name="invite_create"),
     
+    # Resend an invitation email
+    # Access: OWNER and ADMIN roles only
+    path("<int:family_id>/invites/<int:invite_id>/resend/", views.invite_resend, name="invite_resend"),
+    
     # Accept an invitation via secure token
     # Access: Any authenticated user with valid token
     path("invite/<str:token>/accept/", views.invite_accept, name="invite_accept"),
@@ -273,7 +277,15 @@ urlpatterns = [
     path("<int:family_id>/time-capsules/<int:capsule_id>/", views.time_capsule_detail, name="time_capsule_detail"),
     path("<int:family_id>/person/<int:person_id>/chatbot/", views.person_chatbot, name="person_chatbot"),
 
-    # Milestones
+    # Family occasions and milestones
+    path("<int:family_id>/birthdays/", views.birthday_list, name="birthday_list"),
+    path("<int:family_id>/wedding-anniversaries/", views.wedding_anniversary_list, name="wedding_anniversary_list"),
+    path("<int:family_id>/in-memoriam/", views.in_memoriam_list, name="in_memoriam_list"),
+    path("<int:family_id>/kudos/", views.kudos_list, name="kudos_list"),
+    path("<int:family_id>/kudos/new/", views.kudos_create, name="kudos_create"),
+    path("<int:family_id>/kudos/<int:kudos_id>/", views.kudos_detail, name="kudos_detail"),
+    path("<int:family_id>/kudos/<int:kudos_id>/edit/", views.kudos_edit, name="kudos_edit"),
+    path("<int:family_id>/kudos/<int:kudos_id>/delete/", views.kudos_delete, name="kudos_delete"),
     path("<int:family_id>/milestones/", views.milestone_list, name="milestone_list"),
     path("<int:family_id>/milestones/new/", views.milestone_create, name="milestone_create"),
     path("<int:family_id>/milestones/<int:milestone_id>/", views.milestone_detail, name="milestone_detail"),

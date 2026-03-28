@@ -13,13 +13,13 @@ class UserProfileAdmin(admin.ModelAdmin):
     """Admin configuration for UserProfile model."""
     list_display = ('user', 'display_name', 'profile_visibility', 'linked_person', 'created_at')
     list_filter = ('profile_visibility', 'created_at')
-    search_fields = ('user__email', 'display_name', 'bio', 'location')
+    search_fields = ('user__email', 'user__first_name', 'user__last_name', 'display_name', 'middle_name', 'maiden_name', 'bio', 'location')
     readonly_fields = ('created_at', 'updated_at')
     raw_id_fields = ('user', 'linked_person')
     
     fieldsets = (
         (None, {
-            'fields': ('user', 'display_name', 'bio')
+            'fields': ('user', 'display_name', 'middle_name', 'maiden_name', 'bio')
         }),
         ('Images', {
             'fields': ('profile_picture', 'cover_photo'),

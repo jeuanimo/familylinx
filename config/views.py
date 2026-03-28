@@ -5,12 +5,15 @@ This module contains core views for the FamilyLinx application that don't
 belong to any specific app (e.g., home page, landing page, contact page).
 """
 
+import logging
 import requests
 from django import forms
 from django.core.mail import send_mail
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 class ContactForm(forms.Form):
@@ -154,7 +157,8 @@ def contact(request):
                     "Thank you for your message! We'll get back to you soon."
                 )
                 return redirect('contact')
-            except Exception:
+            except Exception as e:
+                logger.error(f"Failed to send contact email: {str(e)}")
                 messages.error(
                     request,
                     "Sorry, there was an error sending your message. "

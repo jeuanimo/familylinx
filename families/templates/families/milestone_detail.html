@@ -10,7 +10,7 @@
       <span class="separator">/</span>
       <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
       <span class="separator">/</span>
-      <a href="{% url 'families:milestone_list' family_id=family.id %}">Milestones</a>
+      <a href="{% url 'families:milestone_list' family_id=family.id %}">Custom Milestones</a>
       <span class="separator">/</span>
       <span class="current">{{ milestone.title }}</span>
     </nav>
@@ -18,7 +18,7 @@
     <div class="page-header">
       <div class="page-header-content">
         <h1><i class="bi bi-stars"></i> {{ milestone.title }}</h1>
-        <p class="muted mb-0">A saved family milestone card with its full details.</p>
+        <p class="muted mb-0">A saved custom milestone card with its full details.</p>
       </div>
       <div class="page-actions">
         <span class="badge badge-blue">{{ milestone.date|date:"F j, Y" }}</span>
@@ -37,7 +37,7 @@
       <div class="stack-lg">
         <div class="card">
           <div class="card-header">
-            <span class="card-title"><i class="bi bi-card-text"></i> Milestone Card</span>
+            <span class="card-title"><i class="bi bi-card-text"></i> Custom Milestone Card</span>
           </div>
           <div class="card-body">
             {% if milestone.description %}
@@ -121,7 +121,7 @@
                 <i class="bi bi-people"></i> Back to Family
               </a>
               <a href="{% url 'families:milestone_list' family_id=family.id %}" class="btn btn-primary">
-                <i class="bi bi-stars"></i> All Milestones
+                <i class="bi bi-stars"></i> Custom Milestones
               </a>
             </div>
           </div>

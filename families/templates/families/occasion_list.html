@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}{{ occasion_title }} – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">{{ occasion_title }}</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi {{ occasion_icon }}"></i> {{ occasion_title }}</h1>
+        <p class="muted">{{ occasion_description }}</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-arrow-left"></i> Back to Family
+        </a>
+      </div>
+    </div>
+
+    {% if occasions %}
+    <div class="stack">
+      {% for occasion in occasions %}
+      <div class="card">
+        <div class="card-body">
+          <div class="flex-between gap-md align-start" style="flex-wrap: wrap;">
+            <div>
+              <h3 style="margin: 0 0 0.2rem;">
+                {% if occasion.kind == 'birthday' or occasion.kind == 'memorial' %}
+                <a href="{% url 'families:person_detail' family_id=family.id person_id=occasion.person.id %}">{{ occasion.title }}</a>
+                {% else %}
+                {{ occasion.title }}
+                {% endif %}
+              </h3>
+              <div class="muted">{{ occasion.subtitle }}</div>
+              {% if occasion.kind == 'anniversary' %}
+              <div class="muted" style="margin-top: 0.25rem;">
+                <i class="bi bi-people"></i> {{ occasion.relationship.person1.full_name }} and {{ occasion.relationship.person2.full_name }}
+              </div>
+              {% endif %}
+            </div>
+            <div class="flex-center gap-sm flex-wrap-yes">
+              <span class="badge badge-blue">{{ occasion.date|date:"M j, Y" }}</span>
+              {% if occasion.kind == 'birthday' or occasion.kind == 'memorial' %}
+              <a href="{% url 'families:person_detail' family_id=family.id person_id=occasion.person.id %}" class="btn btn-outline btn-sm">View</a>
+              {% if membership.role != 'VIEWER' %}
+              <a href="{% url 'families:person_edit' family_id=family.id person_id=occasion.person.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-outline btn-sm">Edit Person</a>
+              {% endif %}
+              {% elif occasion.kind == 'anniversary' %}
+              <a href="{% url 'families:person_detail' family_id=family.id person_id=occasion.relationship.person1.id %}" class="btn btn-outline btn-sm">View</a>
+              {% if membership.role != 'VIEWER' %}
+              <a href="{% url 'families:relationship_edit' family_id=family.id relationship_id=occasion.relationship.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-outline btn-sm">Edit Relationship</a>
+              {% endif %}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon"><i class="bi {{ occasion_icon }}"></i></div>
+          <h3>{{ empty_title }}</h3>
+          <p class="muted">{{ empty_message }}</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+{% endblock %}

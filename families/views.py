@@ -48,9 +48,9 @@ from .models import (
     AuditLog, DeletionRequest, MemoryStory, MemoryMedia, MemoryComment, 
     MemoryReaction, MuseumShare, ChatConversation, ChatConversationParticipant,
     ChatConversationMessage, ChatMessageReadReceipt, EventReminderLog,
-    LifeStory, TimeCapsule, FamilyMilestone
+    LifeStory, TimeCapsule, FamilyMilestone, FamilyKudos
 )
-from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ChatMessageForm, ConversationMessageForm, LifeStorySectionForm, TimeCapsuleForm, FamilyMilestoneForm
+from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ChatMessageForm, ConversationMessageForm, LifeStorySectionForm, TimeCapsuleForm, FamilyMilestoneForm, FamilyKudosForm
 from utils.image_utils import process_cropped_image
 from .services.tree_builder import build_tree_json
 
@@ -75,6 +75,7 @@ URL_MEMORY_DETAIL = "families:memory_detail"
 URL_CONVERSATION_ROOM = "families:conversation_room"
 URL_MILESTONE_DETAIL = "families:milestone_detail"
 URL_MILESTONE_LIST = "families:milestone_list"
+URL_KUDOS_LIST = "families:kudos_list"
 URL_RELATIONSHIP_EDIT = "families:relationship_edit"
 URL_GEDCOM_IMPORT_REPORT = "families:gedcom_import_report"
 URL_GEDCOM_IMPORT_HISTORY = "families:gedcom_import_history"
@@ -258,6 +259,12 @@ def family_detail(request, family_id):
     # Fetch upcoming events (Phase 3)
     upcoming_events = fam.events.filter(start_datetime__gte=timezone.now()).order_by("start_datetime")[:5]
     
+    birthday_milestones = _build_birthday_milestones(fam, days_ahead=365)
+    anniversary_milestones = _build_anniversary_milestones(fam, days_ahead=365)
+    memorial_milestones = _build_memorial_milestones(fam, days_ahead=365)
+    custom_milestones = FamilyMilestone.objects.filter(family=fam).order_by("-date", "-created_at")
+    kudos_entries = FamilyKudos.objects.filter(family=fam).select_related("person", "created_by").order_by("-created_at")
+
     return render(request, "families/family_detail.html", {
         "family": fam,
         "membership": membership,
@@ -268,7 +275,28 @@ def family_detail(request, family_id):
         "upcoming_events": upcoming_events,
         "feed_scope": feed_scope,
         "immediate_filter_available": immediate_filter_available,
-        "milestones": _build_family_milestones(fam),
+        "birthday_summary": _build_occasion_summary(
+            birthday_milestones,
+            empty_label="No birthdays are on record yet.",
+        ),
+        "anniversary_summary": _build_occasion_summary(
+            anniversary_milestones,
+            empty_label="No wedding anniversaries are on record yet.",
+        ),
+        "memorial_summary": _build_occasion_summary(
+            memorial_milestones,
+            empty_label="No memorial dates are on record yet.",
+        ),
+        "custom_milestone_summary": {
+            "count": custom_milestones.count(),
+            "next_item": custom_milestones.first(),
+            "empty_label": "No custom milestones have been added yet.",
+        },
+        "kudos_summary": {
+            "count": kudos_entries.count(),
+            "next_item": kudos_entries.first(),
+            "empty_label": "No celebrations or announcements have been posted yet.",
+        },
     })
 
 
@@ -323,15 +351,22 @@ def family_delete(request, family_id):
     })
 
 
+def _build_invite_accept_url(invite, request):
+    """Build the public invite acceptance URL."""
+    return request.build_absolute_uri(
+        reverse("families:invite_accept", kwargs={"token": invite.token})
+    )
+
+
 def _send_invite_email(invite, request):
     """
     Send an email invitation to join a FamilySpace.
     
-    Silently fails if email sending is not configured or fails,
-    as the invite is still valid via direct link.
+    Returns a (success, reason) tuple. The reason is only set on failure.
+    Logs errors for debugging but doesn't raise exceptions.
     """
     try:
-        invite_url = request.build_absolute_uri(f"/families/invite/{invite.token}/")
+        invite_url = _build_invite_accept_url(invite, request)
         subject = f"You're invited to join {invite.family.name} on FamilyLinx"
         message = (
             f"Hello,\n\n"
@@ -344,16 +379,40 @@ def _send_invite_email(invite, request):
             f"Best regards,\n"
             f"The FamilyLinx Team"
         )
+        
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'contact@fam-linx.org')
+
+        if getattr(settings, "EMAIL_BACKEND", "") == "django.core.mail.backends.smtp.EmailBackend":
+            missing_settings = [
+                setting_name
+                for setting_name in ("EMAIL_HOST_USER", "EMAIL_HOST_PASSWORD")
+                if not getattr(settings, setting_name, "")
+            ]
+            if missing_settings:
+                reason = (
+                    "Email settings are incomplete: missing "
+                    + ", ".join(missing_settings)
+                    + "."
+                )
+                logger.error("Invite email not sent. %s", reason)
+                return False, reason
+        
+        # Log email attempt
+        logger.info(f"Sending invite email to {invite.email} from {from_email}")
+        
         send_mail(
             subject=subject,
             message=message,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@familylinx.com'),
+            from_email=from_email,
             recipient_list=[invite.email],
-            fail_silently=True,
+            fail_silently=False,
         )
-    except Exception:
-        # Email sending is optional - invite is still valid via direct link
-        pass
+        logger.info(f"Invite email sent successfully to {invite.email}")
+        return True, None
+    except Exception as e:
+        # Log the error for debugging
+        logger.exception("Failed to send invite email to %s", invite.email)
+        return False, str(e)
 
 
 @login_required
@@ -423,7 +482,20 @@ def invite_create(request, family_id):
             inv.save()  # Token is auto-generated in model save()
             
             # Send email with invite link
-            _send_invite_email(inv, request)
+            email_sent, email_error = _send_invite_email(inv, request)
+            
+            if email_sent:
+                messages.success(request, f"Invitation sent to {inv.email}!")
+            else:
+                # Email failed but invite was created - show the link
+                invite_url = _build_invite_accept_url(inv, request)
+                reason_text = f" Reason: {email_error}" if email_error else ""
+                messages.warning(
+                    request, 
+                    f"Invitation created but email could not be sent. "
+                    f"{reason_text}"
+                    f"Please share this link manually: {invite_url}"
+                )
             
             return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
     else:
@@ -503,6 +575,48 @@ def invite_accept(request, token):
         return redirect("families:verify_identity", family_id=inv.family.id, claim_id=claim.id)
     
     return redirect(URL_FAMILY_DETAIL, family_id=inv.family.id)
+
+
+@login_required
+def invite_resend(request, family_id, invite_id):
+    """
+    Resend an invitation email.
+    
+    Only OWNER and ADMIN roles can resend invitations.
+    Only pending (not accepted, not expired) invites can be resent.
+    """
+    fam = get_object_or_404(FamilySpace, id=family_id)
+    
+    # Check user's role - only OWNER and ADMIN can resend invites
+    membership = Membership.objects.filter(family=fam, user=request.user).first()
+    if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": fam})
+    
+    invite = get_object_or_404(Invite, id=invite_id, family=fam)
+    
+    # Check if invite is still valid
+    if invite.accepted_at:
+        messages.warning(request, "This invitation has already been accepted.")
+        return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
+    
+    if not invite.is_valid:
+        messages.warning(request, "This invitation has expired. Please create a new one.")
+        return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
+    
+    # Resend the email
+    email_sent, email_error = _send_invite_email(invite, request)
+    
+    if email_sent:
+        messages.success(request, f"Invitation resent to {invite.email}!")
+    else:
+        invite_url = _build_invite_accept_url(invite, request)
+        reason_text = f" Reason: {email_error}" if email_error else ""
+        messages.warning(
+            request, 
+            f"Could not send email.{reason_text} Please share this link manually: {invite_url}"
+        )
+    
+    return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
 
 
 # =============================================================================
@@ -647,20 +761,40 @@ def _build_anniversary_milestone(rel, today, cutoff):
     }
 
 
-def _build_family_milestones(family, days_ahead=45):
-    """Return upcoming birthdays, anniversaries, memorials, plus custom milestones."""
+def _sort_milestone_items(items):
+    """Sort milestone-like dictionaries by next occurrence then title."""
+    return sorted(items, key=lambda item: (item["date"], item["title"]))
+
+
+def _build_birthday_milestones(family, days_ahead=365):
+    """Return upcoming birthday items for the family."""
     today = timezone.localdate()
     cutoff = today + timedelta(days=days_ahead)
-    milestones = []
-
+    items = []
     for person in family.persons.filter(is_deleted=False).order_by("first_name", "last_name"):
         birthday = _build_birthday_milestone(person, today, cutoff)
         if birthday:
-            milestones.append(birthday)
+            items.append(birthday)
+    return _sort_milestone_items(items)
+
+
+def _build_memorial_milestones(family, days_ahead=365):
+    """Return upcoming in-memoriam items for the family."""
+    today = timezone.localdate()
+    cutoff = today + timedelta(days=days_ahead)
+    items = []
+    for person in family.persons.filter(is_deleted=False).order_by("first_name", "last_name"):
         memorial = _build_memorial_milestone(person, today, cutoff)
         if memorial:
-            milestones.append(memorial)
+            items.append(memorial)
+    return _sort_milestone_items(items)
 
+
+def _build_anniversary_milestones(family, days_ahead=365):
+    """Return upcoming wedding anniversary items for the family."""
+    today = timezone.localdate()
+    cutoff = today + timedelta(days=days_ahead)
+    items = []
     for rel in family.relationships.filter(
         relationship_type=Relationship.Type.SPOUSE,
         is_deleted=False,
@@ -668,7 +802,28 @@ def _build_family_milestones(family, days_ahead=45):
     ).select_related("person1", "person2"):
         anniversary = _build_anniversary_milestone(rel, today, cutoff)
         if anniversary:
-            milestones.append(anniversary)
+            items.append(anniversary)
+    return _sort_milestone_items(items)
+
+
+def _build_occasion_summary(items, empty_label):
+    """Return count and next upcoming item for a category summary."""
+    return {
+        "count": len(items),
+        "next_item": items[0] if items else None,
+        "empty_label": empty_label,
+    }
+
+
+def _build_family_milestones(family, days_ahead=45):
+    """Return upcoming birthdays, anniversaries, memorials, plus custom milestones."""
+    today = timezone.localdate()
+    cutoff = today + timedelta(days=days_ahead)
+    milestones = (
+        _build_birthday_milestones(family, days_ahead=days_ahead)
+        + _build_memorial_milestones(family, days_ahead=days_ahead)
+        + _build_anniversary_milestones(family, days_ahead=days_ahead)
+    )
 
     # Custom milestones
     for m in family.milestones.filter(date__gte=today, date__lte=cutoff).order_by("date"):
@@ -684,7 +839,21 @@ def _build_family_milestones(family, days_ahead=45):
             "id": m.id,
         })
 
-    return sorted(milestones, key=lambda item: item["date"])[:12]
+    return _sort_milestone_items(milestones)[:12]
+
+
+def _render_occasion_list(request, family, membership, template_name, title, description, icon, occasions, empty_title, empty_message):
+    """Render one of the dedicated family occasion pages."""
+    return render(request, template_name, {
+        "family": family,
+        "membership": membership,
+        "occasion_title": title,
+        "occasion_description": description,
+        "occasion_icon": icon,
+        "occasions": occasions,
+        "empty_title": empty_title,
+        "empty_message": empty_message,
+    })
 
 
 def _get_safe_next_url(request, fallback_url):
@@ -706,6 +875,21 @@ def _display_name_for_user(user):
     if hasattr(user, "profile"):
         return user.profile.get_display_name()
     return user.email.split("@")[0]
+
+
+def _profile_name_for_matching(user):
+    """Return the user's best full name for match prompts."""
+    profile = getattr(user, "profile", None)
+    if profile and hasattr(profile, "get_full_name"):
+        full_name = profile.get_full_name()
+        if full_name:
+            maiden_name = (getattr(profile, "maiden_name", "") or "").strip()
+            last_name = (user.last_name or "").strip()
+            if maiden_name and maiden_name.lower() != last_name.lower():
+                return f"{full_name} (nee {maiden_name})"
+            return full_name
+    full_name = user.get_full_name().strip()
+    return full_name or _display_name_for_user(user)
 
 
 def _conversation_title(conversation, current_user):
@@ -1830,7 +2014,46 @@ def _normalize_person_name(value):
     return " ".join((value or "").split()).strip().lower()
 
 
-def _person_matches_full_name(person, normalized_full_name, normalized_first_name, normalized_last_name):
+def _user_name_parts(user):
+    """Return first, middle, and last name parts from the user/profile."""
+    profile = getattr(user, "profile", None)
+    return (
+        (user.first_name or "").strip(),
+        (getattr(profile, "middle_name", "") or "").strip(),
+        (user.last_name or "").strip(),
+    )
+
+
+def _user_last_name_candidates(user):
+    """Return unique current and maiden surnames for matching."""
+    profile = getattr(user, "profile", None)
+    candidates = []
+    for value in [user.last_name, getattr(profile, "maiden_name", "")]:
+        normalized = _normalize_person_name(value)
+        if normalized and normalized not in candidates:
+            candidates.append(normalized)
+    return candidates
+
+
+def _normalize_given_name_match(name1, name2):
+    """Return True when two given names are equivalent despite middle-name differences."""
+    normalized_name_1 = _normalize_person_name(name1)
+    normalized_name_2 = _normalize_person_name(name2)
+    if not (normalized_name_1 and normalized_name_2):
+        return False
+
+    if normalized_name_1 == normalized_name_2:
+        return True
+
+    if normalized_name_1.startswith(normalized_name_2 + " ") or normalized_name_2.startswith(normalized_name_1 + " "):
+        return True
+
+    name_1_parts = normalized_name_1.split()
+    name_2_parts = normalized_name_2.split()
+    return bool(name_1_parts and name_2_parts and name_1_parts[0] == name_2_parts[0])
+
+
+def _person_matches_full_name(person, normalized_full_name, normalized_first_name, normalized_last_names):
     """Check whether a person matches the current user's name."""
     person_first_name = _normalize_person_name(person.first_name)
     person_last_name = _normalize_person_name(person.last_name)
@@ -1840,33 +2063,35 @@ def _person_matches_full_name(person, normalized_full_name, normalized_first_nam
     if person_full_name == normalized_full_name:
         return True
 
-    if normalized_first_name and normalized_last_name and person_first_name == normalized_first_name:
-        return normalized_last_name in {person_last_name, person_maiden_name}
+    if normalized_first_name and normalized_last_names and _normalize_given_name_match(person_first_name, normalized_first_name):
+        person_last_names = {person_last_name, person_maiden_name}
+        return bool(person_last_names.intersection(normalized_last_names))
 
     return False
 
 
 def _match_by_full_name(request, family, membership, person_by_id):
     """Try to match user by full name."""
-    full_name = (request.user.get_full_name() or "").strip()
+    first_name, middle_name, last_name = _user_name_parts(request.user)
+    full_name = " ".join(part for part in [first_name, middle_name, last_name] if part).strip()
     normalized_full_name = _normalize_person_name(full_name)
-    normalized_first_name = _normalize_person_name(request.user.first_name)
-    normalized_last_name = _normalize_person_name(request.user.last_name)
+    normalized_first_name = _normalize_person_name(" ".join(part for part in [first_name, middle_name] if part))
+    normalized_last_names = _user_last_name_candidates(request.user)
 
-    if not normalized_full_name:
+    if not (normalized_full_name or normalized_last_names):
         return None, None
 
     if person_by_id:
         candidates = list(person_by_id.values())
     else:
         candidates_query = Person.objects.filter(family=family, is_deleted=False)
-        if normalized_first_name:
-            candidates_query = candidates_query.filter(first_name__iexact=request.user.first_name.strip())
-        if normalized_last_name:
-            candidates_query = candidates_query.filter(
-                Q(last_name__iexact=request.user.last_name.strip())
-                | Q(maiden_name__iexact=request.user.last_name.strip())
-            )
+        if normalized_last_names:
+            surname_filter = Q()
+            for surname in normalized_last_names:
+                surname_filter |= Q(last_name__iexact=surname) | Q(maiden_name__iexact=surname)
+            candidates_query = candidates_query.filter(surname_filter)
+        elif first_name:
+            candidates_query = candidates_query.filter(first_name__istartswith=first_name)
         candidates = list(candidates_query)
 
     matches = [
@@ -1875,7 +2100,7 @@ def _match_by_full_name(request, family, membership, person_by_id):
             person,
             normalized_full_name,
             normalized_first_name,
-            normalized_last_name,
+            normalized_last_names,
         )
     ]
 
@@ -2141,67 +2366,106 @@ def family_calendar(request, family_id):
 def link_to_tree(request, family_id):
     """
     Link the current user to a Person record in the family tree.
-    
-    GET: Returns JSON list of persons for search/selection.
+
+    GET: Render a manual search page for browsers or return JSON for async search.
     POST: Links the user's membership to a selected person.
     DELETE: Removes the link.
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
         return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
-    
-    if request.method == "GET":
-        # Search for persons
-        search = request.GET.get('q', '').strip()
-        persons = Person.objects.filter(family=family).order_by('last_name', 'first_name')
-        
-        if search:
-            from django.db.models import Q
-            persons = persons.filter(
-                Q(first_name__icontains=search) | 
-                Q(last_name__icontains=search)
-            )
-        
-        # Return list with current linked status
-        data = {
-            "linked_person_id": membership.linked_person_id,
-            "persons": [
-                {
-                    "id": p.id,
-                    "name": f"{p.first_name} {p.last_name}".strip(),
-                    "birth_year": p.birth_date.year if p.birth_date else None,
-                    "is_linked": p.id == membership.linked_person_id,
-                }
-                for p in persons[:50]  # Limit results
-            ]
+
+    fallback_url = reverse(URL_FAMILY_TREE_INTERACTIVE, kwargs={"family_id": family.id})
+    next_url = _get_safe_next_url(request, fallback_url)
+
+    def wants_json_response():
+        return request.GET.get("format") == "json" or "application/json" in request.headers.get("Accept", "")
+
+    def build_person_search_results(search_query):
+        persons = Person.objects.filter(
+            family=family,
+            is_deleted=False,
+        ).order_by("last_name", "first_name")
+
+        if search_query:
+            for term in search_query.split():
+                persons = persons.filter(
+                    Q(first_name__icontains=term)
+                    | Q(last_name__icontains=term)
+                    | Q(maiden_name__icontains=term)
+                )
+
+        return persons
+
+    def serialize_person(person):
+        return {
+            "id": person.id,
+            "name": person.full_name.strip(),
+            "birth_year": person.birth_date.year if person.birth_date else None,
+            "death_year": person.death_date.year if person.death_date else None,
+            "maiden_name": person.maiden_name or "",
+            "is_linked": person.id == membership.linked_person_id,
         }
-        return JsonResponse(data)
-    
+
+    if request.method == "GET":
+        search_query = request.GET.get("q", "").strip()
+        results = build_person_search_results(search_query)[:50]
+
+        if wants_json_response():
+            return JsonResponse({
+                "linked_person_id": membership.linked_person_id,
+                "query": search_query,
+                "persons": [serialize_person(person) for person in results],
+            })
+
+        return render(request, "families/link_to_tree.html", {
+            "family": family,
+            "membership": membership,
+            "search_query": search_query,
+            "results": results if search_query else [],
+            "result_limit": 50,
+            "next_url": next_url,
+        })
+
     elif request.method == "POST":
-        import json
-        try:
-            data = json.loads(request.body)
-            person_id = data.get('person_id')
-            
-            if person_id:
-                person = get_object_or_404(Person, id=person_id, family=family)
-                membership.linked_person = person
-                membership.save()
+        content_type = request.headers.get("Content-Type", "")
+        expects_json = request.GET.get("format") == "json" or "application/json" in request.headers.get("Accept", "")
+
+        if "application/json" in content_type:
+            import json
+            try:
+                payload = json.loads(request.body)
+            except json.JSONDecodeError:
+                return JsonResponse({"error": "Invalid JSON"}, status=400)
+            person_id = payload.get("person_id")
+        else:
+            person_id = request.POST.get("person_id")
+
+        if person_id:
+            person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+            membership.linked_person = person
+            membership.save(update_fields=["linked_person"])
+
+            if expects_json or "application/json" in content_type:
                 return JsonResponse({
-                    "success": True, 
-                    "message": f"Linked to {person.first_name} {person.last_name}",
+                    "success": True,
+                    "message": f"Linked to {person.full_name}",
                     "person_id": person.id,
-                    "person_name": f"{person.first_name} {person.last_name}".strip()
+                    "person_name": person.full_name,
                 })
-            else:
-                # Unlink
-                membership.linked_person = None
-                membership.save()
-                return JsonResponse({"success": True, "message": "Unlinked from tree"})
-                
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON"}, status=400)
-    
+
+            messages.success(request, f"Linked your account to {person.full_name}.")
+            return redirect(next_url)
+
+        membership.linked_person = None
+        membership.save(update_fields=["linked_person"])
+
+        if expects_json or "application/json" in content_type:
+            return JsonResponse({"success": True, "message": "Unlinked from tree"})
+
+        messages.success(request, "Removed your current tree link.")
+        return redirect(next_url)
+
     return JsonResponse({"error": "Method not allowed"}, status=405)
 
 
@@ -2249,6 +2513,7 @@ def find_my_match(request, family_id):
         "membership": membership,
         "matches": matches,
         "existing_claims": existing_claims,
+        "profile_name": _profile_name_for_matching(request.user),
     })
 
 
@@ -4802,6 +5067,186 @@ def conversation_room(request, family_id, conversation_id):
 # ===========================
 # Family Milestone CRUD
 # ===========================
+
+@login_required
+def birthday_list(request, family_id):
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+
+    return _render_occasion_list(
+        request,
+        family,
+        membership,
+        "families/occasion_list.html",
+        "Birthdays",
+        "Upcoming birthdays recorded on this family tree.",
+        "bi-cake2",
+        _build_birthday_milestones(family),
+        "No birthdays yet",
+        "Add birth dates to people in the tree and birthdays will appear here.",
+    )
+
+
+@login_required
+def wedding_anniversary_list(request, family_id):
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+
+    return _render_occasion_list(
+        request,
+        family,
+        membership,
+        "families/occasion_list.html",
+        "Wedding Anniversaries",
+        "Upcoming wedding anniversaries based on spouse relationships in the tree.",
+        "bi-heart",
+        _build_anniversary_milestones(family),
+        "No anniversaries yet",
+        "Add spouse relationships with a wedding date and anniversaries will appear here.",
+    )
+
+
+@login_required
+def in_memoriam_list(request, family_id):
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+
+    return _render_occasion_list(
+        request,
+        family,
+        membership,
+        "families/occasion_list.html",
+        "In Memoriam",
+        "Remember loved ones using the memorial dates recorded in the family tree.",
+        "bi-flower1",
+        _build_memorial_milestones(family),
+        "No memorial dates yet",
+        "Add death dates to people in the tree and memorial dates will appear here.",
+    )
+
+
+@login_required
+def kudos_list(request, family_id):
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+
+    kudos_entries = FamilyKudos.objects.filter(family=family).select_related(
+        "person",
+        "created_by",
+    )
+    return render(request, "families/kudos_list.html", {
+        "family": family,
+        "membership": membership,
+        "kudos_entries": kudos_entries,
+    })
+
+
+@login_required
+def kudos_detail(request, family_id, kudos_id):
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+
+    kudos = get_object_or_404(
+        FamilyKudos.objects.select_related("person", "created_by"),
+        id=kudos_id,
+        family=family,
+    )
+    return render(request, "families/kudos_detail.html", {
+        "family": family,
+        "membership": membership,
+        "kudos": kudos,
+    })
+
+
+@login_required
+def kudos_create(request, family_id):
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership or membership.role == Membership.Role.VIEWER:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+
+    next_url = _get_safe_next_url(
+        request,
+        reverse(URL_KUDOS_LIST, kwargs={"family_id": family.id}),
+    )
+
+    if request.method == "POST":
+        form = FamilyKudosForm(request.POST, request.FILES, family=family)
+        if form.is_valid():
+            kudos = form.save(commit=False)
+            kudos.family = family
+            kudos.created_by = request.user
+            kudos.save()
+            form.save_m2m()
+            return redirect(next_url)
+    else:
+        form = FamilyKudosForm(family=family)
+
+    return render(request, "families/kudos_form.html", {
+        "family": family,
+        "membership": membership,
+        "form": form,
+        "mode": "create",
+        "next_url": next_url,
+    })
+
+
+@login_required
+def kudos_edit(request, family_id, kudos_id):
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership or membership.role == Membership.Role.VIEWER:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+
+    kudos = get_object_or_404(FamilyKudos, id=kudos_id, family=family)
+    next_url = _get_safe_next_url(
+        request,
+        reverse(URL_KUDOS_LIST, kwargs={"family_id": family.id}),
+    )
+    if request.method == "POST":
+        form = FamilyKudosForm(request.POST, request.FILES, instance=kudos, family=family)
+        if form.is_valid():
+            form.save()
+            return redirect(next_url)
+    else:
+        form = FamilyKudosForm(instance=kudos, family=family)
+
+    return render(request, "families/kudos_form.html", {
+        "family": family,
+        "membership": membership,
+        "form": form,
+        "mode": "edit",
+        "kudos": kudos,
+        "next_url": next_url,
+    })
+
+
+@login_required
+def kudos_delete(request, family_id, kudos_id):
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership or membership.role == Membership.Role.VIEWER:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+
+    kudos = get_object_or_404(FamilyKudos, id=kudos_id, family=family)
+    next_url = _get_safe_next_url(
+        request,
+        reverse(URL_KUDOS_LIST, kwargs={"family_id": family.id}),
+    )
+
+    if request.method == "POST":
+        kudos.delete()
+        return redirect(next_url)
+
+    return render(request, "families/kudos_delete.html", {
+        "family": family,
+        "membership": membership,
+        "kudos": kudos,
+        "next_url": next_url,
+    })
+
 
 @login_required
 def milestone_list(request, family_id):
@@ -7440,6 +7885,7 @@ def claim_my_spot(request, family_id):
         "membership": membership,
         "matches": matches,
         "pending_claims": pending_claims,
+        "profile_name": _profile_name_for_matching(request.user),
     })
 
 

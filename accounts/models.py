@@ -30,6 +30,16 @@ class UserProfile(models.Model):
         blank=True,
         help_text="Name shown on profile (defaults to email username)"
     )
+    middle_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Your middle name"
+    )
+    maiden_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Your maiden name"
+    )
     bio = models.TextField(
         max_length=500,
         blank=True,
@@ -114,11 +124,23 @@ class UserProfile(models.Model):
     
     def __str__(self):
         return f"{self.get_display_name()}'s Profile"
+
+    def get_full_name(self):
+        """Return the user's legal/profile name when available."""
+        name_parts = [
+            (self.user.first_name or "").strip(),
+            (self.middle_name or "").strip(),
+            (self.user.last_name or "").strip(),
+        ]
+        return " ".join(part for part in name_parts if part)
     
     def get_display_name(self):
         """Get display name, falling back to email username."""
         if self.display_name:
             return self.display_name
+        full_name = self.get_full_name()
+        if full_name:
+            return full_name
         return self.user.email.split('@')[0]
     
     def get_profile_picture_url(self):

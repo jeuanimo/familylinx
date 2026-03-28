@@ -35,6 +35,7 @@
         <div class="card-body">
             <p>Based on your profile name, we found {{ matches|length }} potential match{{ matches|length|pluralize }} on the family tree. 
                Select the one that's you!</p>
+            <p class="text-muted small">Matching against: <strong>{{ profile_name }}</strong></p>
             
             <div class="row">
                 {% for match in matches %}
@@ -98,7 +99,7 @@
             </div>
             <h4>No Matches Found</h4>
             <p class="text-muted">
-                We couldn't find anyone on the family tree that matches your profile name.<br>
+                We couldn't find anyone on the family tree that matches your profile name ({{ profile_name }}).<br>
                 You may not be added to the tree yet.
             </p>
         </div>

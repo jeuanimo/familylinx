@@ -19,7 +19,7 @@ from django import forms
 from .models import (
     FamilySpace, Invite, Membership, Post, Comment, Event, Person, Relationship,
     Album, Photo, ChatMessage, ChatConversationMessage, DNAKit, DNAMatch,
-    LifeStorySection, TimeCapsule, FamilyMilestone
+    LifeStorySection, TimeCapsule, FamilyMilestone, FamilyKudos
 )
 
 
@@ -895,6 +895,28 @@ class FamilyMilestoneForm(forms.ModelForm):
         else:
             self.fields["person"].queryset = Person.objects.none()
             self.fields["event"].queryset = Event.objects.none()
+
+
+class FamilyKudosForm(forms.ModelForm):
+    class Meta:
+        model = FamilyKudos
+        fields = ["title", "message", "image", "person"]
+        widgets = {
+            "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "Headline"}),
+            "message": forms.Textarea(attrs={"class": "form-control", "rows": 4, "placeholder": "Share the exciting news"}),
+            "image": forms.FileInput(attrs={"class": "form-control", "accept": "image/*"}),
+            "person": forms.Select(attrs={"class": "form-control"}),
+        }
+
+    def __init__(self, *args, family=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if family:
+            self.fields["person"].queryset = Person.objects.filter(
+                family=family,
+                is_deleted=False,
+            ).order_by("last_name", "first_name")
+        else:
+            self.fields["person"].queryset = Person.objects.none()
 
 
 class ConversationMessageForm(forms.ModelForm):

@@ -1864,6 +1864,49 @@ class FamilyMilestone(models.Model):
         return f"{self.title} ({self.date})"
 
 
+class FamilyKudos(models.Model):
+    """Exciting family announcements, wins, and celebrations."""
+    family = models.ForeignKey(
+        FamilySpace,
+        on_delete=models.CASCADE,
+        related_name="kudos_entries",
+        help_text="Family this kudos entry belongs to"
+    )
+    title = models.CharField(max_length=200)
+    message = models.TextField(blank=True)
+    image = models.ImageField(
+        upload_to="kudos/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Optional image for the announcement"
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="kudos_entries",
+        help_text="Linked person (optional)"
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_kudos_entries",
+        help_text="User who added this kudos entry"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Family Kudos"
+        verbose_name_plural = "Family Kudos"
+
+    def __str__(self):
+        return f"{self.title} ({self.family.name})"
+
+
 class MuseumShare(models.Model):
     """
     Share the Living Museum or specific memories with others.
@@ -3113,9 +3156,22 @@ class PersonClaim(models.Model):
 
 def _extract_user_name_from_model(user):
     """Extract first and last name from user model fields."""
+    middle_name = ""
+    maiden_name = ""
+    try:
+        middle_name = (user.profile.middle_name or '').lower().strip()
+        maiden_name = (user.profile.maiden_name or '').lower().strip()
+    except Exception:
+        pass
+
+    first_name = (user.first_name or '').lower().strip()
+    if middle_name:
+        first_name = " ".join(part for part in [first_name, middle_name] if part)
+
     return (
-        (user.first_name or '').lower().strip(),
-        (user.last_name or '').lower().strip()
+        first_name,
+        (user.last_name or '').lower().strip(),
+        maiden_name,
     )
 
 
@@ -3126,12 +3182,12 @@ def _extract_user_name_from_profile(user):
         if profile and profile.display_name:
             name_parts = profile.display_name.strip().split()
             if len(name_parts) >= 2:
-                return name_parts[0].lower(), name_parts[-1].lower()
+                return " ".join(name_parts[:-1]).lower(), name_parts[-1].lower(), (profile.maiden_name or '').lower().strip()
             if len(name_parts) == 1:
-                return name_parts[0].lower(), ''
+                return name_parts[0].lower(), '', (profile.maiden_name or '').lower().strip()
     except Exception:
         pass
-    return '', ''
+    return '', '', ''
 
 
 def _extract_user_name_from_email(user):
@@ -3139,33 +3195,63 @@ def _extract_user_name_from_email(user):
     email_prefix = user.email.split('@')[0] if user.email else ''
     if '.' in email_prefix:
         parts = email_prefix.split('.')
-        return parts[0].lower(), parts[-1].lower()
+        return parts[0].lower(), parts[-1].lower(), ''
     if '_' in email_prefix:
         parts = email_prefix.split('_')
-        return parts[0].lower(), parts[-1].lower()
-    return email_prefix.lower(), ''
+        return parts[0].lower(), parts[-1].lower(), ''
+    return email_prefix.lower(), '', ''
 
 
 def _get_user_name(user):
     """Get user's first and last name from various sources."""
-    user_first, user_last = _extract_user_name_from_model(user)
-    if not user_first and not user_last:
-        user_first, user_last = _extract_user_name_from_profile(user)
-    if not user_first and not user_last:
-        user_first, user_last = _extract_user_name_from_email(user)
-    return user_first, user_last
+    user_first, user_last, user_maiden = _extract_user_name_from_model(user)
+    if not user_first and not user_last and not user_maiden:
+        user_first, user_last, user_maiden = _extract_user_name_from_profile(user)
+    if not user_first and not user_last and not user_maiden:
+        user_first, user_last, user_maiden = _extract_user_name_from_email(user)
+    return user_first, user_last, user_maiden
 
 
-def _calculate_name_match_score(user_first, user_last, person_first, person_last):
+def _calculate_name_match_score(user_first, user_last, user_maiden, person_first, person_last, person_maiden):
     """Calculate a weighted name similarity score."""
     from difflib import SequenceMatcher
+
+    def _given_name_score(name1, name2):
+        if not (name1 and name2):
+            return 0
+
+        normalized_1 = name1.strip().lower()
+        normalized_2 = name2.strip().lower()
+        score = SequenceMatcher(None, normalized_1, normalized_2).ratio()
+
+        if normalized_1 == normalized_2:
+            return 1.0
+
+        if normalized_1.startswith(normalized_2 + " ") or normalized_2.startswith(normalized_1 + " "):
+            score = max(score, 0.95)
+
+        parts_1 = normalized_1.split()
+        parts_2 = normalized_2.split()
+        if parts_1 and parts_2 and parts_1[0] == parts_2[0]:
+            score = max(score, 0.9)
+
+        return score
+
+    first_score = _given_name_score(user_first, person_first)
+    user_last_candidates = [value for value in [user_last, user_maiden] if value]
+    person_last_candidates = [value for value in [person_last, person_maiden] if value]
+
+    last_score = 0
+    for user_last_candidate in user_last_candidates:
+        for person_last_candidate in person_last_candidates:
+            last_score = max(
+                last_score,
+                SequenceMatcher(None, user_last_candidate, person_last_candidate).ratio(),
+            )
     
-    first_score = SequenceMatcher(None, user_first, person_first).ratio() if user_first and person_first else 0
-    last_score = SequenceMatcher(None, user_last, person_last).ratio() if user_last and person_last else 0
-    
-    if user_first and user_last:
+    if user_first and user_last_candidates:
         return first_score * 0.4 + last_score * 0.6
-    if user_last:
+    if user_last_candidates:
         return last_score * 0.8
     if user_first:
         return first_score * 0.6
@@ -3183,9 +3269,9 @@ def find_matching_persons(user, family):
     Returns:
         List of (Person, match_score) tuples, sorted by score descending
     """
-    user_first, user_last = _get_user_name(user)
+    user_first, user_last, user_maiden = _get_user_name(user)
     
-    if not user_first and not user_last:
+    if not user_first and not user_last and not user_maiden:
         return []
     
     matches = []
@@ -3195,8 +3281,16 @@ def find_matching_persons(user, family):
         
         person_first = (person.first_name or '').lower().strip()
         person_last = (person.last_name or '').lower().strip()
+        person_maiden = (person.maiden_name or '').lower().strip()
         
-        score = _calculate_name_match_score(user_first, user_last, person_first, person_last)
+        score = _calculate_name_match_score(
+            user_first,
+            user_last,
+            user_maiden,
+            person_first,
+            person_last,
+            person_maiden,
+        )
         if score >= 0.7:
             matches.append((person, score))
     

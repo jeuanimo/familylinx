@@ -15,16 +15,33 @@ from .models import Person, CrossSpacePersonLink
 
 class TempPerson:
     """Temporary person-like object for matching comparisons."""
-    def __init__(self, first_name, last_name, birth_date=None, gender='U'):
+    def __init__(self, first_name, last_name, birth_date=None, gender='U', maiden_name=''):
         self.first_name = first_name or ''
         self.last_name = last_name or ''
-        self.maiden_name = ""
+        self.maiden_name = maiden_name or ""
         self.birth_date = birth_date
         self.death_date = None
         self.birth_place = ""
         self.death_place = ""
         self.gender = gender or 'U'
         self.is_living = True
+
+
+def names_share_given_name(name1, name2):
+    """Return True when two given names clearly refer to the same name cluster."""
+    normalized_1 = normalize_name(name1)
+    normalized_2 = normalize_name(name2)
+    if not (normalized_1 and normalized_2):
+        return False
+
+    if normalized_1 == normalized_2:
+        return True
+    if normalized_1.startswith(normalized_2 + " ") or normalized_2.startswith(normalized_1 + " "):
+        return True
+
+    parts_1 = normalized_1.split()
+    parts_2 = normalized_2.split()
+    return bool(parts_1 and parts_2 and parts_1[0] == parts_2[0])
 
 
 def normalize_name(name):
@@ -102,6 +119,8 @@ def _compare_first_names(person1, person2, score, reasons):
     fn2 = normalize_name(person2.first_name)
     if fn1 and fn2:
         fn_ratio = SequenceMatcher(None, fn1, fn2).ratio()
+        if names_share_given_name(fn1, fn2):
+            fn_ratio = max(fn_ratio, 0.95)
         score += fn_ratio * 0.3
         if fn_ratio > 0.8:
             reasons.append(f"First names similar: {person1.first_name} ≈ {person2.first_name}")
@@ -110,16 +129,28 @@ def _compare_first_names(person1, person2, score, reasons):
 
 def _compare_last_names(person1, person2, score, reasons):
     """Compare last names with Soundex bonus."""
-    ln1 = normalize_name(person1.last_name)
-    ln2 = normalize_name(person2.last_name)
-    if not (ln1 and ln2):
+    surname_pairs = []
+    for surname1 in [person1.last_name, getattr(person1, "maiden_name", "")]:
+        normalized_1 = normalize_name(surname1)
+        if not normalized_1:
+            continue
+        for surname2 in [person2.last_name, getattr(person2, "maiden_name", "")]:
+            normalized_2 = normalize_name(surname2)
+            if normalized_2:
+                surname_pairs.append((surname1, normalized_1, surname2, normalized_2))
+
+    if not surname_pairs:
         return score, reasons
-    
+
+    display_1, ln1, display_2, ln2 = max(
+        surname_pairs,
+        key=lambda pair: SequenceMatcher(None, pair[1], pair[3]).ratio(),
+    )
     ln_ratio = SequenceMatcher(None, ln1, ln2).ratio()
     score += ln_ratio * 0.4
     
     if ln_ratio > 0.8:
-        reasons.append(f"Last names similar: {person1.last_name} ≈ {person2.last_name}")
+        reasons.append(f"Last names similar: {display_1} ≈ {display_2}")
     
     # Soundex bonus for last name
     if soundex(ln1) == soundex(ln2):
@@ -445,35 +476,54 @@ def find_duplicates_in_family(first_name, last_name, family, birth_date=None, ge
 
 
 def _get_user_name_and_birthdate(user):
-    """Extract first name, last name, and birth date from a user."""
+    """Extract first name, surname candidates, and birth date from a user."""
     profile = getattr(user, 'profile', None)
     first_name = user.first_name
+    middle_name = getattr(profile, 'middle_name', '')
     last_name = user.last_name
+    maiden_name = getattr(profile, 'maiden_name', '')
+
+    if middle_name:
+        first_name = " ".join(part for part in [first_name, middle_name] if part)
     
     # Try to parse display name if first_name is missing
     if not first_name and profile and profile.display_name:
         parts = profile.display_name.strip().split()
         if parts:
-            first_name = parts[0]
+            first_name = " ".join(parts[:-1]) if len(parts) > 1 else parts[0]
             if len(parts) > 1:
                 last_name = parts[-1]
     
     birth_date = profile.date_of_birth if profile else None
-    return first_name, last_name, birth_date
+    last_names = []
+    for value in [last_name, maiden_name]:
+        normalized = normalize_name(value)
+        if normalized and normalized not in last_names:
+            last_names.append(normalized)
+    return first_name, last_names, birth_date
 
 
-def _filter_unlinked_by_name(candidates, first_name, last_name):
+def _filter_unlinked_by_name(candidates, first_name, last_names):
     """Filter unlinked persons by name similarity (first or last name match)."""
     fn_normalized = normalize_name(first_name) if first_name else ""
-    ln_normalized = normalize_name(last_name) if last_name else ""
+    normalized_last_names = [normalize_name(last_name) for last_name in last_names if last_name]
     
     filtered = []
     for person in candidates:
         person_fn = normalize_name(person.first_name)
-        person_ln = normalize_name(person.last_name)
+        person_last_names = [
+            normalize_name(person.last_name),
+            normalize_name(person.maiden_name),
+        ]
         
-        fn_match = fn_normalized and (fn_normalized in person_fn or person_fn in fn_normalized)
-        ln_match = ln_normalized and (soundex(last_name) == soundex(person.last_name) or ln_normalized == person_ln)
+        fn_match = fn_normalized and names_share_given_name(fn_normalized, person_fn)
+        ln_match = any(
+            user_last and person_last and (
+                user_last == person_last or soundex(user_last) == soundex(person_last)
+            )
+            for user_last in normalized_last_names
+            for person_last in person_last_names
+        )
         
         if fn_match or ln_match:
             filtered.append(person)
@@ -487,9 +537,9 @@ def find_member_on_tree(user, family, threshold=35):
     
     Used when a new member joins to suggest if they already exist on the tree.
     """
-    first_name, last_name, birth_date = _get_user_name_and_birthdate(user)
+    first_name, last_names, birth_date = _get_user_name_and_birthdate(user)
     
-    if not (first_name or last_name):
+    if not (first_name or last_names):
         return []
     
     candidates = Person.objects.filter(
@@ -498,6 +548,9 @@ def find_member_on_tree(user, family, threshold=35):
         linked_user__isnull=True
     )
     
-    filtered = _filter_unlinked_by_name(candidates, first_name, last_name)
-    temp = TempPerson(first_name, last_name, birth_date)
+    filtered = _filter_unlinked_by_name(candidates, first_name, last_names)
+
+    current_last_name = user.last_name
+    maiden_name = getattr(getattr(user, 'profile', None), 'maiden_name', '')
+    temp = TempPerson(first_name, current_last_name, birth_date, maiden_name=maiden_name)
     return _score_and_filter_matches(filtered, temp, threshold)

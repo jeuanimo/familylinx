@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Link Yourself to the Tree - {{ family.name }}{% endblock title %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Link Yourself</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-person-lines-fill"></i> Link Yourself to the Family Tree</h1>
+        <p class="muted">Search by first name, last name, or maiden name to find your person record.</p>
+      </div>
+      <div class="page-actions">
+        <a href="{{ next_url }}" class="btn btn-outline">
+          <i class="bi bi-arrow-left"></i> Back
+        </a>
+      </div>
+    </div>
+
+    {% if membership.linked_person %}
+    <div class="card" style="margin-bottom: 1rem;">
+      <div class="card-body flex-between" style="gap: 1rem; flex-wrap: wrap;">
+        <div>
+          <strong>Currently linked:</strong> {{ membership.linked_person.full_name }}
+          {% if membership.linked_person.birth_date %}
+          <div class="muted small">Born {{ membership.linked_person.birth_date|date:"M j, Y" }}</div>
+          {% endif %}
+        </div>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next_url }}">
+          <button type="submit" class="btn btn-outline-danger">
+            <i class="bi bi-link-45deg"></i> Unlink
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card-body">
+        <form method="get" class="stack" style="gap: 1rem;">
+          <input type="hidden" name="next" value="{{ next_url }}">
+          <div class="form-group">
+            <label for="id_q" class="form-label">Search by name</label>
+            <input
+              id="id_q"
+              type="text"
+              name="q"
+              value="{{ search_query }}"
+              class="form-control"
+              placeholder="Try Jane Doe, Doe, or a maiden name">
+          </div>
+          <div class="flex-between" style="gap: 0.75rem; flex-wrap: wrap;">
+            <small class="muted">
+              Matching is based on first name, last name, and maiden name.
+            </small>
+            <div class="flex-center" style="gap: 0.5rem; flex-wrap: wrap;">
+              <a href="{% url 'families:link_to_tree' family_id=family.id %}?next={{ next_url|urlencode }}" class="btn btn-outline">Clear</a>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-search"></i> Search
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% if search_query %}
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-people"></i> Search Results</span>
+        <span class="badge badge-blue">{{ results|length }}</span>
+      </div>
+      <div class="card-body">
+        {% if results %}
+        <div class="person-grid">
+          {% for person in results %}
+          <div class="person-card">
+            <div class="person-card-photo">
+              {% if person.photo %}
+              <img src="{{ person.photo.url }}" alt="{{ person.full_name }}" width="80" height="80">
+              {% else %}
+              <div class="person-photo-placeholder">
+                <i class="bi bi-person"></i>
+              </div>
+              {% endif %}
+            </div>
+            <div class="person-card-info">
+              <strong>{{ person.full_name }}</strong>
+              <span class="muted">
+                {% if person.maiden_name %}née {{ person.maiden_name }}{% endif %}
+                {% if person.birth_date or person.death_date %}
+                {% if person.maiden_name %}<br>{% endif %}
+                {% if person.birth_date %}{{ person.birth_date|date:"Y" }}{% endif %}
+                {% if person.birth_date and person.death_date %} – {% endif %}
+                {% if person.death_date %}{{ person.death_date|date:"Y" }}{% endif %}
+                {% endif %}
+              </span>
+              <div class="mt-2 d-flex gap-2 flex-wrap">
+                <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" class="btn btn-outline btn-sm">
+                  <i class="bi bi-eye"></i> View
+                </a>
+                {% if membership.linked_person_id == person.id %}
+                <span class="badge badge-green align-self-center">Currently linked</span>
+                {% else %}
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="person_id" value="{{ person.id }}">
+                  <input type="hidden" name="next" value="{{ next_url }}">
+                  <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-link-45deg"></i> Link to Me
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% if results|length >= result_limit %}
+        <p class="muted small" style="margin-top: 1rem;">Showing the first {{ result_limit }} matches. Add more of the name to narrow the results.</p>
+        {% endif %}
+        {% else %}
+        <p class="muted mb-0">No family members matched “{{ search_query }}”. Try another spelling or search by maiden name.</p>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state" style="padding: 1rem 0;">
+          <div class="empty-state-icon"><i class="bi bi-search"></i></div>
+          <h3>Start with a name</h3>
+          <p class="muted mb-0">Search for yourself by name instead of scrolling through a long dropdown list.</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+{% endblock content %}
