@@ -487,14 +487,12 @@ def invite_create(request, family_id):
             if email_sent:
                 messages.success(request, f"Invitation sent to {inv.email}!")
             else:
-                # Email failed but invite was created - show the link
+                # Email failed but invite was created - show the link and error
                 invite_url = _build_invite_accept_url(inv, request)
-                reason_text = f" Reason: {email_error}" if email_error else ""
-                messages.warning(
+                messages.error(
                     request, 
-                    f"Invitation created but email could not be sent. "
-                    f"{reason_text}"
-                    f"Please share this link manually: {invite_url}"
+                    f"Failed to send email to {inv.email}. Error: {email_error or 'Unknown error'}. "
+                    f"The invitation was created - share this link manually: {invite_url}"
                 )
             
             return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
@@ -610,10 +608,10 @@ def invite_resend(request, family_id, invite_id):
         messages.success(request, f"Invitation resent to {invite.email}!")
     else:
         invite_url = _build_invite_accept_url(invite, request)
-        reason_text = f" Reason: {email_error}" if email_error else ""
-        messages.warning(
+        messages.error(
             request, 
-            f"Could not send email.{reason_text} Please share this link manually: {invite_url}"
+            f"Failed to send email to {invite.email}. Error: {email_error or 'Unknown error'}. "
+            f"Share this link manually: {invite_url}"
         )
     
     return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
