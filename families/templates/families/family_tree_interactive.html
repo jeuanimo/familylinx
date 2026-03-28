@@ -590,6 +590,9 @@
         <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-outline">
           <i class="bi bi-grid-3x3"></i> Classic View
         </a>
+        <a href="{% url 'families:familytree_upload' family_id=family.id %}" class="btn btn-outline">
+          <i class="bi bi-upload"></i> Import GEDCOM
+        </a>
         {% if can_edit %}
         <a href="{% url 'families:person_create' family_id=family.id %}" class="btn btn-primary">
           <i class="bi bi-plus-lg"></i> Add Person
