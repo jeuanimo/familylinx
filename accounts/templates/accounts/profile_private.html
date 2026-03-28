@@ -7,10 +7,8 @@
     <div class="card">
         <div class="card-body" style="padding: 3rem;">
             <i class="bi bi-lock" style="font-size: 4rem; color: var(--fl-muted);"></i>
-            <h2 style="margin: 1rem 0 0.5rem;">This Profile is Private</h2>
-            <p class="muted">
-                {{ profile.get_display_name }} has set their profile to private.
-            </p>
+            <h2 style="margin: 1rem 0 0.5rem;">{{ privacy_title|default:"This Profile is Private" }}</h2>
+            <p class="muted">{{ privacy_message }}</p>
             <a href="{% url 'home' %}" class="btn btn-primary" style="margin-top: 1rem;">
                 <i class="bi bi-arrow-left"></i> Go Home
             </a>

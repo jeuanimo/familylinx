@@ -77,118 +77,95 @@
 
         <div class="card">
             <div class="card-header flex-between gap-md align-center">
-                <span class="card-title"><i class="bi bi-calendar-heart"></i> Family Dates</span>
+                <span class="card-title"><i class="bi bi-calendar-heart"></i> Family Dates This Week</span>
                 <div class="flex-center gap-sm flex-wrap-yes">
                     {% if membership.role != 'VIEWER' %}
                     <a href="{% url 'families:milestone_create' family_id=family.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-primary btn-sm">
                         <i class="bi bi-plus-lg"></i> Add Custom
                     </a>
                     {% endif %}
+                    <a href="{% url 'families:birthday_list' family_id=family.id %}" class="btn btn-outline btn-sm">Birthdays</a>
+                    <a href="{% url 'families:wedding_anniversary_list' family_id=family.id %}" class="btn btn-outline btn-sm">Anniversaries</a>
+                    <a href="{% url 'families:in_memoriam_list' family_id=family.id %}" class="btn btn-outline btn-sm">In Memoriam</a>
                     <a href="{% url 'families:milestone_list' family_id=family.id %}" class="btn btn-outline btn-sm">Custom Milestones</a>
+                    <a href="{% url 'families:kudos_list' family_id=family.id %}" class="btn btn-outline btn-sm">Kudos</a>
                 </div>
             </div>
             <div class="card-body">
+                <p class="muted mb-3">Only dates happening today or in the next {{ family_dates_window_days }} days show up here.</p>
+                {% if has_family_date_highlights %}
                 <div class="grid-2 gap-md">
+                    {% if birthday_summary.count %}
                     <a href="{% url 'families:birthday_list' family_id=family.id %}" class="occasion-summary-card occasion-birthdays">
                         <div class="occasion-summary-head">
                             <div>
                                 <div class="occasion-summary-title"><i class="bi bi-cake2"></i> Birthdays</div>
-                                <div class="muted">
-                                    {{ birthday_summary.count }} recorded
-                                </div>
+                                <div class="muted">{{ birthday_summary.window_label }}</div>
                             </div>
                             <span class="badge badge-blue">View</span>
                         </div>
-                        {% if birthday_summary.next_item %}
                         <div class="occasion-summary-next">
                             <strong>Next:</strong> {{ birthday_summary.next_item.title }}
                             <div class="muted">{{ birthday_summary.next_item.date|date:"M j" }} · {{ birthday_summary.next_item.subtitle }}</div>
                         </div>
-                        {% else %}
-                        <div class="muted">{{ birthday_summary.empty_label }}</div>
-                        {% endif %}
                     </a>
+                    {% endif %}
 
+                    {% if anniversary_summary.count %}
                     <a href="{% url 'families:wedding_anniversary_list' family_id=family.id %}" class="occasion-summary-card occasion-anniversaries">
                         <div class="occasion-summary-head">
                             <div>
                                 <div class="occasion-summary-title"><i class="bi bi-heart"></i> Wedding Anniversaries</div>
-                                <div class="muted">
-                                    {{ anniversary_summary.count }} recorded
-                                </div>
+                                <div class="muted">{{ anniversary_summary.window_label }}</div>
                             </div>
                             <span class="badge badge-blue">View</span>
                         </div>
-                        {% if anniversary_summary.next_item %}
                         <div class="occasion-summary-next">
                             <strong>Next:</strong> {{ anniversary_summary.next_item.title }}
                             <div class="muted">{{ anniversary_summary.next_item.date|date:"M j" }} · {{ anniversary_summary.next_item.subtitle }}</div>
                         </div>
-                        {% else %}
-                        <div class="muted">{{ anniversary_summary.empty_label }}</div>
-                        {% endif %}
                     </a>
+                    {% endif %}
 
+                    {% if memorial_summary.count %}
                     <a href="{% url 'families:in_memoriam_list' family_id=family.id %}" class="occasion-summary-card occasion-memorials">
                         <div class="occasion-summary-head">
                             <div>
                                 <div class="occasion-summary-title"><i class="bi bi-flower1"></i> In Memoriam</div>
-                                <div class="muted">
-                                    {{ memorial_summary.count }} recorded
-                                </div>
+                                <div class="muted">{{ memorial_summary.window_label }}</div>
                             </div>
                             <span class="badge badge-blue">View</span>
                         </div>
-                        {% if memorial_summary.next_item %}
                         <div class="occasion-summary-next">
                             <strong>Next:</strong> {{ memorial_summary.next_item.title }}
                             <div class="muted">{{ memorial_summary.next_item.date|date:"M j" }} · {{ memorial_summary.next_item.subtitle }}</div>
                         </div>
-                        {% else %}
-                        <div class="muted">{{ memorial_summary.empty_label }}</div>
-                        {% endif %}
                     </a>
+                    {% endif %}
 
+                    {% if custom_milestone_summary.count %}
                     <a href="{% url 'families:milestone_list' family_id=family.id %}" class="occasion-summary-card occasion-custom">
                         <div class="occasion-summary-head">
                             <div>
                                 <div class="occasion-summary-title"><i class="bi bi-stars"></i> Custom Milestones</div>
-                                <div class="muted">
-                                    {{ custom_milestone_summary.count }} saved
-                                </div>
+                                <div class="muted">{{ custom_milestone_summary.window_label }}</div>
                             </div>
                             <span class="badge badge-blue">Manage</span>
                         </div>
-                        {% if custom_milestone_summary.next_item %}
                         <div class="occasion-summary-next">
-                            <strong>Latest:</strong> {{ custom_milestone_summary.next_item.title }}
+                            <strong>Next:</strong> {{ custom_milestone_summary.next_item.title }}
                             <div class="muted">{{ custom_milestone_summary.next_item.date|date:"M j, Y" }}</div>
                         </div>
-                        {% else %}
-                        <div class="muted">{{ custom_milestone_summary.empty_label }}</div>
-                        {% endif %}
                     </a>
-
-                    <a href="{% url 'families:kudos_list' family_id=family.id %}" class="occasion-summary-card occasion-kudos">
-                        <div class="occasion-summary-head">
-                            <div>
-                                <div class="occasion-summary-title"><i class="bi bi-megaphone"></i> Kudos</div>
-                                <div class="muted">
-                                    {{ kudos_summary.count }} shared
-                                </div>
-                            </div>
-                            <span class="badge badge-blue">View</span>
-                        </div>
-                        {% if kudos_summary.next_item %}
-                        <div class="occasion-summary-next">
-                            <strong>Latest:</strong> {{ kudos_summary.next_item.title }}
-                            <div class="muted">{{ kudos_summary.next_item.created_at|date:"M j, Y" }}</div>
-                        </div>
-                        {% else %}
-                        <div class="muted">{{ kudos_summary.empty_label }}</div>
-                        {% endif %}
-                    </a>
+                    {% endif %}
                 </div>
+                {% else %}
+                <div class="empty-state p-md family-dates-empty-state">
+                    <div class="empty-state-icon fs-xl"><i class="bi bi-calendar2-week"></i></div>
+                    <h3 class="mb-1">No family dates this week</h3>
+                    <p class="muted mb-0">Nothing falls today or in the next {{ family_dates_window_days }} days. Use the links above to browse the full birthday, anniversary, memorial, custom milestone, and kudos pages.</p>
+                </div>
+                {% endif %}
             </div>
         </div>
         

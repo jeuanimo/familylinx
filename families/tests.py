@@ -353,6 +353,43 @@ class InviteEmailWorkflowTests(TestCase):
             reverse("families:invite_accept", kwargs={"token": invite.token}),
         )
 
+    @override_settings(INVITE_BCC_EMAIL="contact@fam-linx.org")
+    @patch("families.views.EmailMessage")
+    def test_invite_create_supports_multiple_email_addresses(self, mock_email_message):
+        mock_email_message.return_value.send.return_value = 1
+        Invite.objects.create(
+            family=self.family,
+            created_by=self.user,
+            email="already@example.com",
+            role=Membership.Role.MEMBER,
+            expires_at=timezone.now() + timedelta(days=14),
+        )
+
+        response = self.client.post(
+            reverse("families:invite_create", kwargs={"family_id": self.family.id}),
+            {
+                "email": "cousin@example.com\nalready@example.com, aunt@example.com",
+                "role": Membership.Role.MEMBER,
+            },
+            secure=True,
+            follow=True,
+        )
+
+        created_emails = list(
+            Invite.objects.filter(family=self.family)
+            .order_by("email")
+            .values_list("email", flat=True)
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_email_message.call_count, 2)
+        self.assertEqual(
+            created_emails,
+            ["already@example.com", "aunt@example.com", "cousin@example.com"],
+        )
+        self.assertContains(response, "2 invitations were created and sent.")
+        self.assertContains(response, "already have a pending invite")
+
 
 class FamilyMilestoneWorkflowTests(TestCase):
     def setUp(self):
@@ -431,6 +468,84 @@ class FamilyMilestoneWorkflowTests(TestCase):
             response,
             reverse("families:kudos_list", kwargs={"family_id": self.family.id}),
         )
+
+    def test_family_detail_only_surfaces_date_cards_happening_this_week(self):
+        later_day = timezone.localdate() + timedelta(days=30)
+        later_person = Person.objects.create(
+            family=self.family,
+            first_name="Later",
+            last_name="Birthday",
+            gender=Person.Gender.MALE,
+            birth_date=date(1992, later_day.month, later_day.day),
+            created_by=self.user,
+        )
+
+        response = self.client.get(
+            reverse("families:family_detail", kwargs={"family_id": self.family.id}),
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Family Dates This Week")
+        self.assertContains(response, "Only dates happening today or in the next 7 days show up here.")
+        self.assertContains(response, self.spouse_person.full_name)
+        self.assertNotContains(response, later_person.full_name)
+
+        birthday_list_response = self.client.get(
+            reverse("families:birthday_list", kwargs={"family_id": self.family.id}),
+            secure=True,
+        )
+
+        self.assertNotContains(birthday_list_response, later_person.full_name)
+        self.assertContains(
+            birthday_list_response,
+            "Showing dates happening today or in the next 7 days.",
+        )
+
+    def test_family_detail_shows_empty_state_when_no_dates_fall_this_week(self):
+        quiet_family = FamilySpace.objects.create(name="Quiet Family", created_by=self.user)
+        Membership.objects.create(
+            family=quiet_family,
+            user=self.user,
+            role=Membership.Role.MEMBER,
+        )
+        later_day = timezone.localdate() + timedelta(days=45)
+        Person.objects.create(
+            family=quiet_family,
+            first_name="Far",
+            last_name="Away",
+            gender=Person.Gender.FEMALE,
+            birth_date=date(1985, later_day.month, later_day.day),
+            created_by=self.user,
+        )
+
+        response = self.client.get(
+            reverse("families:family_detail", kwargs={"family_id": quiet_family.id}),
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No family dates this week")
+        self.assertContains(response, reverse("families:birthday_list", kwargs={"family_id": quiet_family.id}))
+
+    def test_custom_milestone_list_only_shows_items_happening_this_week(self):
+        FamilyMilestone.objects.create(
+            family=self.family,
+            title="Later celebration",
+            description="A future custom milestone.",
+            date=timezone.localdate() + timedelta(days=25),
+            created_by=self.user,
+        )
+
+        response = self.client.get(
+            reverse("families:milestone_list", kwargs={"family_id": self.family.id}),
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.milestone.title)
+        self.assertNotContains(response, "Later celebration")
+        self.assertContains(response, "next 7 days")
 
     def test_birthday_list_displays_people_with_edit_actions(self):
         person_edit_path = reverse(

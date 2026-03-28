@@ -17,6 +17,7 @@
       <div class="page-header-content">
         <h1><i class="bi {{ occasion_icon }}"></i> {{ occasion_title }}</h1>
         <p class="muted">{{ occasion_description }}</p>
+        <p class="muted">Showing dates happening today or in the next {{ family_dates_window_days }} days.</p>
       </div>
       <div class="page-actions">
         <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline">

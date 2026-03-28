@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Admin People | FamilyLinx{% endblock %}
+
+{% block content %}
+<div style="max-width: 1200px; margin: 0 auto;">
+    <nav class="breadcrumb">
+        <a href="{% url 'home' %}">Home</a>
+        <span class="separator">/</span>
+        <span class="current">Admin People</span>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-header admin-directory-header">
+            <div>
+                <span class="card-title"><i class="bi bi-person-lines-fill"></i> Admin People Tracker</span>
+                <p class="muted mb-0">Every account already has a profile automatically. This page helps staff track who joined, who logged in, and who is active.</p>
+            </div>
+            <form method="get" class="admin-directory-search">
+                <input
+                    type="search"
+                    name="q"
+                    value="{{ query }}"
+                    class="form-control"
+                    placeholder="Search by name, username, or email"
+                >
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-search"></i> Search
+                </button>
+            </form>
+        </div>
+        <div class="card-body">
+            <div class="admin-summary-grid">
+                <div class="summary-chip">
+                    <strong>{{ profile_summary.total_accounts }}</strong>
+                    <span>Total accounts</span>
+                </div>
+                <div class="summary-chip">
+                    <strong>{{ profile_summary.logged_in_accounts }}</strong>
+                    <span>Have logged in</span>
+                </div>
+                <div class="summary-chip">
+                    <strong>{{ profile_summary.never_logged_in_accounts }}</strong>
+                    <span>Never logged in</span>
+                </div>
+                <div class="summary-chip">
+                    <strong>{{ profile_summary.recently_active_accounts }}</strong>
+                    <span>Active in last 7 days</span>
+                </div>
+                <div class="summary-chip">
+                    <strong>{{ profile_summary.staff_accounts }}</strong>
+                    <span>Staff accounts</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body" style="padding: 0;">
+            {% if profiles %}
+            <div class="admin-directory-table-wrap">
+                <table class="admin-directory-table">
+                    <thead>
+                        <tr>
+                            <th>Person</th>
+                            <th>Account Status</th>
+                            <th>Profile Status</th>
+                            <th>Activity</th>
+                            <th>Family Links</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for profile in profiles %}
+                        <tr>
+                            <td>
+                                <div class="admin-person">
+                                    <div class="admin-avatar">
+                                        {% if profile.profile_picture %}
+                                        <img src="{{ profile.profile_picture.url }}" alt="">
+                                        {% else %}
+                                        <i class="bi bi-person-circle"></i>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <strong><a href="{% url 'accounts:profile_view' user_id=profile.user.id %}">{{ profile.get_display_name }}</a></strong>
+                                        <div class="muted">@{{ profile.user.username }}</div>
+                                        <div class="muted">{{ profile.user.email }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="stack-xs">
+                                    <span>Joined {{ profile.user.date_joined|date:"M j, Y" }}</span>
+                                    {% if profile.has_logged_in %}
+                                    <span class="badge badge-green">Logged In</span>
+                                    {% else %}
+                                    <span class="badge badge-gold">Never Logged In</span>
+                                    {% endif %}
+                                    {% if profile.user.is_staff or profile.user.is_superuser %}
+                                    <span class="badge badge-blue">Staff</span>
+                                    {% endif %}
+                                    {% if not profile.user.is_active %}
+                                    <span class="badge badge-red">Inactive</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="stack-xs">
+                                    <span>Created {{ profile.created_at|date:"M j, Y" }}</span>
+                                    <span class="badge badge-blue">{{ profile.get_profile_visibility_display }}</span>
+                                    {% if profile.linked_person %}
+                                    <span class="muted">Linked to {{ profile.linked_person.full_name }}</span>
+                                    {% else %}
+                                    <span class="muted">Not linked to tree</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="stack-xs">
+                                    {% if profile.user.last_login %}
+                                    <span>Last login {{ profile.user.last_login|date:"M j, Y g:i A" }}</span>
+                                    {% else %}
+                                    <span class="muted">No login recorded</span>
+                                    {% endif %}
+                                    {% if profile.last_seen %}
+                                    <span>Last seen {{ profile.last_seen|timesince }} ago</span>
+                                    {% endif %}
+                                    {% if profile.recently_active %}
+                                    <span class="badge badge-green">Recently Active</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="stack-xs">
+                                    <span>{{ profile.family_count }} family space{{ profile.family_count|pluralize }}</span>
+                                    <span>{{ profile.wall_post_count }} wall post{{ profile.wall_post_count|pluralize }}</span>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 3rem;">
+                <i class="bi bi-search" style="font-size: 3rem; color: var(--fl-muted);"></i>
+                <h3 style="margin: 1rem 0 0.5rem;">No matching accounts</h3>
+                {% if query %}
+                <p class="muted">No accounts matched "{{ query }}".</p>
+                <a href="{% url 'accounts:admin_user_directory' %}" class="btn btn-outline btn-sm">Clear Search</a>
+                {% else %}
+                <p class="muted">No accounts have been created yet.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.admin-directory-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.admin-directory-search {
+    display: flex;
+    gap: 0.75rem;
+    width: min(100%, 420px);
+}
+
+.admin-directory-search .form-control {
+    flex: 1;
+}
+
+.admin-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+}
+
+.summary-chip {
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--fl-border);
+    border-radius: var(--fl-radius);
+    background: var(--fl-surface);
+    display: grid;
+    gap: 0.15rem;
+}
+
+.summary-chip strong {
+    font-size: 1.35rem;
+}
+
+.summary-chip span {
+    color: var(--fl-muted);
+    font-size: 0.92rem;
+}
+
+.admin-directory-table-wrap {
+    overflow-x: auto;
+}
+
+.admin-directory-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.admin-directory-table th,
+.admin-directory-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--fl-border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.admin-directory-table th {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--fl-muted);
+    background: var(--fl-surface);
+}
+
+.admin-person {
+    display: flex;
+    gap: 0.85rem;
+    align-items: center;
+    min-width: 240px;
+}
+
+.admin-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--fl-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.admin-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.admin-avatar i {
+    font-size: 1.9rem;
+    color: var(--fl-muted);
+}
+
+.admin-person a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.admin-person a:hover {
+    color: var(--fl-blue);
+}
+
+.stack-xs {
+    display: grid;
+    gap: 0.35rem;
+}
+</style>
+{% endblock %}

@@ -16,7 +16,7 @@
     <div class="page-header">
       <div class="page-header-content">
         <h1><i class="bi bi-stars"></i> Custom Milestones</h1>
-        <p class="muted">Manage the milestone cards your family adds manually.</p>
+        <p class="muted">Custom milestone cards happening today or in the next {{ family_dates_window_days }} days.</p>
       </div>
       {% if membership.role != 'VIEWER' %}
       <div class="page-actions">
@@ -70,8 +70,8 @@
       <div class="card-body">
         <div class="empty-state">
           <div class="empty-state-icon"><i class="bi bi-stars"></i></div>
-          <h3>No custom milestones yet</h3>
-          <p class="muted">Add the first custom milestone to capture your family’s stories.</p>
+          <h3>No custom milestones this week</h3>
+          <p class="muted">No custom milestones fall today or in the next {{ family_dates_window_days }} days.</p>
         </div>
       </div>
     </div>

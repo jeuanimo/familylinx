@@ -263,6 +263,14 @@
                         <a href="{% url 'accounts:message_inbox' %}" class="dropdown-item">
                             <i class="bi bi-chat-dots"></i> Messages
                         </a>
+                        <a href="{% url 'accounts:user_directory' %}" class="dropdown-item">
+                            <i class="bi bi-people"></i> People
+                        </a>
+                        {% if user.is_staff or user.is_superuser %}
+                        <a href="{% url 'accounts:admin_user_directory' %}" class="dropdown-item">
+                            <i class="bi bi-person-lines-fill"></i> Admin People
+                        </a>
+                        {% endif %}
                         <a href="{% url 'families:notification_list' %}" class="dropdown-item">
                             <i class="bi bi-bell"></i> Notifications
                         </a>

@@ -15,9 +15,11 @@ Security Considerations (OWASP):
     - Django auto-escapes output in templates
 """
 
+import re
+
 from django import forms
 from .models import (
-    FamilySpace, Invite, Membership, Post, Comment, Event, Person, Relationship,
+    FamilySpace, Membership, Post, Comment, Event, Person, Relationship,
     Album, Photo, ChatMessage, ChatConversationMessage, DNAKit, DNAMatch,
     LifeStorySection, TimeCapsule, FamilyMilestone, FamilyKudos
 )
@@ -74,7 +76,7 @@ class FamilySpaceCreateForm(forms.ModelForm):
         }
 
 
-class InviteCreateForm(forms.ModelForm):
+class InviteCreateForm(forms.Form):
     """
     Form for creating an invitation to join a FamilySpace.
     
@@ -100,27 +102,56 @@ class InviteCreateForm(forms.ModelForm):
         ...     invite.save()  # Token auto-generated
     """
     
-    class Meta:
-        model = Invite
-        fields = ["email", "role"]
-        
-        widgets = {
-            'email': forms.EmailInput(attrs={
-                'placeholder': 'Enter email address',
-                'class': 'form-control',
-            }),
-            'role': forms.Select(attrs={
-                'class': 'form-control',
-            }),
-        }
-        labels = {
-            'email': 'Email Address',
-            'role': 'Member Role',
-        }
-        help_texts = {
-            'email': 'The invitation will be sent to this email address',
-            'role': 'Select the permission level for the new member',
-        }
+    email = forms.CharField(
+        widget=forms.Textarea(
+            attrs={
+                "placeholder": "relative@example.com\nanother.relative@example.com",
+                "class": "form-control",
+                "rows": 5,
+            }
+        ),
+        label="Email Addresses",
+        help_text="Enter one email per line, or separate multiple addresses with commas.",
+    )
+
+    role = forms.ChoiceField(
+        choices=Membership.Role.choices,
+        widget=forms.Select(attrs={"class": "form-control"}),
+        label="Member Role",
+        help_text="Select the permission level for the new member",
+    )
+
+    def clean_email(self):
+        raw_value = (self.cleaned_data.get("email") or "").strip()
+        if not raw_value:
+            raise forms.ValidationError("Enter at least one email address.")
+
+        email_validator = forms.EmailField()
+        pieces = [piece.strip() for piece in re.split(r"[\n,;]+", raw_value) if piece.strip()]
+        if not pieces:
+            raise forms.ValidationError("Enter at least one email address.")
+
+        normalized = []
+        seen = set()
+        invalid = []
+        for piece in pieces:
+            try:
+                parsed = email_validator.clean(piece).lower()
+            except forms.ValidationError:
+                invalid.append(piece)
+                continue
+
+            if parsed not in seen:
+                seen.add(parsed)
+                normalized.append(parsed)
+
+        if invalid:
+            invalid_list = ", ".join(invalid[:5])
+            if len(invalid) > 5:
+                invalid_list += ", ..."
+            raise forms.ValidationError(f"These email addresses are not valid: {invalid_list}")
+
+        return normalized
 
 
 # =============================================================================

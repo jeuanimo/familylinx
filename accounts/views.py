@@ -54,8 +54,10 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
 from django.contrib import messages
 from django.http import JsonResponse, Http404
+from django.core.exceptions import PermissionDenied
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, Count
+from django.db.models.functions import Coalesce
 from django.core.files.base import ContentFile
 
 from .models import UserProfile, ProfilePost, ProfilePostComment, ProfileMessage
@@ -74,6 +76,34 @@ def _get_or_create_profile(user):
     return profile
 
 
+def _shared_family_ids_by_user_ids(user_ids):
+    """Return a mapping of user_id -> set of family ids."""
+    from families.models import Membership
+
+    family_ids_by_user = {user_id: set() for user_id in user_ids}
+    memberships = Membership.objects.filter(user_id__in=user_ids).values_list("user_id", "family_id")
+    for user_id, family_id in memberships:
+        family_ids_by_user.setdefault(user_id, set()).add(family_id)
+    return family_ids_by_user
+
+
+def _can_view_profile(viewer, profile_user, profile, shared_families):
+    """Enforce profile visibility rules."""
+    if viewer == profile_user:
+        return True
+    if profile.profile_visibility == "PUBLIC":
+        return True
+    if profile.profile_visibility == "MEMBERS":
+        return bool(shared_families)
+    return False
+
+
+def _ensure_site_admin(request):
+    """Require a Django staff/superuser account."""
+    if not (request.user.is_staff or request.user.is_superuser):
+        raise PermissionDenied("You do not have access to this page.")
+
+
 @login_required
 def my_profile(request):
     """
@@ -87,29 +117,38 @@ def profile_view(request, user_id):
     """
     View a user's profile (Facebook-style wall).
     """
+    from families.models import Membership, DNAKit
+
     profile_user = get_object_or_404(User, id=user_id)
     profile = _get_or_create_profile(profile_user)
     
     is_own_profile = request.user == profile_user
+
+    user_families = set(Membership.objects.filter(user=request.user).values_list("family_id", flat=True))
+    profile_families = set(Membership.objects.filter(user=profile_user).values_list("family_id", flat=True))
+    shared_families = user_families & profile_families
     
     # Check visibility
-    if not is_own_profile:
-        if profile.profile_visibility == 'PRIVATE':
-            return render(request, 'accounts/profile_private.html', {
-                'profile_user': profile_user,
-                'profile': profile,
-            })
-    
+    if not _can_view_profile(request.user, profile_user, profile, shared_families):
+        privacy_title = "This Profile is Private"
+        privacy_message = f"{profile.get_display_name()} has set their profile to private."
+        if profile.profile_visibility == "MEMBERS":
+            privacy_title = "Family Members Only"
+            privacy_message = (
+                f"{profile.get_display_name()} only shares this profile with people who "
+                f"share a family space."
+            )
+        return render(request, 'accounts/profile_private.html', {
+            'profile_user': profile_user,
+            'profile': profile,
+            'privacy_title': privacy_title,
+            'privacy_message': privacy_message,
+        })
     # Get wall posts
     posts = profile.wall_posts.all()
     if not is_own_profile:
         posts = posts.exclude(visibility='PRIVATE')
     
-    # Get shared families (for family members visibility)
-    from families.models import Membership, DNAKit
-    user_families = set(Membership.objects.filter(user=request.user).values_list('family_id', flat=True))
-    profile_families = set(Membership.objects.filter(user=profile_user).values_list('family_id', flat=True))
-    shared_families = user_families & profile_families
     chat_family_id = None
     if shared_families:
         chat_family_id = next(iter(shared_families))
@@ -141,6 +180,101 @@ def profile_view(request, user_id):
     }
     
     return render(request, 'accounts/profile_view.html', context)
+
+
+@login_required
+def user_directory(request):
+    """
+    Directory of users who have logged into the site.
+    """
+    query = request.GET.get("q", "").strip()
+
+    profiles = (
+        UserProfile.objects
+        .filter(user__last_login__isnull=False)
+        .select_related("user", "linked_person")
+        .annotate(last_seen=Coalesce("last_activity", "user__last_login"))
+        .order_by("-last_seen", "user__date_joined")
+    )
+
+    if query:
+        profiles = profiles.filter(
+            Q(display_name__icontains=query)
+            | Q(user__first_name__icontains=query)
+            | Q(middle_name__icontains=query)
+            | Q(user__last_name__icontains=query)
+            | Q(maiden_name__icontains=query)
+            | Q(user__email__icontains=query)
+            | Q(user__username__icontains=query)
+        )
+
+    profiles = list(profiles)
+    user_ids = [request.user.id] + [profile.user_id for profile in profiles]
+    family_ids_by_user = _shared_family_ids_by_user_ids(user_ids)
+    viewer_family_ids = family_ids_by_user.get(request.user.id, set())
+
+    for profile in profiles:
+        shared_families = viewer_family_ids & family_ids_by_user.get(profile.user_id, set())
+        profile.shared_family_count = len(shared_families)
+        profile.can_view_profile = _can_view_profile(request.user, profile.user, profile, shared_families)
+        profile.directory_email = profile.user.email if (profile.user == request.user or profile.show_email) else ""
+
+    return render(request, "accounts/user_directory.html", {
+        "profiles": profiles,
+        "query": query,
+    })
+
+
+@login_required
+def admin_user_directory(request):
+    """
+    Staff-only view of all site accounts and profiles.
+    """
+    _ensure_site_admin(request)
+
+    query = request.GET.get("q", "").strip()
+    active_since = timezone.now() - timezone.timedelta(days=7)
+
+    profiles = (
+        UserProfile.objects
+        .select_related("user", "linked_person")
+        .annotate(
+            last_seen=Coalesce("last_activity", "user__last_login"),
+            family_count=Count("user__memberships", distinct=True),
+            wall_post_count=Count("wall_posts", distinct=True),
+        )
+        .order_by("-created_at")
+    )
+
+    if query:
+        profiles = profiles.filter(
+            Q(display_name__icontains=query)
+            | Q(user__first_name__icontains=query)
+            | Q(middle_name__icontains=query)
+            | Q(user__last_name__icontains=query)
+            | Q(maiden_name__icontains=query)
+            | Q(user__email__icontains=query)
+            | Q(user__username__icontains=query)
+        )
+
+    profiles = list(profiles)
+    for profile in profiles:
+        profile.has_logged_in = bool(profile.user.last_login)
+        profile.recently_active = bool(profile.last_seen and profile.last_seen >= active_since)
+
+    profile_summary = {
+        "total_accounts": len(profiles),
+        "logged_in_accounts": sum(1 for profile in profiles if profile.has_logged_in),
+        "never_logged_in_accounts": sum(1 for profile in profiles if not profile.has_logged_in),
+        "recently_active_accounts": sum(1 for profile in profiles if profile.recently_active),
+        "staff_accounts": sum(1 for profile in profiles if profile.user.is_staff or profile.user.is_superuser),
+    }
+
+    return render(request, "accounts/admin_user_directory.html", {
+        "profiles": profiles,
+        "query": query,
+        "profile_summary": profile_summary,
+    })
 
 
 @login_required

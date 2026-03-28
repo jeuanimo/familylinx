@@ -5,6 +5,8 @@ URL patterns for user profiles, wall posts, and direct messaging.
 All URLs are namespaced under 'accounts' for reverse URL lookup.
 
 URL Structure:
+    /u/directory/                   - Logged-in user directory
+    /u/admin/people/                - Staff-only account/profile directory
     /u/profile/                     - Redirect to own profile
     /u/profile/<user_id>/           - View a user's profile
     /u/profile/edit/                - Edit own profile settings
@@ -42,6 +44,10 @@ urlpatterns = [
     # ==========================================================================
     # Profile Views
     # ==========================================================================
+
+    # Directory of users who have logged in
+    path('directory/', views.user_directory, name='user_directory'),
+    path('admin/people/', views.admin_user_directory, name='admin_user_directory'),
     
     # Redirect to current user's profile
     path('profile/', views.my_profile, name='my_profile'),

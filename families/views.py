@@ -105,6 +105,7 @@ TEMPLATE_MEMORY_CREATE = "families/memory_create.html"
 ERROR_ACCESS_DENIED = "Access denied"
 ERROR_PERMISSION_DENIED = "Permission denied"
 ERROR_POST_REQUIRED = "POST required"
+FAMILY_DATES_WINDOW_DAYS = 7
 
 # Ancestor generation labels
 GENERATION_LABELS = {
@@ -259,11 +260,47 @@ def family_detail(request, family_id):
     # Fetch upcoming events (Phase 3)
     upcoming_events = fam.events.filter(start_datetime__gte=timezone.now()).order_by("start_datetime")[:5]
     
-    birthday_milestones = _build_birthday_milestones(fam, days_ahead=365)
-    anniversary_milestones = _build_anniversary_milestones(fam, days_ahead=365)
-    memorial_milestones = _build_memorial_milestones(fam, days_ahead=365)
-    custom_milestones = FamilyMilestone.objects.filter(family=fam).order_by("-date", "-created_at")
-    kudos_entries = FamilyKudos.objects.filter(family=fam).select_related("person", "created_by").order_by("-created_at")
+    today = timezone.localdate()
+    family_dates_window_days = FAMILY_DATES_WINDOW_DAYS
+    family_dates_cutoff = today + timedelta(days=family_dates_window_days)
+
+    birthday_milestones = _build_birthday_milestones(fam, days_ahead=family_dates_window_days)
+    anniversary_milestones = _build_anniversary_milestones(fam, days_ahead=family_dates_window_days)
+    memorial_milestones = _build_memorial_milestones(fam, days_ahead=family_dates_window_days)
+    custom_milestones = FamilyMilestone.objects.filter(
+        family=fam,
+        date__gte=today,
+        date__lte=family_dates_cutoff,
+    ).order_by("date", "-created_at")
+    birthday_summary = _build_occasion_summary(
+        birthday_milestones,
+        empty_label="No birthdays are happening today or this week.",
+        today=today,
+    )
+    anniversary_summary = _build_occasion_summary(
+        anniversary_milestones,
+        empty_label="No wedding anniversaries are happening today or this week.",
+        today=today,
+    )
+    memorial_summary = _build_occasion_summary(
+        memorial_milestones,
+        empty_label="No memorial dates are happening today or this week.",
+        today=today,
+    )
+    custom_milestone_summary = _build_saved_date_summary(
+        custom_milestones,
+        empty_label="No custom milestones are scheduled for this week.",
+        today=today,
+    )
+    has_family_date_highlights = any(
+        summary["count"]
+        for summary in (
+            birthday_summary,
+            anniversary_summary,
+            memorial_summary,
+            custom_milestone_summary,
+        )
+    )
 
     return render(request, "families/family_detail.html", {
         "family": fam,
@@ -275,28 +312,12 @@ def family_detail(request, family_id):
         "upcoming_events": upcoming_events,
         "feed_scope": feed_scope,
         "immediate_filter_available": immediate_filter_available,
-        "birthday_summary": _build_occasion_summary(
-            birthday_milestones,
-            empty_label="No birthdays are on record yet.",
-        ),
-        "anniversary_summary": _build_occasion_summary(
-            anniversary_milestones,
-            empty_label="No wedding anniversaries are on record yet.",
-        ),
-        "memorial_summary": _build_occasion_summary(
-            memorial_milestones,
-            empty_label="No memorial dates are on record yet.",
-        ),
-        "custom_milestone_summary": {
-            "count": custom_milestones.count(),
-            "next_item": custom_milestones.first(),
-            "empty_label": "No custom milestones have been added yet.",
-        },
-        "kudos_summary": {
-            "count": kudos_entries.count(),
-            "next_item": kudos_entries.first(),
-            "empty_label": "No celebrations or announcements have been posted yet.",
-        },
+        "family_dates_window_days": family_dates_window_days,
+        "has_family_date_highlights": has_family_date_highlights,
+        "birthday_summary": birthday_summary,
+        "anniversary_summary": anniversary_summary,
+        "memorial_summary": memorial_summary,
+        "custom_milestone_summary": custom_milestone_summary,
     })
 
 
@@ -490,29 +511,73 @@ def invite_create(request, family_id):
     if request.method == "POST":
         form = InviteCreateForm(request.POST)
         if form.is_valid():
-            # Create invite without saving to set additional fields
-            inv = form.save(commit=False)
-            inv.family = fam
-            inv.created_by = request.user
-            inv.expires_at = timezone.now() + timezone.timedelta(days=14)
-            inv.save()  # Token is auto-generated in model save()
-            
-            # Send email with invite link
-            email_sent, email_error = _send_invite_email(inv, request)
+            invite_emails = form.cleaned_data["email"]
+            invite_role = form.cleaned_data["role"]
             family_detail_url = reverse(URL_FAMILY_DETAIL, kwargs={"family_id": fam.id})
-            
-            if email_sent:
-                messages.success(request, f"Invitation sent to {inv.email}!")
-            else:
-                messages.error(
-                    request, 
-                    f"Invitation created, but the email was not sent to {inv.email}. "
-                    f"Reason: {email_error or 'Unknown error'}. "
-                    f"Use the manual invite link in the Invitations panel below."
+
+            created_invites = []
+            failed_invites = []
+            skipped_existing = []
+
+            for invite_email in invite_emails:
+                existing_invite = Invite.objects.filter(
+                    family=fam,
+                    email__iexact=invite_email,
+                    accepted_at__isnull=True,
+                    expires_at__gt=timezone.now(),
+                ).first()
+                if existing_invite:
+                    skipped_existing.append(invite_email)
+                    continue
+
+                inv = Invite(
+                    family=fam,
+                    created_by=request.user,
+                    email=invite_email,
+                    role=invite_role,
+                    expires_at=timezone.now() + timezone.timedelta(days=14),
                 )
-            
+                inv.save()
+
+                email_sent, email_error = _send_invite_email(inv, request)
+                if email_sent:
+                    created_invites.append(inv)
+                else:
+                    failed_invites.append((inv, email_error or "Unknown error"))
+
+            if created_invites:
+                if len(created_invites) == 1:
+                    messages.success(request, f"Invitation sent to {created_invites[0].email}!")
+                else:
+                    messages.success(
+                        request,
+                        f"{len(created_invites)} invitations were created and sent.",
+                    )
+
+            if skipped_existing:
+                skipped_preview = ", ".join(skipped_existing[:3])
+                if len(skipped_existing) > 3:
+                    skipped_preview += ", ..."
+                messages.warning(
+                    request,
+                    f"{len(skipped_existing)} address(es) already have a pending invite: {skipped_preview}",
+                )
+
+            if failed_invites:
+                failed_preview = ", ".join(inv.email for inv, _reason in failed_invites[:3])
+                if len(failed_invites) > 3:
+                    failed_preview += ", ..."
+                messages.error(
+                    request,
+                    f"{len(failed_invites)} invitation email(s) were not sent: {failed_preview}. "
+                    f"Use the manual invite links in the Invitations panel below."
+                )
+
+            if not created_invites and not failed_invites and skipped_existing:
+                messages.info(request, "No new invitations were created.")
+
             redirect_target = family_detail_url
-            if not email_sent:
+            if failed_invites:
                 redirect_target = f"{family_detail_url}#family-invitations"
             return redirect(redirect_target)
     else:
@@ -787,6 +852,20 @@ def _sort_milestone_items(items):
     return sorted(items, key=lambda item: (item["date"], item["title"]))
 
 
+def _summary_window_label(next_item, count, today=None):
+    """Return a short label describing whether a summary belongs to today or this week."""
+    if not next_item or not count:
+        return ""
+
+    today = today or timezone.localdate()
+    item_date = next_item["date"] if isinstance(next_item, dict) else getattr(next_item, "date", None)
+    if item_date == today:
+        return "Happening today"
+    if count == 1:
+        return "1 this week"
+    return f"{count} this week"
+
+
 def _build_birthday_milestones(family, days_ahead=365):
     """Return upcoming birthday items for the family."""
     today = timezone.localdate()
@@ -827,12 +906,16 @@ def _build_anniversary_milestones(family, days_ahead=365):
     return _sort_milestone_items(items)
 
 
-def _build_occasion_summary(items, empty_label):
+def _build_occasion_summary(items, empty_label, today=None):
     """Return count and next upcoming item for a category summary."""
+    today = today or timezone.localdate()
+    count = len(items)
+    next_item = items[0] if items else None
     return {
-        "count": len(items),
-        "next_item": items[0] if items else None,
+        "count": count,
+        "next_item": next_item,
         "empty_label": empty_label,
+        "window_label": _summary_window_label(next_item, count, today=today),
     }
 
 
@@ -863,6 +946,20 @@ def _build_family_milestones(family, days_ahead=45):
     return _sort_milestone_items(milestones)[:12]
 
 
+def _build_saved_date_summary(items, empty_label, today=None):
+    """Return count and next saved date-based item for a summary card."""
+    today = today or timezone.localdate()
+    items = list(items)
+    count = len(items)
+    next_item = items[0] if items else None
+    return {
+        "count": count,
+        "next_item": next_item,
+        "empty_label": empty_label,
+        "window_label": _summary_window_label(next_item, count, today=today),
+    }
+
+
 def _render_occasion_list(request, family, membership, template_name, title, description, icon, occasions, empty_title, empty_message):
     """Render one of the dedicated family occasion pages."""
     return render(request, template_name, {
@@ -874,6 +971,7 @@ def _render_occasion_list(request, family, membership, template_name, title, des
         "occasions": occasions,
         "empty_title": empty_title,
         "empty_message": empty_message,
+        "family_dates_window_days": FAMILY_DATES_WINDOW_DAYS,
     })
 
 
@@ -5101,11 +5199,11 @@ def birthday_list(request, family_id):
         membership,
         "families/occasion_list.html",
         "Birthdays",
-        "Upcoming birthdays recorded on this family tree.",
+        f"Birthdays happening today or in the next {FAMILY_DATES_WINDOW_DAYS} days.",
         "bi-cake2",
-        _build_birthday_milestones(family),
-        "No birthdays yet",
-        "Add birth dates to people in the tree and birthdays will appear here.",
+        _build_birthday_milestones(family, days_ahead=FAMILY_DATES_WINDOW_DAYS),
+        "No birthdays this week",
+        "No birthdays fall today or in the next few days on this family tree.",
     )
 
 
@@ -5121,11 +5219,11 @@ def wedding_anniversary_list(request, family_id):
         membership,
         "families/occasion_list.html",
         "Wedding Anniversaries",
-        "Upcoming wedding anniversaries based on spouse relationships in the tree.",
+        f"Wedding anniversaries happening today or in the next {FAMILY_DATES_WINDOW_DAYS} days.",
         "bi-heart",
-        _build_anniversary_milestones(family),
-        "No anniversaries yet",
-        "Add spouse relationships with a wedding date and anniversaries will appear here.",
+        _build_anniversary_milestones(family, days_ahead=FAMILY_DATES_WINDOW_DAYS),
+        "No anniversaries this week",
+        "No wedding anniversaries fall today or in the next few days on this family tree.",
     )
 
 
@@ -5141,11 +5239,11 @@ def in_memoriam_list(request, family_id):
         membership,
         "families/occasion_list.html",
         "In Memoriam",
-        "Remember loved ones using the memorial dates recorded in the family tree.",
+        f"Memorial dates happening today or in the next {FAMILY_DATES_WINDOW_DAYS} days.",
         "bi-flower1",
-        _build_memorial_milestones(family),
-        "No memorial dates yet",
-        "Add death dates to people in the tree and memorial dates will appear here.",
+        _build_memorial_milestones(family, days_ahead=FAMILY_DATES_WINDOW_DAYS),
+        "No memorial dates this week",
+        "No memorial dates fall today or in the next few days on this family tree.",
     )
 
 
@@ -5275,11 +5373,18 @@ def milestone_list(request, family_id):
     if not membership:
         return render(request, TEMPLATE_NO_ACCESS, {"family": None})
 
-    milestones = FamilyMilestone.objects.filter(family=family).select_related("person", "event", "created_by")
+    today = timezone.localdate()
+    cutoff = today + timedelta(days=FAMILY_DATES_WINDOW_DAYS)
+    milestones = FamilyMilestone.objects.filter(
+        family=family,
+        date__gte=today,
+        date__lte=cutoff,
+    ).select_related("person", "event", "created_by")
     return render(request, "families/milestone_list.html", {
         "family": family,
         "membership": membership,
-        "milestones": milestones.order_by("-date"),
+        "milestones": milestones.order_by("date", "-created_at"),
+        "family_dates_window_days": FAMILY_DATES_WINDOW_DAYS,
     })
 
 

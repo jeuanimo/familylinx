@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}People | FamilyLinx{% endblock %}
+
+{% block content %}
+<div style="max-width: 1100px; margin: 0 auto;">
+    <nav class="breadcrumb">
+        <a href="{% url 'home' %}">Home</a>
+        <span class="separator">/</span>
+        <span class="current">People</span>
+    </nav>
+
+    <div class="card">
+        <div class="card-header directory-header">
+            <div>
+                <span class="card-title"><i class="bi bi-people"></i> People Who Have Logged In</span>
+                <p class="muted mb-0">Browse everyone who has signed in to FamilyLinx.</p>
+            </div>
+            <form method="get" class="directory-search">
+                <input
+                    type="search"
+                    name="q"
+                    value="{{ query }}"
+                    class="form-control"
+                    placeholder="Search by name, email, or username"
+                >
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-search"></i> Search
+                </button>
+            </form>
+        </div>
+
+        <div class="card-body">
+            {% if profiles %}
+            <div class="directory-grid">
+                {% for profile in profiles %}
+                <article class="directory-card">
+                    <div class="directory-person">
+                        <div class="directory-avatar">
+                            {% if profile.profile_picture %}
+                            <img src="{{ profile.profile_picture.url }}" alt="">
+                            {% else %}
+                            <i class="bi bi-person-circle"></i>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <h3 class="directory-name">
+                                {% if profile.can_view_profile %}
+                                <a href="{% url 'accounts:profile_view' user_id=profile.user.id %}">{{ profile.get_display_name }}</a>
+                                {% else %}
+                                {{ profile.get_display_name }}
+                                {% endif %}
+                            </h3>
+                            <p class="muted mb-0">@{{ profile.user.username }}</p>
+                        </div>
+                    </div>
+
+                    <div class="directory-meta">
+                        <span class="badge badge-blue">{{ profile.get_profile_visibility_display }}</span>
+                        {% if profile.user == user %}
+                        <span class="badge badge-green">You</span>
+                        {% elif profile.shared_family_count %}
+                        <span class="badge badge-gold">{{ profile.shared_family_count }} shared space{{ profile.shared_family_count|pluralize }}</span>
+                        {% endif %}
+                    </div>
+
+                    {% if profile.directory_email %}
+                    <p class="directory-detail"><i class="bi bi-envelope"></i> {{ profile.directory_email }}</p>
+                    {% endif %}
+                    {% if profile.last_seen %}
+                    <p class="directory-detail"><i class="bi bi-clock-history"></i> Last seen {{ profile.last_seen|timesince }} ago</p>
+                    {% endif %}
+                    {% if profile.linked_person %}
+                    <p class="directory-detail"><i class="bi bi-diagram-3"></i> Linked to {{ profile.linked_person.full_name }}</p>
+                    {% endif %}
+
+                    <div class="directory-actions">
+                        {% if profile.can_view_profile %}
+                        <a href="{% url 'accounts:profile_view' user_id=profile.user.id %}" class="btn btn-outline btn-sm">View Profile</a>
+                        {% else %}
+                        <span class="muted">Profile limited to family members</span>
+                        {% endif %}
+                        {% if profile.user != user %}
+                        <a href="{% url 'accounts:message_compose_to' recipient_id=profile.user.id %}" class="btn btn-primary btn-sm">Message</a>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 3rem;">
+                <i class="bi bi-search" style="font-size: 3rem; color: var(--fl-muted);"></i>
+                <h3 style="margin: 1rem 0 0.5rem;">No people found</h3>
+                {% if query %}
+                <p class="muted">No logged-in users matched "{{ query }}".</p>
+                <a href="{% url 'accounts:user_directory' %}" class="btn btn-outline btn-sm">Clear Search</a>
+                {% else %}
+                <p class="muted">No one has logged in yet.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.directory-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.directory-search {
+    display: flex;
+    gap: 0.75rem;
+    width: min(100%, 420px);
+}
+
+.directory-search .form-control {
+    flex: 1;
+}
+
+.directory-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.directory-card {
+    border: 1px solid var(--fl-border);
+    border-radius: var(--fl-radius);
+    padding: 1rem;
+    background: var(--fl-card);
+    display: grid;
+    gap: 0.85rem;
+}
+
+.directory-person {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+.directory-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--fl-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.directory-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.directory-avatar i {
+    font-size: 2rem;
+    color: var(--fl-muted);
+}
+
+.directory-name {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.directory-name a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.directory-name a:hover {
+    color: var(--fl-blue);
+}
+
+.directory-meta {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.directory-detail {
+    margin: 0;
+    color: var(--fl-muted);
+    font-size: 0.95rem;
+}
+
+.directory-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+</style>
+{% endblock %}
