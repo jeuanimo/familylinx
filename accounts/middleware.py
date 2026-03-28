@@ -66,3 +66,63 @@ class UserActivityMiddleware:
         except Exception:
             # Profile might not exist yet
             pass
+
+
+class SecurityBlockerMiddleware:
+    """
+    Block common bot/scanner attack patterns.
+    
+    Returns 403 for requests matching known attack signatures:
+    - WordPress admin paths
+    - PHP file requests
+    - Common vulnerability scanners
+    - SQL injection attempts in URLs
+    """
+    
+    # Blocked path patterns (case-insensitive)
+    BLOCKED_PATHS = [
+        '/wp-admin', '/wp-login', '/wp-content', '/wp-includes',
+        '/wordpress', '/xmlrpc.php', '/wp-config',
+        '.php', '.asp', '.aspx', '.jsp', '.cgi',
+        '/admin.php', '/administrator',
+        '/phpmyadmin', '/pma', '/myadmin',
+        '/.env', '/.git', '/.svn', '/.htaccess',
+        '/config.yml', '/config.json', '/database.yml',
+        '/shell', '/cmd', '/eval',
+        '/etc/passwd', '/proc/self',
+    ]
+    
+    # Blocked user-agent patterns
+    BLOCKED_AGENTS = [
+        'sqlmap', 'nikto', 'nmap', 'masscan',
+        'zgrab', 'gobuster', 'dirbuster', 'wfuzz',
+        'hydra', 'burp', 'nessus', 'qualys',
+    ]
+    
+    def __init__(self, get_response):
+        self.get_response = get_response
+    
+    def __call__(self, request):
+        # Check path
+        path_lower = request.path.lower()
+        for blocked in self.BLOCKED_PATHS:
+            if blocked in path_lower:
+                from django.http import HttpResponseForbidden
+                return HttpResponseForbidden("Forbidden")
+        
+        # Check user agent
+        user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
+        for blocked in self.BLOCKED_AGENTS:
+            if blocked in user_agent:
+                from django.http import HttpResponseForbidden
+                return HttpResponseForbidden("Forbidden")
+        
+        # Check for SQL injection patterns in query string
+        query_string = request.META.get('QUERY_STRING', '').lower()
+        sql_patterns = ['union', 'select', 'drop', 'insert', '--', '/*', '*/']
+        suspicious_count = sum(1 for p in sql_patterns if p in query_string)
+        if suspicious_count >= 2:  # Multiple SQL keywords = likely attack
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden("Forbidden")
+        
+        return self.get_response(request)
