@@ -7,7 +7,7 @@ services:
     buildCommand: |
       pip install -r requirements.txt
     startCommand: |
-      python manage.py migrate && python manage.py collectstatic --noinput && gunicorn config.wsgi:application
+      python manage.py migrate && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
