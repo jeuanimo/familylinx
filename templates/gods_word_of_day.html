@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}God's Word of the Day - FamilyLinx{% endblock %}
+
+{% block extra_css %}
+<style>
+  .word-day-hero {
+    margin: -1rem -1rem 2rem;
+    padding: 3.5rem 0;
+    background:
+      radial-gradient(circle at top left, rgba(198, 167, 94, 0.22), transparent 40%),
+      linear-gradient(135deg, rgba(31, 58, 95, 0.08), rgba(47, 111, 87, 0.10)),
+      var(--fl-surface);
+    border-bottom: 1px solid rgba(31, 58, 95, 0.08);
+  }
+
+  .word-day-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+    gap: 1.5rem;
+    align-items: center;
+  }
+
+  .word-day-copy {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .word-day-copy h1 {
+    margin: 0;
+    font-size: clamp(2rem, 4vw, 3rem);
+  }
+
+  .word-day-lead {
+    font-size: 1.08rem;
+    color: var(--fl-muted);
+    max-width: 46rem;
+    margin: 0;
+  }
+
+  .word-day-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .verse-card {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .verse-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(198, 167, 94, 0.10), transparent 35%);
+    pointer-events: none;
+  }
+
+  .verse-card .card-body {
+    position: relative;
+    padding: 1.75rem;
+  }
+
+  .verse-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--fl-green);
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    font-size: 0.82rem;
+  }
+
+  .verse-text {
+    margin: 1rem 0 1.25rem;
+    font-size: clamp(1.25rem, 2.2vw, 1.7rem);
+    line-height: 1.6;
+    color: var(--fl-text);
+    font-weight: 600;
+  }
+
+  .verse-reference {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--fl-blue);
+    font-weight: 800;
+  }
+
+  .verse-version {
+    margin: 0.35rem 0 0;
+    color: var(--fl-muted);
+  }
+
+  .word-day-meta {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .word-day-meta .card-body {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .word-day-meta p {
+    margin: 0;
+  }
+
+  @media (max-width: 900px) {
+    .word-day-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock extra_css %}
+
+{% block content %}
+<section class="word-day-hero">
+  <div class="container">
+    <div class="word-day-grid">
+      <div class="word-day-copy">
+        <span class="badge badge-gold">Daily Scripture</span>
+        <div>
+          <h1>God's Word of the Day</h1>
+          <p class="word-day-lead">
+            Pause, breathe, and sit with a fresh verse for today. This page pulls the current
+            daily scripture when the verse service is available and falls back gracefully when it is not.
+          </p>
+        </div>
+        <div class="word-day-actions">
+          <a href="{% url 'gods_word_of_day' %}" class="btn btn-primary">
+            <i class="bi bi-arrow-clockwise"></i> Refresh Verse
+          </a>
+          {% if user.is_authenticated %}
+          <a href="{% url 'home' %}" class="btn btn-outline">
+            <i class="bi bi-house"></i> Back to Dashboard
+          </a>
+          {% else %}
+          <a href="{% url 'account_signup' %}" class="btn btn-outline">
+            <i class="bi bi-person-plus"></i> Join FamilyLinx
+          </a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card verse-card">
+        <div class="card-body">
+          <div class="verse-label">
+            <i class="bi bi-book-half"></i>
+            <span>Verse of the Day</span>
+          </div>
+          <blockquote class="verse-text">"{{ text }}"</blockquote>
+          <p class="verse-reference">{{ reference }}</p>
+          <p class="verse-version">{{ version }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="grid-2">
+  <div class="card word-day-meta">
+    <div class="card-header">
+      <span class="card-title"><i class="bi bi-broadcast"></i> Verse Source</span>
+    </div>
+    <div class="card-body">
+      {% if is_fallback %}
+      <p>The live verse feed could not be reached, so this page is showing a built-in scripture fallback.</p>
+      <p class="muted">The page will automatically use the live daily verse again as soon as the service is available.</p>
+      {% else %}
+      <p>Today's verse was loaded from the Our Manna Verse of the Day API.</p>
+      <p class="muted">The request uses the JSON daily endpoint so the page can display the verse text, reference, and translation cleanly.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card word-day-meta">
+    <div class="card-header">
+      <span class="card-title"><i class="bi bi-heart"></i> Keep It Close</span>
+    </div>
+    <div class="card-body">
+      <p>Use this page as a quiet starting point before you jump back into family updates, messages, and memory keeping.</p>
+      <div class="word-day-actions">
+        <a href="{% url 'gods_word_of_day' %}" class="btn btn-outline">
+          <i class="bi bi-bookmark-heart"></i> Read Again
+        </a>
+        <a href="{% url 'home' %}" class="btn btn-primary">
+          <i class="bi bi-people"></i> Return Home
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}

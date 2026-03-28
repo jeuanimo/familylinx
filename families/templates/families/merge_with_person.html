@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Merge with {{ person.full_name }} - {{ family.name }}{% endblock %}
+{% block title %}Merge with {{ person.full_name }} - {{ family.name }}{% endblock title %}
 
 {% block content %}
 <div class="container py-4">
@@ -65,7 +65,7 @@
                         <!-- Arrow -->
                         <div class="col-md-2 d-flex align-items-center justify-content-center">
                             <div class="text-center">
-                                <i class="bi bi-arrow-left-right" style="font-size: 2rem;"></i>
+                                <i class="bi bi-arrow-left-right fs-1"></i>
                                 <p class="small text-muted mt-2">Merge</p>
                             </div>
                         </div>
@@ -117,7 +117,7 @@
                         {% csrf_token %}
                         
                         <div class="mb-4">
-                            <label class="form-label"><strong>Choose merge option:</strong></label>
+                            <span class="form-label fw-bold d-block">Choose merge option:</span>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="merge_mode" id="keep_existing" 
                                        value="keep_existing" checked>
@@ -152,4 +152,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}

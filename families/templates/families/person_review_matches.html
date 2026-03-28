@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Potential Matches Found - {{ family.name }}{% endblock %}
+{% block title %}Potential Matches Found - {{ family.name }}{% endblock title %}
 
 {% block content %}
 <div class="container py-4">
@@ -130,4 +130,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}

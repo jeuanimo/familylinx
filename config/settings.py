@@ -18,6 +18,7 @@ Security Notes (OWASP):
 
 import os
 import datetime
+import dj_database_url
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -132,26 +133,23 @@ CHANNEL_LAYERS = {
 # DATABASE
 # =============================================================================
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-# Using SQLite for development; switch to PostgreSQL for production
+# Uses DATABASE_URL for production (Render PostgreSQL), SQLite for local development
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+if os.environ.get('DATABASE_URL'):
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=os.environ.get('DATABASE_URL'),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
-
-# PostgreSQL configuration (uncomment for production):
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': os.environ.get('DB_NAME', 'familylinx'),
-#         'USER': os.environ.get('DB_USER', 'familylinx'),
-#         'PASSWORD': os.environ.get('DB_PASSWORD', ''),
-#         'HOST': os.environ.get('DB_HOST', 'localhost'),
-#         'PORT': os.environ.get('DB_PORT', '5432'),
-#     }
-# }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # =============================================================================

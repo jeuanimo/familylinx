@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Claim {{ person.full_name }} - {{ family.name }}{% endblock %}
+{% block title %}Claim {{ person.full_name }} - {{ family.name }}{% endblock title %}
 
 {% block content %}
 <div class="container py-4">
@@ -27,11 +27,10 @@
                     <div class="d-flex align-items-center gap-3 mb-4 p-3 bg-light rounded">
                         {% if person.photo %}
                         <img src="{{ person.photo.url }}" alt="{{ person.full_name }}" 
-                             class="rounded" style="width: 80px; height: 80px; object-fit: cover;">
+                             class="rounded avatar-lg" width="80" height="80">
                         {% else %}
-                        <div class="bg-secondary rounded d-flex align-items-center justify-content-center" 
-                             style="width: 80px; height: 80px;">
-                            <i class="bi bi-person text-white" style="font-size: 2rem;"></i>
+                        <div class="bg-secondary rounded d-flex align-items-center justify-content-center avatar-lg">
+                            <i class="bi bi-person text-white fs-2"></i>
                         </div>
                         {% endif %}
                         <div>
@@ -129,4 +128,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}

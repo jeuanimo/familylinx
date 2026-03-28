@@ -135,6 +135,26 @@
     .controls-wrap { top: 0.25rem !important; right: 0.25rem !important; }
     .controls-legend { font-size: 10px; max-width: 150px; }
   }
+
+  .branch-space-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: end;
+    flex: 1 1 320px;
+  }
+
+  .branch-space-name {
+    min-width: 240px;
+    flex: 1 1 260px;
+    max-width: 360px;
+  }
+
+  .branch-space-help {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 0.85rem;
+  }
 </style>
 {% endblock extra_css %}
 
@@ -169,14 +189,22 @@
     <div class="card mb-3">
       <div class="card-body export-settings-body">
         <fieldset class="fieldset-unstyled">
-          <legend class="muted small d-block mb-1 legend-inline">Line to export</legend>
-          <div class="btn-group" aria-label="Line choice">
+          <legend class="muted small d-block mb-1 legend-inline">Branch to export</legend>
+          <div class="btn-group" aria-label="Branch choice">
             <input type="radio" class="btn-check" name="lineChoice" id="lineMaternal" value="maternal" checked>
             <label class="btn btn-sm btn-outline-primary" for="lineMaternal">Maternal</label>
             <input type="radio" class="btn-check" name="lineChoice" id="linePaternal" value="paternal">
             <label class="btn btn-sm btn-outline-primary" for="linePaternal">Paternal</label>
+            <input type="radio" class="btn-check" name="lineChoice" id="linePersonSide" value="person_side">
+            <label class="btn btn-sm btn-outline-primary" for="linePersonSide" id="linePersonSideLabel">This Person's Side</label>
+            <input type="radio" class="btn-check" name="lineChoice" id="lineSpouseSide" value="spouse_side">
+            <label class="btn btn-sm btn-outline-primary" for="lineSpouseSide" id="lineSpouseSideLabel">Spouse's Side</label>
           </div>
         </fieldset>
+        <div class="min-w-200" id="lineSpousePicker" hidden>
+          <label class="muted small d-block mb-1" for="lineSpouseId">Spouse for side export</label>
+          <select id="lineSpouseId" class="form-select form-select-sm max-w-220"></select>
+        </div>
         <div class="min-w-200">
           <label class="muted small d-block mb-1" for="lineMode">Export mode</label>
           <select id="lineMode" class="form-select form-select-sm max-w-180">
@@ -191,6 +219,30 @@
         <button class="btn btn-sm btn-outline-secondary" type="button" onclick="exportLine('json')">
           <i class="bi bi-download"></i> Export JSON
         </button>
+        {% if can_edit %}
+        <div class="branch-space-group">
+          <div class="branch-space-name">
+            <label class="muted small d-block mb-1" for="lineSpaceName">New space name</label>
+            <input
+              id="lineSpaceName"
+              type="text"
+              class="form-control form-control-sm"
+              placeholder="{{ family.name }} - Maternal Branch"
+            />
+          </div>
+          <button
+            id="createLineSpaceButton"
+            class="btn btn-sm btn-primary"
+            type="button"
+            onclick="createLineSpace()"
+          >
+            <i class="bi bi-diagram-2"></i> Create Branch Space
+          </button>
+          <p class="muted branch-space-help">
+            This copies the selected maternal, paternal, or spouse-based branch into a separate family space so each side can live in its own tree.
+          </p>
+        </div>
+        {% endif %}
       </div>
     </div>
     
@@ -267,6 +319,7 @@ const queryPersonId = (() => {
   return Number.isFinite(n) ? n : null;
 })();
 const apiUrl = '/api/families/' + familyId + '/tree/';
+const familyName = '{{ family.name|escapejs }}';
 
 const CARD_W = 220, CARD_H = 95;
 const AVATAR_R = 24;
@@ -298,6 +351,11 @@ function init() {
   g.append('g').attr('class', 'cards-group');
   
   loadData();
+  document.querySelectorAll('input[name="lineChoice"]').forEach(input => {
+    input.addEventListener('change', syncBranchSideControls);
+  });
+  document.getElementById('lineMode')?.addEventListener('change', updateBranchSpaceNameSuggestion);
+  document.getElementById('lineSpouseId')?.addEventListener('change', syncBranchSideControls);
 }
 
 async function loadData() {
@@ -336,6 +394,7 @@ async function loadData() {
     } else {
       focalPersonId = findBestFocalPerson();
     }
+    syncBranchSideControls();
     document.getElementById('treeLoading').style.display = 'none';
     renderTree();
     setTimeout(fitToScreen, 100);
@@ -365,6 +424,7 @@ function findFocalByName() {
   if (match) {
     focalPersonId = match.id;
     document.getElementById('focalPersonSelect').value = focalPersonId;
+    syncBranchSideControls();
     renderTree();
     fitToScreen();
   } else {
@@ -386,6 +446,7 @@ function findBestFocalPerson() {
 
 function changeFocalPerson() {
   focalPersonId = parseInt(document.getElementById('focalPersonSelect').value);
+  syncBranchSideControls();
   renderTree();
   fitToScreen();
 }
@@ -395,6 +456,7 @@ function setAsFocal() {
     focalPersonId = selectedPerson.id;
     document.getElementById('focalPersonSelect').value = focalPersonId;
     closeInfoPanel();
+    syncBranchSideControls();
     renderTree();
     fitToScreen();
   }
@@ -583,7 +645,13 @@ function renderTree() {
       .attr('class', 'person-card ' + (d.person.gender === 'M' ? 'male' : d.person.gender === 'F' ? 'female' : '') + (d.isFocal ? ' focal' : ''))
       .attr('transform', 'translate(' + (d.x - CARD_W/2) + ', ' + (d.y - CARD_H/2) + ')')
       .on('click', () => selectPerson(d.person))
-      .on('dblclick', () => { focalPersonId = d.person.id; document.getElementById('focalPersonSelect').value = focalPersonId; renderTree(); fitToScreen(); });
+      .on('dblclick', () => {
+        focalPersonId = d.person.id;
+        document.getElementById('focalPersonSelect').value = focalPersonId;
+        syncBranchSideControls();
+        renderTree();
+        fitToScreen();
+      });
 
     card.append('rect').attr('width', CARD_W).attr('height', CARD_H);
 
@@ -725,13 +793,126 @@ function fitToScreen() {
   svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
 }
 
-async function exportLine(format = 'json') {
+function getCsrfToken() {
+  return document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+    document.cookie.match(/csrftoken=([^;]+)/)?.[1] ||
+    '';
+}
+
+function getSpousePersons(personId) {
+  if (!personId) return [];
+  return [...new Set(spouseOf[personId] || [])]
+    .map(id => personById[id])
+    .filter(Boolean)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
+
+function getSelectedBranchSpouseId() {
+  const value = parseInt(document.getElementById('lineSpouseId')?.value, 10);
+  return Number.isFinite(value) ? value : null;
+}
+
+function getBranchSideLabel(person, fallbackLabel) {
+  if (!person) return fallbackLabel;
+  if (person.gender === 'M') return "Husband's Side";
+  if (person.gender === 'F') return "Wife's Side";
+  return fallbackLabel;
+}
+
+function syncBranchSideControls() {
+  const focalId = focalPersonId || initialFocusId || null;
+  const focal = focalId ? personById[focalId] : null;
+  const spouseRadio = document.getElementById('lineSpouseSide');
+  const personRadio = document.getElementById('linePersonSide');
+  const spousePicker = document.getElementById('lineSpousePicker');
+  const spouseSelect = document.getElementById('lineSpouseId');
+  const personLabel = document.getElementById('linePersonSideLabel');
+  const spouseLabel = document.getElementById('lineSpouseSideLabel');
+  const spouses = getSpousePersons(focalId);
+  const previousSpouseId = getSelectedBranchSpouseId();
+
+  if (spouseSelect) {
+    spouseSelect.innerHTML = '';
+    spouses.forEach(spouse => {
+      const option = document.createElement('option');
+      option.value = spouse.id;
+      option.textContent = spouse.name || `Person ${spouse.id}`;
+      spouseSelect.appendChild(option);
+    });
+    if (spouses.length) {
+      const defaultSpouseId = spouses.some(spouse => spouse.id === previousSpouseId)
+        ? previousSpouseId
+        : spouses[0].id;
+      spouseSelect.value = String(defaultSpouseId);
+    }
+  }
+
+  const selectedSpouse = spouses.find(spouse => spouse.id === getSelectedBranchSpouseId()) || spouses[0] || null;
+  if (personLabel) {
+    personLabel.textContent = spouses.length
+      ? getBranchSideLabel(focal, "This Person's Side")
+      : "This Person's Side";
+  }
+  if (spouseLabel) {
+    spouseLabel.textContent = spouses.length
+      ? getBranchSideLabel(selectedSpouse, "Spouse's Side")
+      : "Spouse's Side";
+  }
+
+  if (spouseRadio) {
+    spouseRadio.disabled = spouses.length === 0;
+  }
+  if (spouseRadio?.checked && spouses.length === 0 && personRadio) {
+    personRadio.checked = true;
+  }
+  if (spousePicker) {
+    spousePicker.hidden = !(spouses.length > 0 && spouseRadio?.checked);
+  }
+
+  updateBranchSpaceNameSuggestion();
+}
+
+function getLineSettings() {
   const line = document.querySelector('input[name="lineChoice"]:checked')?.value || 'maternal';
   const mode = document.getElementById('lineMode').value || 'subtree';
   const includeSpouses = document.getElementById('lineIncludeSpouses').checked ? '1' : '0';
   const focal = focalPersonId || initialFocusId || '';
+  const spouseId = line === 'spouse_side' ? getSelectedBranchSpouseId() : null;
+  return { line, mode, includeSpouses, focal, spouseId };
+}
 
-  const url = `/api/families/${familyId}/export/line/?line=${line}&mode=${mode}&include_spouses=${includeSpouses}${focal ? `&person_id=${focal}` : ''}`;
+function getBranchSpaceDefaultName() {
+  const { line, mode } = getLineSettings();
+  let lineLabel = 'Branch';
+  if (line === 'maternal') {
+    lineLabel = 'Maternal';
+  } else if (line === 'paternal') {
+    lineLabel = 'Paternal';
+  } else if (line === 'person_side') {
+    lineLabel = (document.getElementById('linePersonSideLabel')?.textContent || "This Person's Side").replace(/'s/g, '');
+  } else if (line === 'spouse_side') {
+    lineLabel = (document.getElementById('lineSpouseSideLabel')?.textContent || "Spouse's Side").replace(/'s/g, '');
+  }
+  const modeLabel = mode === 'line' ? 'Line' : 'Branch';
+  return `${familyName} - ${lineLabel} ${modeLabel}`;
+}
+
+function updateBranchSpaceNameSuggestion() {
+  const input = document.getElementById('lineSpaceName');
+  if (!input) return;
+  input.placeholder = getBranchSpaceDefaultName();
+}
+
+async function exportLine(format = 'json') {
+  const { line, mode, includeSpouses, focal, spouseId } = getLineSettings();
+
+  if (line === 'spouse_side' && !spouseId) {
+    alert('Choose a spouse for the spouse-side branch first.');
+    return;
+  }
+
+  const spouseParam = spouseId ? `&spouse_id=${spouseId}` : '';
+  const url = `/api/families/${familyId}/export/line/?line=${line}&mode=${mode}&include_spouses=${includeSpouses}${focal ? `&person_id=${focal}` : ''}${spouseParam}`;
   try {
     const resp = await fetch(url, { credentials: 'include' });
     if (!resp.ok) throw new Error(`Export failed (${resp.status})`);
@@ -748,7 +929,60 @@ async function exportLine(format = 'json') {
     a.remove();
   } catch (err) {
     console.error(err);
-    alert('Could not export the line. Please try again.');
+    alert('Could not export the branch. Please try again.');
+  }
+}
+
+async function createLineSpace() {
+  const button = document.getElementById('createLineSpaceButton');
+  if (!button) return;
+
+  const { line, mode, includeSpouses, focal, spouseId } = getLineSettings();
+  const nameInput = document.getElementById('lineSpaceName');
+  const name = (nameInput?.value || '').trim() || getBranchSpaceDefaultName();
+
+  if (!focal) {
+    alert('Choose a person to center the branch before creating a new space.');
+    return;
+  }
+  if (line === 'spouse_side' && !spouseId) {
+    alert('Choose a spouse for the spouse-side branch before creating a new space.');
+    return;
+  }
+
+  const originalLabel = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<i class="bi bi-hourglass-split"></i> Creating...';
+
+  try {
+    const response = await fetch(`/api/families/${familyId}/export/line/create-space/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken(),
+      },
+      body: JSON.stringify({
+        name,
+        person_id: focal,
+        line,
+        mode,
+        include_spouses: includeSpouses === '1',
+        spouse_id: spouseId,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || 'Could not create the new family space.');
+    }
+
+    window.location.href = data.new_family_url || `/families/${data.new_family_id}/`;
+  } catch (err) {
+    console.error(err);
+    alert(err.message || 'Could not create the new family space.');
+    button.disabled = false;
+    button.innerHTML = originalLabel;
   }
 }
 </script>

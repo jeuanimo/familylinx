@@ -22,6 +22,7 @@
       <div class="card-body">
         <form method="post" enctype="multipart/form-data">
           {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next_url }}">
           <div class="form-group">
             <label class="form-label">{{ form.title.label }}</label>
             {{ form.title }}
@@ -51,7 +52,7 @@
             </div>
           </div>
           <div class="form-actions">
-            <a href="{% url 'families:milestone_list' family_id=family.id %}" class="btn btn-outline">Cancel</a>
+            <a href="{{ next_url }}" class="btn btn-outline">Cancel</a>
             <button type="submit" class="btn btn-primary">
               <i class="bi bi-save"></i> Save
             </button>

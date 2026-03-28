@@ -10,6 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils import timezone
 from django.db.models import Q
 
@@ -482,20 +483,261 @@ class FamilyTreeAPIView(APIView):
         return Response(serializer.data)
 
 
+BRANCH_LINE_CHOICES = ['maternal', 'paternal', 'person_side', 'spouse_side']
+
+
+def _branch_to_int(val):
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _branch_person_sort_key(pid, persons_by_id):
+    person = persons_by_id.get(pid)
+    birth_year = person.birth_date.year if (person and person.birth_date) else 9999
+    last_name = (person.last_name or '').lower() if person else ''
+    first_name = (person.first_name or '').lower() if person else ''
+    return (birth_year, last_name, first_name, pid)
+
+
+def _build_branch_context(family):
+    persons_qs = Person.objects.filter(family=family, is_deleted=False)
+    persons_by_id = {p.id: p for p in persons_qs}
+
+    rels_qs = Relationship.objects.filter(
+        family=family,
+        is_deleted=False,
+        relationship_type__in=[Relationship.Type.PARENT_CHILD, Relationship.Type.SPOUSE]
+    ).select_related('person1', 'person2')
+
+    child_to_parents = {}
+    parent_to_children = {}
+    spouse_links = []
+    spouse_of = {}
+    for rel in rels_qs:
+        if rel.relationship_type == Relationship.Type.PARENT_CHILD:
+            child_to_parents.setdefault(rel.person2_id, []).append(rel.person1_id)
+            parent_to_children.setdefault(rel.person1_id, []).append(rel.person2_id)
+        elif rel.relationship_type == Relationship.Type.SPOUSE:
+            spouse_links.append((rel.person1_id, rel.person2_id))
+            spouse_of.setdefault(rel.person1_id, []).append(rel.person2_id)
+            spouse_of.setdefault(rel.person2_id, []).append(rel.person1_id)
+
+    return {
+        'persons_by_id': persons_by_id,
+        'relationships': rels_qs,
+        'child_to_parents': child_to_parents,
+        'parent_to_children': parent_to_children,
+        'spouse_links': spouse_links,
+        'spouse_of': spouse_of,
+    }
+
+
+def _collect_gender_line_ids(focal_id, target_gender, child_to_parents, persons_by_id, depth_up=None, parent_hint_id=None):
+    line_ids = [focal_id]
+    current = focal_id
+    while True:
+        parents = child_to_parents.get(current, [])
+        gender_matches = [
+            pid for pid in parents
+            if pid in persons_by_id and persons_by_id[pid].gender == target_gender
+        ]
+
+        if parent_hint_id and current == focal_id and parent_hint_id in gender_matches:
+            next_parent = parent_hint_id
+        else:
+            gender_matches = sorted(gender_matches, key=lambda pid: _branch_person_sort_key(pid, persons_by_id))
+            next_parent = gender_matches[0] if gender_matches else None
+
+        if not next_parent:
+            break
+        if next_parent in line_ids:
+            break
+        if depth_up is not None and len(line_ids) - 1 >= depth_up:
+            break
+        line_ids.append(next_parent)
+        current = next_parent
+
+    return set(line_ids)
+
+
+def _collect_full_side_ids(root_id, child_to_parents, persons_by_id, depth_up=None):
+    included_ids = {root_id}
+    queue = [(root_id, 0)]
+    while queue:
+        person_id, depth = queue.pop(0)
+        if depth_up is not None and depth >= depth_up:
+            continue
+        parent_ids = sorted(
+            set(child_to_parents.get(person_id, [])),
+            key=lambda pid: _branch_person_sort_key(pid, persons_by_id),
+        )
+        for parent_id in parent_ids:
+            if parent_id in included_ids:
+                continue
+            included_ids.add(parent_id)
+            queue.append((parent_id, depth + 1))
+    return included_ids
+
+
+def _collect_descendant_ids(root_id, parent_to_children, spouse_of=None, depth_down=None):
+    included_ids = set()
+    seen_ids = {root_id}
+    queue = [(root_id, 0)]
+    while queue:
+        person_id, depth = queue.pop(0)
+        if depth_down is not None and depth >= depth_down:
+            continue
+        parent_ids = {person_id}
+        if spouse_of:
+            parent_ids.update(spouse_of.get(person_id, []))
+        child_ids = set()
+        for parent_id in parent_ids:
+            child_ids.update(parent_to_children.get(parent_id, []))
+        for child_id in sorted(child_ids):
+            if child_id not in included_ids:
+                included_ids.add(child_id)
+            if child_id not in seen_ids:
+                seen_ids.add(child_id)
+                queue.append((child_id, depth + 1))
+    return included_ids
+
+
+def _resolve_spouse_branch_id(focal_id, spouse_of, persons_by_id, spouse_hint_id=None):
+    spouse_ids = sorted(
+        {pid for pid in spouse_of.get(focal_id, []) if pid in persons_by_id},
+        key=lambda pid: _branch_person_sort_key(pid, persons_by_id),
+    )
+    if spouse_hint_id is not None and spouse_hint_id not in spouse_ids:
+        raise ValueError('spouse_id must belong to the selected focal person')
+    if spouse_hint_id is not None:
+        return spouse_hint_id
+    return spouse_ids[0] if spouse_ids else None
+
+
+def _build_family_branch_bundle(
+    family,
+    focal_id,
+    line='maternal',
+    mode='subtree',
+    include_spouses=True,
+    parent_hint_id=None,
+    depth_up=None,
+    depth_down=None,
+    spouse_hint_id=None,
+):
+    if line not in BRANCH_LINE_CHOICES:
+        raise ValueError('line must be maternal, paternal, person_side, or spouse_side')
+    if mode not in ['line', 'subtree']:
+        raise ValueError('mode must be line or subtree')
+
+    context = _build_branch_context(family)
+    persons_by_id = context['persons_by_id']
+    rels_qs = context['relationships']
+    child_to_parents = context['child_to_parents']
+    parent_to_children = context['parent_to_children']
+    spouse_links = context['spouse_links']
+    spouse_of = context['spouse_of']
+
+    if focal_id not in persons_by_id:
+        raise LookupError('person not found in this family')
+
+    branch_root_id = focal_id
+    selected_spouse_id = None
+
+    if line == 'maternal':
+        included_ids = _collect_gender_line_ids(
+            focal_id,
+            Person.Gender.FEMALE,
+            child_to_parents,
+            persons_by_id,
+            depth_up=depth_up,
+            parent_hint_id=parent_hint_id,
+        )
+    elif line == 'paternal':
+        included_ids = _collect_gender_line_ids(
+            focal_id,
+            Person.Gender.MALE,
+            child_to_parents,
+            persons_by_id,
+            depth_up=depth_up,
+            parent_hint_id=parent_hint_id,
+        )
+    else:
+        if line == 'spouse_side':
+            selected_spouse_id = _resolve_spouse_branch_id(
+                focal_id,
+                spouse_of,
+                persons_by_id,
+                spouse_hint_id=spouse_hint_id,
+            )
+            if not selected_spouse_id:
+                raise ValueError('selected person has no spouse in this tree')
+            branch_root_id = selected_spouse_id
+        included_ids = _collect_full_side_ids(
+            branch_root_id,
+            child_to_parents,
+            persons_by_id,
+            depth_up=depth_up,
+        )
+
+    if mode == 'subtree':
+        included_ids.update(
+            _collect_descendant_ids(
+                branch_root_id,
+                parent_to_children,
+                spouse_of=spouse_of,
+                depth_down=depth_down,
+            )
+        )
+
+    if include_spouses:
+        for person1_id, person2_id in spouse_links:
+            if person1_id in included_ids or person2_id in included_ids:
+                included_ids.add(person1_id)
+                included_ids.add(person2_id)
+
+    persons_out = [persons_by_id[pid] for pid in included_ids if pid in persons_by_id]
+    rels_out = [
+        rel for rel in rels_qs
+        if rel.person1_id in included_ids and rel.person2_id in included_ids
+    ]
+
+    return {
+        'persons': persons_out,
+        'relationships': rels_out,
+        'branch_root_id': branch_root_id,
+        'selected_spouse_id': selected_spouse_id,
+    }
+
+
+def _default_branch_space_name(line, request_user):
+    line_label = {
+        'maternal': 'Maternal',
+        'paternal': 'Paternal',
+        'person_side': 'Person Side',
+        'spouse_side': 'Spouse Side',
+    }.get(line, 'Branch')
+    display_name = request_user.get_full_name() or request_user.username
+    return f"{line_label} of {display_name}"
+
+
 class FamilyLineExportAPIView(APIView):
     """
-    Export a person's maternal or paternal line as a mini tree (JSON).
+    Export a person's branch as a mini tree (JSON).
 
-    GET /api/families/{family_id}/export/line/?person_id=123&line=maternal|paternal&mode=line|subtree&include_spouses=0|1&parent_hint_id=999&depth_up=3&depth_down=2
+    GET /api/families/{family_id}/export/line/?person_id=123&line=maternal|paternal|person_side|spouse_side&mode=line|subtree&include_spouses=0|1&parent_hint_id=999&spouse_id=555&depth_up=3&depth_down=2
 
-    - line: required, which side to follow (defaults to maternal).
+    - line: required, which branch rule to follow (defaults to maternal).
     - person_id: defaults to the caller's linked person (if set).
     - mode:
-        * line     -> just the direct line ancestors + focal person
-        * subtree  -> direct line ancestors + all descendants of the focal person
+        * line     -> just the direct ancestors + root person for the chosen branch
+        * subtree  -> chosen branch ancestors + all descendants of the branch root
                       (useful to seed a new space)
     - include_spouses: if truthy, adds spouses of included people to make cards coherent.
-    - parent_hint_id: optional disambiguator when multiple mothers/fathers exist; only applied to the first hop.
+    - parent_hint_id: optional disambiguator when multiple mothers/fathers exist; only applied to the first hop for maternal/paternal exports.
+    - spouse_id: optional spouse picker when exporting spouse_side.
     - depth_up: optional max generations up the chosen line (0 = only focal; default unlimited)
     - depth_down: optional max generations down (subtree mode only; default unlimited)
     """
@@ -512,117 +754,39 @@ class FamilyLineExportAPIView(APIView):
         person_id = request.query_params.get('person_id')
         if not person_id:
             person_id = membership.linked_person_id
-        try:
-            focal_id = int(person_id)
-        except (TypeError, ValueError):
+        focal_id = _branch_to_int(person_id)
+        if not focal_id:
             return Response({'detail': 'person_id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         line = (request.query_params.get('line') or 'maternal').lower()
-        if line not in ['maternal', 'paternal']:
-            return Response({'detail': 'line must be maternal or paternal'}, status=status.HTTP_400_BAD_REQUEST)
-        target_gender = Person.Gender.FEMALE if line == 'maternal' else Person.Gender.MALE
-
         mode = (request.query_params.get('mode') or 'subtree').lower()
-        if mode not in ['line', 'subtree']:
-            return Response({'detail': 'mode must be line or subtree'}, status=status.HTTP_400_BAD_REQUEST)
-
         include_spouses = (request.query_params.get('include_spouses') or '1') not in ['0', 'false', 'False']
-        depth_up = request.query_params.get('depth_up')
-        depth_down = request.query_params.get('depth_down')
+        depth_up = _branch_to_int(request.query_params.get('depth_up'))
+        depth_down = _branch_to_int(request.query_params.get('depth_down'))
+        parent_hint_id = _branch_to_int(request.query_params.get('parent_hint_id'))
+        spouse_hint_id = _branch_to_int(request.query_params.get('spouse_id'))
+
         try:
-            depth_up = int(depth_up) if depth_up is not None else None
-        except (TypeError, ValueError):
-            depth_up = None
-        try:
-            depth_down = int(depth_down) if depth_down is not None else None
-        except (TypeError, ValueError):
-            depth_down = None
-
-        persons_qs = Person.objects.filter(family=family, is_deleted=False)
-        persons_by_id = {p.id: p for p in persons_qs}
-        if focal_id not in persons_by_id:
-            return Response({'detail': 'person not found in this family'}, status=status.HTTP_404_NOT_FOUND)
-
-        rels_qs = Relationship.objects.filter(
-            family=family,
-            is_deleted=False,
-            relationship_type__in=[Relationship.Type.PARENT_CHILD, Relationship.Type.SPOUSE]
-        ).select_related('person1', 'person2')
-
-        child_to_parents = {}
-        parent_to_children = {}
-        for r in rels_qs:
-            if r.relationship_type == Relationship.Type.PARENT_CHILD:
-                child_to_parents.setdefault(r.person2_id, []).append(r.person1_id)
-                parent_to_children.setdefault(r.person1_id, []).append(r.person2_id)
-
-        # Optional parent hint for the first hop (helps when multiple mothers/fathers exist)
-        parent_hint_id = request.query_params.get('parent_hint_id')
-        try:
-            parent_hint_id = int(parent_hint_id) if parent_hint_id is not None else None
-        except (TypeError, ValueError):
-            parent_hint_id = None
-
-        # Build the straight maternal/paternal line (ancestors of chosen gender)
-        line_ids = []
-        current = focal_id
-        line_ids.append(current)
-        while True:
-            parents = child_to_parents.get(current, [])
-            gender_matches = [pid for pid in parents if (pid in persons_by_id and persons_by_id[pid].gender == target_gender)]
-
-            if parent_hint_id and current == focal_id and parent_hint_id in gender_matches:
-                next_parent = parent_hint_id
-            else:
-                def sort_key(pid):
-                    p = persons_by_id.get(pid)
-                    byear = p.birth_date.year if (p and p.birth_date) else 9999
-                    return (byear, pid)
-                gender_matches = sorted(gender_matches, key=sort_key)
-                next_parent = gender_matches[0] if gender_matches else None
-
-            if not next_parent:
-                break
-            if next_parent in line_ids:
-                break  # avoid cycles
-            if depth_up is not None and len(line_ids) - 1 >= depth_up:
-                break
-            line_ids.append(next_parent)
-            current = next_parent
-
-        included_ids = set(line_ids)
-
-        # Optionally add descendants of the focal person (full subtree)
-        if mode == 'subtree':
-            queue = [(focal_id, 0)]
-            while queue:
-                pid, d = queue.pop(0)
-                if depth_down is not None and d >= depth_down:
-                    continue
-                for child_id in parent_to_children.get(pid, []):
-                    if child_id not in included_ids:
-                        included_ids.add(child_id)
-                    queue.append((child_id, d + 1))
-
-        # Optionally bring in spouses of anyone included to keep cards coherent
-        if include_spouses:
-            for r in rels_qs:
-                if r.relationship_type != Relationship.Type.SPOUSE:
-                    continue
-                if r.person1_id in included_ids or r.person2_id in included_ids:
-                    included_ids.add(r.person1_id)
-                    included_ids.add(r.person2_id)
-
-        persons_out = [persons_by_id[pid] for pid in included_ids if pid in persons_by_id]
-        rels_out = [
-            r for r in rels_qs
-            if r.person1_id in included_ids and r.person2_id in included_ids
-        ]
+            bundle = _build_family_branch_bundle(
+                family,
+                focal_id,
+                line=line,
+                mode=mode,
+                include_spouses=include_spouses,
+                parent_hint_id=parent_hint_id,
+                depth_up=depth_up,
+                depth_down=depth_down,
+                spouse_hint_id=spouse_hint_id,
+            )
+        except LookupError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         data = FamilyTreeSerializer(
             instance={
-                'persons': persons_out,
-                'relationships': rels_out,
+                'persons': bundle['persons'],
+                'relationships': bundle['relationships'],
             },
             context={'request': request},
         ).data
@@ -630,6 +794,8 @@ class FamilyLineExportAPIView(APIView):
         return Response({
             'family_id': family_id,
             'focal_person_id': focal_id,
+            'branch_root_id': bundle['branch_root_id'],
+            'selected_spouse_id': bundle['selected_spouse_id'],
             'line': line,
             'mode': mode,
             'include_spouses': include_spouses,
@@ -641,17 +807,18 @@ class FamilyLineExportAPIView(APIView):
 
 class FamilyLineCreateSpaceAPIView(APIView):
     """
-    Create a new FamilySpace seeded from a maternal/paternal line export.
+    Create a new FamilySpace seeded from a filtered branch export.
 
     POST /api/families/{family_id}/export/line/create-space/
     Body (JSON):
       {
         "name": "Smith Maternal Line",
-        "description": "Branch seeded from Alice (maternal)",
+        "description": "Branch seeded from Alice",
         "person_id": 123,
-        "line": "maternal|paternal",
+        "line": "maternal|paternal|person_side|spouse_side",
         "mode": "line|subtree",
         "include_spouses": true,
+        "spouse_id": 555,
         "parent_hint_id": 999,
         "depth_up": 3,
         "depth_down": 2
@@ -659,7 +826,8 @@ class FamilyLineCreateSpaceAPIView(APIView):
 
     Only OWNER/ADMIN/EDITOR can create the new space. The caller is added as OWNER
     of the new space. Persons and relationships in the filtered set are copied
-    into the new FamilySpace, preserving linked_user and photos.
+    into the new FamilySpace, preserving photos and linking the new membership
+    back to the copied focal person when possible.
     """
     permission_classes = [permissions.IsAuthenticated, IsFamilyMember]
 
@@ -682,92 +850,36 @@ class FamilyLineCreateSpaceAPIView(APIView):
         depth_up = data.get('depth_up') or q.get('depth_up')
         depth_down = data.get('depth_down') or q.get('depth_down')
 
-        def to_int(val):
-            try:
-                return int(val)
-            except (TypeError, ValueError):
-                return None
-
-        focal_id = to_int(person_id)
+        focal_id = _branch_to_int(person_id)
         if not focal_id:
             return Response({'detail': 'person_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-        if line not in ['maternal', 'paternal']:
-            return Response({'detail': 'line must be maternal or paternal'}, status=status.HTTP_400_BAD_REQUEST)
-        if mode not in ['line', 'subtree']:
-            return Response({'detail': 'mode must be line or subtree'}, status=status.HTTP_400_BAD_REQUEST)
         include_spouses = (str(include_spouses) or '1') not in ['0', 'false', 'False']
-        depth_up = to_int(depth_up)
-        depth_down = to_int(depth_down)
-        parent_hint_id = to_int(parent_hint_id)
-        target_gender = Person.Gender.FEMALE if line == 'maternal' else Person.Gender.MALE
+        depth_up = _branch_to_int(depth_up)
+        depth_down = _branch_to_int(depth_down)
+        parent_hint_id = _branch_to_int(parent_hint_id)
+        spouse_hint_id = _branch_to_int(data.get('spouse_id') or q.get('spouse_id'))
 
-        persons_qs = Person.objects.filter(family=family, is_deleted=False)
-        persons_by_id = {p.id: p for p in persons_qs}
-        if focal_id not in persons_by_id:
-            return Response({'detail': 'person not found in this family'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            bundle = _build_family_branch_bundle(
+                family,
+                focal_id,
+                line=line,
+                mode=mode,
+                include_spouses=include_spouses,
+                parent_hint_id=parent_hint_id,
+                depth_up=depth_up,
+                depth_down=depth_down,
+                spouse_hint_id=spouse_hint_id,
+            )
+        except LookupError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        rels_qs = Relationship.objects.filter(
-            family=family,
-            is_deleted=False,
-            relationship_type__in=[Relationship.Type.PARENT_CHILD, Relationship.Type.SPOUSE]
-        ).select_related('person1', 'person2')
+        persons_to_copy = bundle['persons']
+        rels_to_copy = bundle['relationships']
 
-        child_to_parents = {}
-        parent_to_children = {}
-        spouse_links = []
-        for r in rels_qs:
-            if r.relationship_type == Relationship.Type.PARENT_CHILD:
-                child_to_parents.setdefault(r.person2_id, []).append(r.person1_id)
-                parent_to_children.setdefault(r.person1_id, []).append(r.person2_id)
-            elif r.relationship_type == Relationship.Type.SPOUSE:
-                spouse_links.append((r.person1_id, r.person2_id))
-
-        line_ids = [focal_id]
-        current = focal_id
-        while True:
-            parents = child_to_parents.get(current, [])
-            gender_matches = [pid for pid in parents if pid in persons_by_id and persons_by_id[pid].gender == target_gender]
-            if parent_hint_id and current == focal_id and parent_hint_id in gender_matches:
-                next_parent = parent_hint_id
-            else:
-                def sort_key(pid):
-                    p = persons_by_id.get(pid)
-                    byear = p.birth_date.year if (p and p.birth_date) else 9999
-                    return (byear, pid)
-                gender_matches = sorted(gender_matches, key=sort_key)
-                next_parent = gender_matches[0] if gender_matches else None
-            if not next_parent:
-                break
-            if next_parent in line_ids:
-                break
-            if depth_up is not None and len(line_ids) - 1 >= depth_up:
-                break
-            line_ids.append(next_parent)
-            current = next_parent
-
-        included_ids = set(line_ids)
-
-        if mode == 'subtree':
-            queue = [(focal_id, 0)]
-            while queue:
-                pid, d = queue.pop(0)
-                if depth_down is not None and d >= depth_down:
-                    continue
-                for child_id in parent_to_children.get(pid, []):
-                    if child_id not in included_ids:
-                        included_ids.add(child_id)
-                    queue.append((child_id, d + 1))
-
-        if include_spouses:
-            for a, b in spouse_links:
-                if a in included_ids or b in included_ids:
-                    included_ids.add(a)
-                    included_ids.add(b)
-
-        persons_to_copy = [persons_by_id[pid] for pid in included_ids if pid in persons_by_id]
-        rels_to_copy = [r for r in rels_qs if r.person1_id in included_ids and r.person2_id in included_ids]
-
-        new_name = data.get('name') or f"{line.title()} line of {request.user.get_full_name() or request.user.username}"
+        new_name = data.get('name') or _default_branch_space_name(line, request.user)
         new_description = data.get('description', '')
         new_family = FamilySpace.objects.create(
             name=new_name[:120],
@@ -779,6 +891,7 @@ class FamilyLineCreateSpaceAPIView(APIView):
             user=request.user,
             role=Membership.Role.OWNER,
         )
+        new_membership = Membership.objects.get(family=new_family, user=request.user)
 
         id_map = {}
         for src in persons_to_copy:
@@ -796,11 +909,14 @@ class FamilyLineCreateSpaceAPIView(APIView):
                 death_place=src.death_place,
                 bio=src.bio,
                 photo=src.photo,
-                linked_user=src.linked_user,
+                linked_user=None,
                 is_private=src.is_private,
                 created_by=request.user,
             )
             id_map[src.id] = new_person
+
+            if src.linked_user_id == request.user.id and not new_membership.linked_person_id:
+                new_membership.linked_person = new_person
 
         for r in rels_to_copy:
             p1 = id_map.get(r.person1_id)
@@ -817,9 +933,13 @@ class FamilyLineCreateSpaceAPIView(APIView):
                 notes=r.notes,
             )
 
+        if new_membership.linked_person_id:
+            new_membership.save(update_fields=["linked_person"])
+
         return Response({
             'detail': 'Family space created',
             'new_family_id': new_family.id,
+            'new_family_url': reverse("families:family_detail", kwargs={"family_id": new_family.id}),
             'persons_copied': len(id_map),
             'relationships_copied': Relationship.objects.filter(family=new_family).count()
         }, status=status.HTTP_201_CREATED)

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ prayer.title }}{% if family %} - {{ family.name }}{% endif %}{% endblock %}
+{% block title %}{{ prayer.title }}{% if family %} - {{ family.name }}{% endif %}{% endblock title %}
 
 {% block content %}
 <div class="container py-4">
@@ -77,12 +77,12 @@
                 {% else %}
                 <i class="bi bi-person"></i> {{ prayer.author.get_full_name|default:prayer.author.username }}
                 {% endif %}
-                &bull; {{ prayer.created_at|timesince }} ago
+                • {{ prayer.created_at|timesince }} ago
                 {% if prayer.updated_at != prayer.created_at %}
-                &bull; <em>edited</em>
+                • <em>edited</em>
                 {% endif %}
             </p>
-            <div class="card-text" style="white-space: pre-wrap;">{{ prayer.content }}</div>
+            <div class="card-text pre-wrap">{{ prayer.content }}</div>
         </div>
         <div class="card-footer">
             <div class="d-flex justify-content-between align-items-center">
@@ -116,7 +116,7 @@
             <h5 class="mb-0"><i class="bi bi-star-fill"></i> Testimony - Prayer Answered!</h5>
         </div>
         <div class="card-body">
-            <div style="white-space: pre-wrap;">{{ testimony.content }}</div>
+            <div class="pre-wrap">{{ testimony.content }}</div>
             <p class="text-muted small mt-3 mb-0">
                 Shared {{ testimony.created_at|timesince }} ago
             </p>
@@ -165,7 +165,7 @@
                 {% for reply in replies %}
                 <div class="d-flex mb-3">
                     <div class="flex-shrink-0">
-                        <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                        <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center avatar-sm">
                             {% if reply.is_anonymous %}
                             <i class="bi bi-incognito"></i>
                             {% else %}
@@ -192,7 +192,7 @@
                                 </form>
                                 {% endif %}
                             </div>
-                            <div style="white-space: pre-wrap;">{{ reply.content }}</div>
+                            <div class="pre-wrap">{{ reply.content }}</div>
                             <small class="text-muted">{{ reply.created_at|timesince }} ago</small>
                         </div>
                     </div>
@@ -201,11 +201,11 @@
             </div>
             {% else %}
             <p class="text-muted text-center py-4">
-                <i class="bi bi-chat-dots" style="font-size: 2rem;"></i><br>
+                <i class="bi bi-chat-dots fs-1"></i><br>
                 No messages yet. Be the first to offer encouragement!
             </p>
             {% endif %}
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}

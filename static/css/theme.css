@@ -2604,3 +2604,36 @@ main {
   pointer-events: none;
   transform: translateX(6px);
 }
+
+/* =============================================================================
+   Utility Classes for Templates
+   ============================================================================= */
+
+/* Pre-wrap text */
+.pre-wrap {
+  white-space: pre-wrap;
+}
+
+/* Avatar sizes */
+.avatar-sm {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+}
+
+.avatar-md {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+}
+
+.avatar-lg {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+}
+
+/* Font size utilities beyond Bootstrap */
+.fs-1 { font-size: 2rem !important; }
+.fs-2 { font-size: 1.75rem !important; }
+.fs-4 { font-size: 1.5rem !important; }

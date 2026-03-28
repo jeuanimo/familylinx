@@ -34,7 +34,9 @@
         <div class="card-body">
           <div class="flex-between" style="gap: 0.75rem; align-items: center;">
             <div>
-              <h3 style="margin: 0;">{{ milestone.title }}</h3>
+              <h3 style="margin: 0;">
+                <a href="{% url 'families:milestone_detail' family_id=family.id milestone_id=milestone.id %}">{{ milestone.title }}</a>
+              </h3>
               <small class="muted">{{ milestone.date|date:"M j, Y" }}</small>
               {% if milestone.person %}<div class="muted"><i class="bi bi-person"></i> {{ milestone.person.full_name }}</div>{% endif %}
               {% if milestone.event %}<div class="muted"><i class="bi bi-calendar-event"></i> {{ milestone.event.title }}</div>{% endif %}
@@ -50,8 +52,13 @@
           {% endif %}
           {% if membership.role != 'VIEWER' %}
           <div class="flex" style="gap: 0.5rem;">
+            <a href="{% url 'families:milestone_detail' family_id=family.id milestone_id=milestone.id %}" class="btn btn-outline btn-sm">View</a>
             <a href="{% url 'families:milestone_edit' family_id=family.id milestone_id=milestone.id %}" class="btn btn-outline btn-sm">Edit</a>
             <a href="{% url 'families:milestone_delete' family_id=family.id milestone_id=milestone.id %}" class="btn btn-outline btn-sm danger">Delete</a>
+          </div>
+          {% else %}
+          <div class="flex" style="gap: 0.5rem;">
+            <a href="{% url 'families:milestone_detail' family_id=family.id milestone_id=milestone.id %}" class="btn btn-outline btn-sm">View</a>
           </div>
           {% endif %}
         </div>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Add Relationship – {{ person.full_name }} | FamilyLinx{% endblock %}
+{% block title %}{{ mode|default:"add"|title }} Relationship – {{ person.full_name }} | FamilyLinx{% endblock %}
 
 {% block content %}
 <main>
@@ -16,15 +16,16 @@
       <span class="separator">/</span>
       <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}">{{ person.full_name }}</a>
       <span class="separator">/</span>
-      <span class="current">Add Relationship</span>
+      <span class="current">{{ mode|default:"add"|title }} Relationship</span>
     </nav>
     
     <div class="form-page">
       <div class="card">
         <div class="card-header">
-          <span class="card-title"><i class="bi bi-diagram-3"></i> Add Relationship for {{ person.full_name }}</span>
+          <span class="card-title"><i class="bi bi-diagram-3"></i> {{ mode|default:"add"|title }} Relationship for {{ person.full_name }}</span>
         </div>
         <div class="card-body">
+          {% if mode|default:"add" == "add" %}
           <div class="alert alert-info" style="margin-bottom: 1.5rem;">
             <strong>Relationship Direction:</strong>
             <ul style="margin: 0.5rem 0 0 1.5rem;">
@@ -35,9 +36,15 @@
             </ul>
             <small class="muted">To add {{ person.first_name }} as a child/descendant, go to the ancestor's profile and add the relationship there.</small>
           </div>
+          {% else %}
+          <div class="alert alert-info" style="margin-bottom: 1.5rem;">
+            Update the relationship details below. This is especially useful for correcting imported marriage dates, notes, or linked people from GEDCOM data.
+          </div>
+          {% endif %}
           
           <form method="post">
             {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next_url }}">
             
             <div class="form-group">
               <label class="form-label required">{{ form.relationship_type.label }}</label>
@@ -73,9 +80,9 @@
             </div>
             
             <div class="form-actions">
-              <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" class="btn btn-outline">Cancel</a>
+              <a href="{{ next_url }}" class="btn btn-outline">Cancel</a>
               <button type="submit" class="btn btn-primary">
-                <i class="bi bi-link"></i> Add Relationship
+                <i class="bi bi-link"></i> {% if mode|default:"add" == "edit" %}Save Changes{% else %}Add Relationship{% endif %}
               </button>
             </div>
           </form>

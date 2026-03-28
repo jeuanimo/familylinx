@@ -23,7 +23,8 @@
         <p>Are you sure you want to delete "<strong>{{ milestone.title }}</strong>"?</p>
         <form method="post">
           {% csrf_token %}
-          <a href="{% url 'families:milestone_list' family_id=family.id %}" class="btn btn-outline">Cancel</a>
+          <input type="hidden" name="next" value="{{ next_url }}">
+          <a href="{{ next_url }}" class="btn btn-outline">Cancel</a>
           <button type="submit" class="btn btn-danger">Delete</button>
         </form>
       </div>

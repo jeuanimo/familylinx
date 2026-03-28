@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}{{ milestone.title }} – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:milestone_list' family_id=family.id %}">Milestones</a>
+      <span class="separator">/</span>
+      <span class="current">{{ milestone.title }}</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-stars"></i> {{ milestone.title }}</h1>
+        <p class="muted mb-0">A saved family milestone card with its full details.</p>
+      </div>
+      <div class="page-actions">
+        <span class="badge badge-blue">{{ milestone.date|date:"F j, Y" }}</span>
+        {% if membership.role != 'VIEWER' %}
+        <a href="{% url 'families:milestone_edit' family_id=family.id milestone_id=milestone.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-outline btn-sm">
+          <i class="bi bi-pencil"></i> Edit
+        </a>
+        <a href="{% url 'families:milestone_delete' family_id=family.id milestone_id=milestone.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-outline btn-sm">
+          <i class="bi bi-trash"></i> Delete
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="grid-2 grid-2-1">
+      <div class="stack-lg">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-card-text"></i> Milestone Card</span>
+          </div>
+          <div class="card-body">
+            {% if milestone.description %}
+            <div>{{ milestone.description|linebreaks }}</div>
+            {% else %}
+            <p class="muted mb-0">No description has been added for this milestone yet.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if milestone.image %}
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-image"></i> Milestone Photo</span>
+          </div>
+          <div class="card-body">
+            <img
+              src="{{ milestone.image.url }}"
+              alt="{{ milestone.title }}"
+              style="width: 100%; max-height: 420px; object-fit: cover; border-radius: var(--fl-radius);"
+            >
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="stack-lg">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-info-circle"></i> Details</span>
+          </div>
+          <div class="card-body">
+            <div class="flex-between mb-2">
+              <span class="muted">Date</span>
+              <strong>{{ milestone.date|date:"F j, Y" }}</strong>
+            </div>
+            <div class="flex-between mb-2">
+              <span class="muted">Created By</span>
+              <strong>{{ milestone.created_by.email|default:"Unknown" }}</strong>
+            </div>
+            <div class="flex-between">
+              <span class="muted">Last Updated</span>
+              <strong>{{ milestone.updated_at|date:"M j, Y g:i A" }}</strong>
+            </div>
+          </div>
+        </div>
+
+        {% if milestone.person or milestone.event %}
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-link-45deg"></i> Linked Records</span>
+          </div>
+          <div class="card-body">
+            {% if milestone.person %}
+            <p class="mb-2">
+              <strong>Person:</strong>
+              <a href="{% url 'families:person_detail' family_id=family.id person_id=milestone.person.id %}">
+                {{ milestone.person.full_name }}
+              </a>
+            </p>
+            {% endif %}
+            {% if milestone.event %}
+            <p class="mb-0">
+              <strong>Event:</strong>
+              <a href="{% url 'families:event_detail' family_id=family.id event_id=milestone.event.id %}">
+                {{ milestone.event.title }}
+              </a>
+            </p>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="bi bi-arrow-left-right"></i> Next Step</span>
+          </div>
+          <div class="card-body">
+            <div class="page-actions">
+              <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline">
+                <i class="bi bi-people"></i> Back to Family
+              </a>
+              <a href="{% url 'families:milestone_list' family_id=family.id %}" class="btn btn-primary">
+                <i class="bi bi-stars"></i> All Milestones
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

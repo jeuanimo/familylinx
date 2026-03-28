@@ -103,32 +103,36 @@
           <div class="link-card confirmed">
             <div class="link-content">
               <div class="link-persons">
-                {% if link.person1.family == family %}
-                <a href="{% url 'families:person_detail' family_id=family.id person_id=link.person1.id %}" class="link-person-link">
-                  <strong>{{ link.person1.full_name }}</strong>
+                <a href="{% url 'families:person_detail' family_id=family.id person_id=link.current_person.id %}" class="link-person-link">
+                  <strong>{{ link.current_person.full_name }}</strong>
                   <div class="muted">{{ family.name }}</div>
                 </a>
                 <div class="link-arrow"><i class="bi bi-link-45deg"></i></div>
                 <div class="link-person">
-                  <strong>{{ link.person2.full_name }}</strong>
-                  <div class="muted">{{ link.person2.family.name }}</div>
+                  <strong>{{ link.other_person.full_name }}</strong>
+                  <div class="muted">{{ link.other_person.family.name }}</div>
                 </div>
-                {% else %}
-                <a href="{% url 'families:person_detail' family_id=family.id person_id=link.person2.id %}" class="link-person-link">
-                  <strong>{{ link.person2.full_name }}</strong>
-                  <div class="muted">{{ family.name }}</div>
-                </a>
-                <div class="link-arrow"><i class="bi bi-link-45deg"></i></div>
-                <div class="link-person">
-                  <strong>{{ link.person1.full_name }}</strong>
-                  <div class="muted">{{ link.person1.family.name }}</div>
-                </div>
-                {% endif %}
               </div>
               <div class="link-meta">
                 <span class="badge badge-green">Confirmed</span>
                 <span class="badge badge-blue">{{ link.confidence_score|floatformat:0 }}% match</span>
+                {% if link.difference_count %}
+                <span class="badge badge-gold">{{ link.difference_count }} field{{ link.difference_count|pluralize }} differ</span>
+                {% else %}
+                <span class="badge badge-green">No profile differences</span>
+                {% endif %}
               </div>
+            </div>
+            <div class="link-actions">
+              {% if membership.role == 'VIEWER' %}
+              <span class="muted">Editor access required</span>
+              {% elif link.review_available %}
+              <a href="{% url 'families:tree_link_review' family_id=family.id link_id=link.id %}" class="btn btn-outline btn-sm">
+                <i class="bi bi-arrow-repeat"></i> Review Changes
+              </a>
+              {% else %}
+              <span class="muted">Join both trees to review details</span>
+              {% endif %}
             </div>
           </div>
           {% endfor %}

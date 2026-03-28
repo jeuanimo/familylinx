@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{% if mode == 'mark_answered' %}Prayer Answered{% else %}Edit Testimony{% endif %}{% if family %} - {{ family.name }}{% endif %}{% endblock %}
+{% block title %}{% if mode == 'mark_answered' %}Prayer Answered{% else %}Edit Testimony{% endif %}{% if family %} - {{ family.name }}{% endif %}{% endblock title %}
 
 {% block content %}
 <div class="container py-4">
@@ -65,4 +65,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}

@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block title %}Review Linked Updates – {{ current_person.full_name }} | FamilyLinx{% endblock title %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:tree_link_list' family_id=family.id %}">Cross-Family Links</a>
+      <span class="separator">/</span>
+      <span class="current">Review Changes</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-arrow-repeat"></i> Review Linked Relative Updates</h1>
+        <p class="muted">
+          Compare {{ current_person.full_name }} in <strong>{{ family.name }}</strong> with the linked record in
+          <strong>{{ other_person.family.name }}</strong>, then copy only the fields you trust.
+        </p>
+      </div>
+      <div class="page-actions">
+        <a href="{{ current_person_url }}" class="btn btn-outline">View This Record</a>
+        <a href="{{ other_person_url }}" class="btn btn-outline">View Linked Record</a>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="sync-summary">
+          <div class="sync-summary-card">
+            <div class="sync-summary-label">This Tree</div>
+            <strong>{{ current_person.full_name }}</strong>
+            <div class="muted">{{ family.name }}</div>
+            <div class="muted">Updated {{ current_person.updated_at|date:"M j, Y g:i a" }}</div>
+          </div>
+          <div class="sync-summary-card">
+            <div class="sync-summary-label">Linked Tree</div>
+            <strong>{{ other_person.full_name }}</strong>
+            <div class="muted">{{ other_person.family.name }}</div>
+            <div class="muted">Updated {{ other_person.updated_at|date:"M j, Y g:i a" }}</div>
+          </div>
+        </div>
+        <p class="muted sync-note">
+          This review copies profile fields into <strong>{{ family.name }}</strong> only. Photos and family relationships still need to be reviewed separately.
+        </p>
+      </div>
+    </div>
+
+    {% if diff_rows %}
+    <form method="post" class="card">
+      {% csrf_token %}
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-list-check"></i> Field Differences ({{ diff_rows|length }})</span>
+      </div>
+      <div class="card-body">
+        <div class="sync-toolbar">
+          <p class="muted mb-0">Select the changes you want to copy from {{ other_person.family.name }} into this tree.</p>
+          <div class="sync-toolbar-actions">
+            <button type="button" class="btn btn-outline btn-sm" id="selectAllFields">Select All</button>
+            <button type="button" class="btn btn-outline btn-sm" id="clearAllFields">Clear</button>
+          </div>
+        </div>
+
+        <div class="sync-diff-list">
+          {% for row in diff_rows %}
+          <label class="sync-diff-row">
+            <div class="sync-check">
+              <input type="checkbox" name="fields" value="{{ row.field }}">
+            </div>
+            <div class="sync-diff-body">
+              <div class="sync-diff-header">
+                <strong>{{ row.label }}</strong>
+              </div>
+              <div class="sync-diff-columns">
+                <div class="sync-diff-column">
+                  <span class="sync-column-label">This tree</span>
+                  <div class="sync-value">{{ row.current_display|linebreaksbr }}</div>
+                </div>
+                <div class="sync-diff-column sync-diff-column-new">
+                  <span class="sync-column-label">{{ other_person.family.name }}</span>
+                  <div class="sync-value">{{ row.other_display|linebreaksbr }}</div>
+                </div>
+              </div>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card-body sync-footer">
+        <a href="{% url 'families:tree_link_list' family_id=family.id %}" class="btn btn-outline">Back to Links</a>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-download"></i> Apply Selected Changes
+        </button>
+      </div>
+    </form>
+    {% else %}
+    <div class="card">
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon"><i class="bi bi-check-circle"></i></div>
+          <h3>No Profile Differences Right Now</h3>
+          <p class="muted">
+            These linked records already match for the profile fields reviewed on this page.
+          </p>
+          <a href="{% url 'families:tree_link_list' family_id=family.id %}" class="btn btn-outline">Back to Links</a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+
+<style>
+.sync-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.sync-summary-card {
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius);
+  background: var(--fl-surface);
+  padding: 1rem;
+}
+
+.sync-summary-label,
+.sync-column-label {
+  display: inline-flex;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fl-muted);
+}
+
+.sync-note {
+  margin-top: 1rem;
+}
+
+.sync-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.sync-toolbar-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sync-diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sync-diff-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  align-items: start;
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius);
+  background: var(--fl-surface);
+  padding: 1rem;
+  cursor: pointer;
+}
+
+.sync-check {
+  padding-top: 0.25rem;
+}
+
+.sync-check input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.sync-diff-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.sync-diff-column {
+  border-radius: var(--fl-radius-sm);
+  background: var(--fl-bg);
+  padding: 0.875rem;
+}
+
+.sync-diff-column-new {
+  border-left: 4px solid var(--fl-blue);
+}
+
+.sync-value {
+  color: var(--fl-text);
+  word-break: break-word;
+}
+
+.sync-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+@media (max-width: 700px) {
+  .sync-toolbar,
+  .sync-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+[data-theme="dark"] .sync-summary-card,
+[data-theme="dark"] .sync-diff-row {
+  background: #1e293b;
+}
+
+[data-theme="dark"] .sync-diff-column {
+  background: #0f172a;
+}
+</style>
+
+{% if diff_rows %}
+<script>
+const syncFieldInputs = Array.from(document.querySelectorAll('input[name="fields"]'));
+
+document.getElementById('selectAllFields')?.addEventListener('click', () => {
+  syncFieldInputs.forEach(input => {
+    input.checked = true;
+  });
+});
+
+document.getElementById('clearAllFields')?.addEventListener('click', () => {
+  syncFieldInputs.forEach(input => {
+    input.checked = false;
+  });
+});
+</script>
+{% endif %}
+{% endblock content %}

@@ -155,6 +155,7 @@ urlpatterns = [
     
     # Relationship management
     path("<int:family_id>/people/<int:person_id>/relationships/add/", views.relationship_add, name="relationship_add"),
+    path("<int:family_id>/relationships/<int:relationship_id>/edit/", views.relationship_edit, name="relationship_edit"),
     path("<int:family_id>/relationships/<int:relationship_id>/delete/", views.relationship_delete, name="relationship_delete"),
     
     # ==========================================================================
@@ -275,6 +276,7 @@ urlpatterns = [
     # Milestones
     path("<int:family_id>/milestones/", views.milestone_list, name="milestone_list"),
     path("<int:family_id>/milestones/new/", views.milestone_create, name="milestone_create"),
+    path("<int:family_id>/milestones/<int:milestone_id>/", views.milestone_detail, name="milestone_detail"),
     path("<int:family_id>/milestones/<int:milestone_id>/edit/", views.milestone_edit, name="milestone_edit"),
     path("<int:family_id>/milestones/<int:milestone_id>/delete/", views.milestone_delete, name="milestone_delete"),
     
@@ -308,6 +310,7 @@ urlpatterns = [
     
     # Manage links
     path("<int:family_id>/tree-link/links/", views.tree_link_list, name="tree_link_list"),
+    path("<int:family_id>/tree-link/links/<int:link_id>/review/", views.tree_link_review, name="tree_link_review"),
     path("<int:family_id>/tree-link/propose/", views.tree_link_propose, name="tree_link_propose"),
     path("<int:family_id>/tree-link/confirm/<int:link_id>/", views.tree_link_confirm, name="tree_link_confirm"),
     path("<int:family_id>/tree-link/reject/<int:link_id>/", views.tree_link_reject, name="tree_link_reject"),

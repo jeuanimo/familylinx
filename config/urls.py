@@ -37,6 +37,7 @@ from . import views
 urlpatterns = [
     # Home / Dashboard - shows landing page or dashboard based on auth
     path("", views.home, name="home"),
+    path("gods-word-of-the-day/", views.gods_word_of_day, name="gods_word_of_day"),
     
     # Django Admin - staff/superuser only
     path("admin/", admin.site.urls),
