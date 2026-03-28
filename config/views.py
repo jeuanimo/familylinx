@@ -2,11 +2,46 @@
 Core Views
 
 This module contains core views for the FamilyLinx application that don't
-belong to any specific app (e.g., home page, landing page).
+belong to any specific app (e.g., home page, landing page, contact page).
 """
 
 import requests
-from django.shortcuts import render
+from django import forms
+from django.core.mail import send_mail
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.conf import settings
+
+
+class ContactForm(forms.Form):
+    """Contact form for user inquiries."""
+    name = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Your name'
+        })
+    )
+    email = forms.EmailField(
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'your@email.com'
+        })
+    )
+    subject = forms.CharField(
+        max_length=200,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Subject'
+        })
+    )
+    message = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'placeholder': 'Your message...',
+            'rows': 5
+        })
+    )
 
 VERSE_OF_THE_DAY_URL = "https://beta.ourmanna.com/api/v1/get?format=json&order=daily"
 FALLBACK_VERSE = {
@@ -86,3 +121,55 @@ def gods_word_of_day(request):
     Public page that highlights the current verse of the day.
     """
     return render(request, "gods_word_of_day.html", get_word_of_the_day())
+
+
+CONTACT_EMAIL = "contact@fam-linx.org"
+
+
+def contact(request):
+    """
+    Contact page with form to send messages to the FamilyLinx team.
+    """
+    if request.method == 'POST':
+        form = ContactForm(request.POST)
+        if form.is_valid():
+            name = form.cleaned_data['name']
+            email = form.cleaned_data['email']
+            subject = form.cleaned_data['subject']
+            message = form.cleaned_data['message']
+            
+            # Compose email
+            full_message = f"From: {name} <{email}>\n\n{message}"
+            
+            try:
+                send_mail(
+                    subject=f"[FamilyLinx Contact] {subject}",
+                    message=full_message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[CONTACT_EMAIL],
+                    fail_silently=False,
+                )
+                messages.success(
+                    request, 
+                    "Thank you for your message! We'll get back to you soon."
+                )
+                return redirect('contact')
+            except Exception:
+                messages.error(
+                    request,
+                    "Sorry, there was an error sending your message. "
+                    "Please try again or email us directly at contact@fam-linx.org"
+                )
+    else:
+        # Pre-fill form for authenticated users
+        initial = {}
+        if request.user.is_authenticated:
+            initial['email'] = request.user.email
+            if hasattr(request.user, 'profile'):
+                initial['name'] = request.user.profile.get_display_name()
+        form = ContactForm(initial=initial)
+    
+    return render(request, "contact.html", {
+        'form': form,
+        'contact_email': CONTACT_EMAIL,
+    })
