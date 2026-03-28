@@ -6616,7 +6616,6 @@ def tree_link_list(request, family_id):
     })
 
 
-@login_required
 def _apply_link_field_updates(current_person, diff_rows, selected_fields):
     """
     Apply selected field updates from diff_rows to current_person.
@@ -6639,6 +6638,7 @@ def _apply_link_field_updates(current_person, diff_rows, selected_fields):
     return applied_count
 
 
+@login_required
 def tree_link_review(request, family_id, link_id):
     """
     Review and manually apply profile-field updates from a confirmed linked person.

@@ -581,7 +581,7 @@ def _collect_full_side_ids(root_id, child_to_parents, persons_by_id, depth_up=No
     return included_ids
 
 
-def _collect_descendant_ids(root_id, parent_to_children, spouse_of=None, depth_down=None):
+def _collect_descendant_ids(root_id, parent_to_children, child_to_parents, spouse_of=None, depth_down=None):
     included_ids = set()
     seen_ids = {root_id}
     queue = [(root_id, 0)]
@@ -589,12 +589,15 @@ def _collect_descendant_ids(root_id, parent_to_children, spouse_of=None, depth_d
         person_id, depth = queue.pop(0)
         if depth_down is not None and depth >= depth_down:
             continue
-        parent_ids = {person_id}
+        child_ids = set(parent_to_children.get(person_id, []))
         if spouse_of:
-            parent_ids.update(spouse_of.get(person_id, []))
-        child_ids = set()
-        for parent_id in parent_ids:
-            child_ids.update(parent_to_children.get(parent_id, []))
+            for spouse_id in spouse_of.get(person_id, []):
+                couple_parent_ids = {person_id, spouse_id}
+                for child_id in parent_to_children.get(spouse_id, []):
+                    known_parent_ids = set(child_to_parents.get(child_id, []))
+                    if known_parent_ids and not known_parent_ids.issubset(couple_parent_ids):
+                        continue
+                    child_ids.add(child_id)
         for child_id in sorted(child_ids):
             if child_id not in included_ids:
                 included_ids.add(child_id)
@@ -687,6 +690,7 @@ def _build_family_branch_bundle(
             _collect_descendant_ids(
                 branch_root_id,
                 parent_to_children,
+                child_to_parents,
                 spouse_of=spouse_of,
                 depth_down=depth_down,
             )

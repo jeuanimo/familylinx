@@ -1,6 +1,12 @@
 import json
 from datetime import date, timedelta
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+
 from django.test import TestCase
+from django.test.utils import override_settings
+from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -330,6 +336,20 @@ class FamilyLineSpaceCreationTests(TestCase):
             gender=Person.Gender.FEMALE,
             created_by=self.user,
         )
+        self.spouse_other_parent = Person.objects.create(
+            family=self.family,
+            first_name="Rachel",
+            last_name="Branch",
+            gender=Person.Gender.FEMALE,
+            created_by=self.user,
+        )
+        self.spouse_only_child = Person.objects.create(
+            family=self.family,
+            first_name="Ethan",
+            last_name="Branch",
+            gender=Person.Gender.MALE,
+            created_by=self.user,
+        )
 
         Relationship.objects.create(
             family=self.family,
@@ -359,6 +379,18 @@ class FamilyLineSpaceCreationTests(TestCase):
             family=self.family,
             person1=self.spouse_mother,
             person2=self.spouse,
+            relationship_type=Relationship.Type.PARENT_CHILD,
+        )
+        Relationship.objects.create(
+            family=self.family,
+            person1=self.spouse,
+            person2=self.spouse_only_child,
+            relationship_type=Relationship.Type.PARENT_CHILD,
+        )
+        Relationship.objects.create(
+            family=self.family,
+            person1=self.spouse_other_parent,
+            person2=self.spouse_only_child,
             relationship_type=Relationship.Type.PARENT_CHILD,
         )
 
@@ -412,6 +444,7 @@ class FamilyLineSpaceCreationTests(TestCase):
         )
         self.assertTrue({"Alice", "Maria", "Sophie", "Daniel"}.issubset(copied_names))
         self.assertNotIn("Peter", copied_names)
+        self.assertNotIn("Ethan", copied_names)
 
     def test_family_line_create_space_api_creates_spouse_side_space(self):
         response = self.client.post(
@@ -437,7 +470,7 @@ class FamilyLineSpaceCreationTests(TestCase):
         )
 
         self.assertEqual(new_family.name, "Heritage Roots - Husband Side")
-        self.assertTrue({"Daniel", "Helen", "Alice", "Sophie"}.issubset(copied_names))
+        self.assertTrue({"Daniel", "Helen", "Alice", "Sophie", "Ethan"}.issubset(copied_names))
         self.assertNotIn("Maria", copied_names)
         self.assertNotIn("Peter", copied_names)
 
@@ -551,3 +584,50 @@ class CrossFamilySyncReviewTests(TestCase):
         self.assertContains(response, "Birth place")
         self.assertContains(response, "Death place")
         self.assertContains(response, "Biography")
+
+
+class PrepareDeploymentDataCommandTests(TestCase):
+    def test_command_writes_fixture_and_media_manifest(self):
+        temp_dir = TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        media_root = Path(temp_dir.name) / "media"
+        media_root.mkdir(parents=True, exist_ok=True)
+        avatar_path = media_root / "profiles" / "avatars" / "seed.jpg"
+        avatar_path.parent.mkdir(parents=True, exist_ok=True)
+        avatar_path.write_bytes(b"fake-image-bytes")
+
+        output_dir = Path(temp_dir.name) / "exports"
+
+        with override_settings(MEDIA_ROOT=media_root):
+            User = get_user_model()
+            user = User.objects.create_user(
+                username="deployprep",
+                email="deployprep@example.com",
+                password="pass",
+            )
+            family = FamilySpace.objects.create(name="Deploy Family", created_by=user)
+            Membership.objects.create(family=family, user=user, role=Membership.Role.OWNER)
+            profile = user.profile
+            profile.profile_picture.name = "profiles/avatars/seed.jpg"
+            profile.save(update_fields=["profile_picture"])
+
+            with patch("families.management.commands.prepare_deployment_data.timezone.now") as mock_now:
+                mock_now.return_value.isoformat.return_value = "2026-03-28T04:00:00+00:00"
+                call_command("prepare_deployment_data", output_dir=str(output_dir))
+
+        fixture_path = output_dir / "render_seed.json"
+        manifest_path = output_dir / "media_manifest.json"
+
+        self.assertTrue(fixture_path.exists())
+        self.assertTrue(manifest_path.exists())
+
+        fixture_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+        self.assertTrue(any(item["model"] == "families.familyspace" for item in fixture_data))
+
+        manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(manifest_data["generated_at"], "2026-03-28T04:00:00+00:00")
+        self.assertEqual(manifest_data["file_count"], 1)
+        self.assertEqual(manifest_data["missing_count"], 0)
+        self.assertEqual(manifest_data["files"][0]["field"], "profile_picture")
+        self.assertTrue(manifest_data["files"][0]["exists"])
