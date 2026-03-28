@@ -75,8 +75,6 @@ INSTALLED_APPS = [
     'allauth.socialaccount',  # Optional: for social login later
     'rest_framework',
     'corsheaders',
-    'cloudinary',
-    'cloudinary_storage',
     
     # Local apps
     'accounts.apps.AccountsConfig',
@@ -241,18 +239,24 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Cloudinary configuration (only if valid CLOUDINARY_URL is set)
+_cloudinary_url = os.environ.get('CLOUDINARY_URL', '')
+USE_CLOUDINARY = _cloudinary_url.startswith('cloudinary://')
+
+if USE_CLOUDINARY:
+    INSTALLED_APPS += ['cloudinary', 'cloudinary_storage']
+
 # Storage backends (Django 4.2+ style)
 STORAGES = {
     "default": {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"
-        if os.environ.get('CLOUDINARY_URL')
+        if USE_CLOUDINARY
         else "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
-    MEDIA_URL = os.environ.get('CLOUDINARY_MEDIA_URL', MEDIA_URL)
 
 
 # =============================================================================
