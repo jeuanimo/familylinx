@@ -329,8 +329,19 @@ class InviteEmailWorkflowTests(TestCase):
 
         invite = Invite.objects.get(family=self.family, email="uncle@example.com")
 
-        self.assertContains(response, "Invitation created but email could not be sent.")
         self.assertContains(response, "EMAIL_HOST_PASSWORD")
+        self.assertEqual(
+            response.request["PATH_INFO"],
+            reverse("families:family_detail", kwargs={"family_id": self.family.id}),
+        )
+        self.assertEqual(
+            response.request["QUERY_STRING"],
+            "",
+        )
+        self.assertIsNotNone(invite.last_email_attempt_at)
+        self.assertIn("EMAIL_HOST_PASSWORD", invite.last_email_error)
+        self.assertContains(response, "Email Failed")
+        self.assertContains(response, "Email not sent.")
         self.assertContains(
             response,
             reverse("families:invite_accept", kwargs={"token": invite.token}),

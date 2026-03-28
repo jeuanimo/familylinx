@@ -280,6 +280,15 @@ class Invite(models.Model):
         blank=True,
         help_text="When the invite was accepted (null if pending)"
     )
+    last_email_attempt_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the system last attempted to send the invite email"
+    )
+    last_email_error = models.TextField(
+        blank=True,
+        help_text="Last email delivery error, if sending failed"
+    )
 
     def save(self, *args, **kwargs):
         """

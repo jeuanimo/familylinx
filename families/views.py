@@ -358,6 +358,13 @@ def _build_invite_accept_url(invite, request):
     )
 
 
+def _record_invite_email_result(invite, error_message=None):
+    """Persist the latest invite email delivery result."""
+    invite.last_email_attempt_at = timezone.now()
+    invite.last_email_error = error_message or ""
+    invite.save(update_fields=["last_email_attempt_at", "last_email_error"])
+
+
 def _send_invite_email(invite, request):
     """
     Send an email invitation to join a FamilySpace.
@@ -395,6 +402,7 @@ def _send_invite_email(invite, request):
                     + "."
                 )
                 logger.error("Invite email not sent. %s", reason)
+                _record_invite_email_result(invite, reason)
                 return False, reason
         
         # Log email attempt
@@ -407,12 +415,15 @@ def _send_invite_email(invite, request):
             recipient_list=[invite.email],
             fail_silently=False,
         )
+        _record_invite_email_result(invite)
         logger.info(f"Invite email sent successfully to {invite.email}")
         return True, None
     except Exception as e:
         # Log the error for debugging
         logger.exception("Failed to send invite email to %s", invite.email)
-        return False, str(e)
+        reason = str(e)
+        _record_invite_email_result(invite, reason)
+        return False, reason
 
 
 @login_required
@@ -483,19 +494,22 @@ def invite_create(request, family_id):
             
             # Send email with invite link
             email_sent, email_error = _send_invite_email(inv, request)
+            family_detail_url = reverse(URL_FAMILY_DETAIL, kwargs={"family_id": fam.id})
             
             if email_sent:
                 messages.success(request, f"Invitation sent to {inv.email}!")
             else:
-                # Email failed but invite was created - show the link and error
-                invite_url = _build_invite_accept_url(inv, request)
                 messages.error(
                     request, 
-                    f"Failed to send email to {inv.email}. Error: {email_error or 'Unknown error'}. "
-                    f"The invitation was created - share this link manually: {invite_url}"
+                    f"Invitation created, but the email was not sent to {inv.email}. "
+                    f"Reason: {email_error or 'Unknown error'}. "
+                    f"Use the manual invite link in the Invitations panel below."
                 )
             
-            return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
+            redirect_target = family_detail_url
+            if not email_sent:
+                redirect_target = f"{family_detail_url}#family-invitations"
+            return redirect(redirect_target)
     else:
         form = InviteCreateForm()
     
@@ -603,18 +617,22 @@ def invite_resend(request, family_id, invite_id):
     
     # Resend the email
     email_sent, email_error = _send_invite_email(invite, request)
+    family_detail_url = reverse(URL_FAMILY_DETAIL, kwargs={"family_id": fam.id})
     
     if email_sent:
         messages.success(request, f"Invitation resent to {invite.email}!")
     else:
-        invite_url = _build_invite_accept_url(invite, request)
         messages.error(
             request, 
-            f"Failed to send email to {invite.email}. Error: {email_error or 'Unknown error'}. "
-            f"Share this link manually: {invite_url}"
+            f"Could not resend the invitation email to {invite.email}. "
+            f"Reason: {email_error or 'Unknown error'}. "
+            f"Use the manual invite link in the Invitations panel below."
         )
     
-    return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
+    redirect_target = family_detail_url
+    if not email_sent:
+        redirect_target = f"{family_detail_url}#family-invitations"
+    return redirect(redirect_target)
 
 
 # =============================================================================
