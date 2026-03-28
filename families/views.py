@@ -1856,61 +1856,65 @@ def family_tree(request, family_id):
     - 0 = ME and my generation (siblings, spouse)
     - Positive numbers = descendants (children=1, grandchildren=2, etc.)
     """
-    family, membership = _get_membership_or_deny(request, family_id)
-    if not membership:
-        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
-    
-    # Get all persons and relationships
-    all_persons = list(Person.objects.filter(family=family, is_deleted=False)
-                       .select_related('linked_user'))
-    relationships = list(Relationship.objects.filter(family=family, is_deleted=False)
-                        .select_related('person1', 'person2'))
-    
-    # Build lookup structures
-    person_by_id = {p.id: p for p in all_persons}
-    children_of, parents_of, spouses_of = _build_relationship_maps(relationships)
-    
-    # Get linked person (ME) using helper
-    linked_person_id, me_person = _find_linked_person(request, family, membership, person_by_id)
+    try:
+        family, membership = _get_membership_or_deny(request, family_id)
+        if not membership:
+            return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+        
+        # Get all persons and relationships
+        all_persons = list(Person.objects.filter(family=family, is_deleted=False)
+                           .select_related('linked_user'))
+        relationships = list(Relationship.objects.filter(family=family, is_deleted=False)
+                            .select_related('person1', 'person2'))
+        
+        # Build lookup structures
+        person_by_id = {p.id: p for p in all_persons}
+        children_of, parents_of, spouses_of = _build_relationship_maps(relationships)
+        
+        # Get linked person (ME) using helper
+        linked_person_id, me_person = _find_linked_person(request, family, membership, person_by_id)
 
-    # Build tree centered on linked person (if any)
-    persons, generation = _build_tree_data(
-        me_person, all_persons,
-        parents_of, children_of, spouses_of
-    )
-    
-    # Group persons by generation
-    generations_dict = {}
-    for p in persons:
-        gen = generation.get(p.id, 0)
-        generations_dict.setdefault(gen, []).append(p)
-    
-    # Build tree structure
-    tree_generations = _build_tree_units(
-        generations_dict, linked_person_id, parents_of,
-        children_of, spouses_of, person_by_id, generation
-    )
+        # Build tree centered on linked person (if any)
+        persons, generation = _build_tree_data(
+            me_person, all_persons,
+            parents_of, children_of, spouses_of
+        )
+        
+        # Group persons by generation
+        generations_dict = {}
+        for p in persons:
+            gen = generation.get(p.id, 0)
+            generations_dict.setdefault(gen, []).append(p)
+        
+        # Build tree structure
+        tree_generations = _build_tree_units(
+            generations_dict, linked_person_id, parents_of,
+            children_of, spouses_of, person_by_id, generation
+        )
 
-    # Use the API tree endpoint so the classic view matches the interactive tree data
-    data_url = reverse("families_api:family_tree", kwargs={"family_id": family.id})
+        # Use the API tree endpoint so the classic view matches the interactive tree data
+        data_url = reverse("families_api:family_tree", kwargs={"family_id": family.id})
 
-    can_edit = membership.role in ['OWNER', 'ADMIN', 'EDITOR']
+        can_edit = membership.role in ['OWNER', 'ADMIN', 'EDITOR']
 
-    return render(request, "families/family_tree_interactive_simple.html", {
-        "family": family,
-        "membership": membership,
-        "persons": persons,
-        "all_persons": all_persons,
-        "relationships": relationships,
-        "tree_generations": tree_generations,
-        "spouses_of": spouses_of,
-        "children_of": children_of,
-        "parents_of": parents_of,
-        "linked_person_id": linked_person_id,
-        "has_linked_person": me_person is not None,
-        "data_url": data_url,
-        "can_edit": can_edit,
-    })
+        return render(request, "families/family_tree_interactive_simple.html", {
+            "family": family,
+            "membership": membership,
+            "persons": persons,
+            "all_persons": all_persons,
+            "relationships": relationships,
+            "tree_generations": tree_generations,
+            "spouses_of": spouses_of,
+            "children_of": children_of,
+            "parents_of": parents_of,
+            "linked_person_id": linked_person_id,
+            "has_linked_person": me_person is not None,
+            "data_url": data_url,
+            "can_edit": can_edit,
+        })
+    except Exception as e:
+        logger.error(f"Error in family_tree view for family {family_id}: {e}", exc_info=True)
+        raise
 
 
 def _build_tree_data(me_person, all_persons, parents_of, children_of, spouses_of):
