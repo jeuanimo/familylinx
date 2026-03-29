@@ -23,7 +23,9 @@ Security:
     - Messages scoped to conversation participants only
 """
 
+import asyncio
 import json
+import logging
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -38,6 +40,8 @@ from .models import (
     Notification,
     create_notification,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ConversationConsumer(AsyncWebsocketConsumer):
@@ -72,32 +76,32 @@ class ConversationConsumer(AsyncWebsocketConsumer):
         - Messages stored in database for audit trail
     """
     async def connect(self):
-        self.family_id = int(self.scope["url_route"]["kwargs"]["family_id"])
-        self.conversation_id = int(self.scope["url_route"]["kwargs"]["conversation_id"])
-        self.room_group_name = f"conversation_{self.conversation_id}"
-        self.user = self.scope["user"]
+        try:
+            self.family_id = int(self.scope["url_route"]["kwargs"]["family_id"])
+            self.conversation_id = int(self.scope["url_route"]["kwargs"]["conversation_id"])
+            self.room_group_name = f"conversation_{self.conversation_id}"
+            self.user = self.scope["user"]
 
-        if not self.user.is_authenticated:
-            await self.close()
-            return
+            if not self.user.is_authenticated:
+                await self.close()
+                return
 
-        allowed = await self._ensure_membership()
-        if not allowed:
-            await self.close()
-            return
+            allowed = await self._ensure_membership()
+            if not allowed:
+                await self.close()
+                return
 
-        await self.channel_layer.group_add(self.room_group_name, self.channel_name)
-        await self.accept()
-
-        for update in await self._mark_read_and_collect_updates():
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    "type": "receipt_update",
-                    "message_id": update["message_id"],
-                    "receipt_text": update["receipt_text"],
-                },
+            await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+            await self.accept()
+            asyncio.create_task(self._broadcast_read_receipt_updates())
+        except Exception:
+            logger.exception(
+                "Conversation websocket connect failed for family=%s conversation=%s user=%s",
+                getattr(self, "family_id", None),
+                getattr(self, "conversation_id", None),
+                getattr(getattr(self, "user", None), "id", None),
             )
+            await self.close()
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
@@ -122,15 +126,7 @@ class ConversationConsumer(AsyncWebsocketConsumer):
                 },
             )
         elif action == "mark_read":
-            for update in await self._mark_read_and_collect_updates():
-                await self.channel_layer.group_send(
-                    self.room_group_name,
-                    {
-                        "type": "receipt_update",
-                        "message_id": update["message_id"],
-                        "receipt_text": update["receipt_text"],
-                    },
-                )
+            await self._broadcast_read_receipt_updates()
 
     async def chat_message(self, event):
         message = dict(event["message"])
@@ -148,6 +144,25 @@ class ConversationConsumer(AsyncWebsocketConsumer):
             "message_id": event["message_id"],
             "receipt_text": event["receipt_text"],
         }))
+
+    async def _broadcast_read_receipt_updates(self):
+        try:
+            for update in await self._mark_read_and_collect_updates():
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "receipt_update",
+                        "message_id": update["message_id"],
+                        "receipt_text": update["receipt_text"],
+                    },
+                )
+        except Exception:
+            logger.exception(
+                "Conversation websocket read-receipt sync failed for family=%s conversation=%s user=%s",
+                getattr(self, "family_id", None),
+                getattr(self, "conversation_id", None),
+                getattr(getattr(self, "user", None), "id", None),
+            )
 
     @database_sync_to_async
     def _ensure_membership(self):

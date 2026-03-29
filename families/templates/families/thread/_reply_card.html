@@ -1,0 +1,89 @@
+{% load static %}
+<!-- Reply Card - Recursive template for nested comments -->
+<div class="card reply-card mb-2 {% if depth > 0 %}nested{% endif %} {% if depth > 1 %}nested-2{% endif %}" 
+     style="{% if depth > 2 %}margin-left: {{ depth|add:2 }}rem;{% endif %}">
+    <div class="card-body py-2 px-3">
+        <div class="d-flex">
+            <!-- Mini Vote Buttons -->
+            <div class="d-flex flex-column align-items-center me-2">
+                <button class="reply-vote-btn {% if reply.id in user_reply_votes and user_reply_votes.reply.id == 'UPVOTE' %}upvoted{% endif %}"
+                        onclick="voteReply({{ reply.id }}, 'UPVOTE')">
+                    <i class="bi bi-arrow-up"></i>
+                </button>
+                <small class="text-muted" id="reply-score-{{ reply.id }}">{{ reply.vote_score }}</small>
+                <button class="reply-vote-btn {% if reply.id in user_reply_votes and user_reply_votes.reply.id == 'DOWNVOTE' %}downvoted{% endif %}"
+                        onclick="voteReply({{ reply.id }}, 'DOWNVOTE')">
+                    <i class="bi bi-arrow-down"></i>
+                </button>
+            </div>
+            
+            <!-- Reply Content -->
+            <div class="flex-grow-1">
+                <!-- Author and Meta -->
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <small class="fw-bold">
+                        {% if reply.author %}{{ reply.author.get_full_name|default:reply.author.email }}{% else %}[deleted]{% endif %}
+                    </small>
+                    {% if reply.is_op %}
+                    <span class="op-badge">OP</span>
+                    {% endif %}
+                    <small class="text-muted">{{ reply.created_at|timesince }} ago</small>
+                    {% if reply.is_edited %}
+                    <small class="text-muted fst-italic">(edited)</small>
+                    {% endif %}
+                </div>
+                
+                <!-- Content -->
+                <div class="reply-content mb-2">
+                    {{ reply.content|linebreaks }}
+                </div>
+                
+                <!-- Actions -->
+                <div class="d-flex gap-2">
+                    {% if not post.is_locked %}
+                    <button class="btn btn-sm btn-link text-muted p-0" onclick="toggleReplyForm({{ reply.id }})">
+                        <i class="bi bi-reply"></i> Reply
+                    </button>
+                    {% endif %}
+                    
+                    {% if reply.author == request.user or can_moderate %}
+                    <form method="post" action="{% url 'families:thread_reply_delete' family_id=family.id reply_id=reply.id %}" 
+                          style="display: inline;" onsubmit="return confirm('Delete this reply?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-link text-danger p-0">
+                            <i class="bi bi-trash"></i> Delete
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                
+                <!-- Nested Reply Form (hidden by default) -->
+                {% if not post.is_locked %}
+                <div id="reply-form-{{ reply.id }}" style="display: none;" class="mt-2">
+                    <form method="post" action="{% url 'families:thread_reply_create' family_id=family.id post_id=post.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="parent_id" value="{{ reply.id }}">
+                        <div class="mb-2">
+                            <textarea name="content" class="form-control form-control-sm" rows="2" 
+                                      placeholder="Reply to {{ reply.author.get_full_name|default:reply.author.email }}..." required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary">Reply</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleReplyForm({{ reply.id }})">Cancel</button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Render nested replies recursively -->
+{% if reply.children.exists %}
+{% with new_depth=depth|add:1 %}
+{% for child in reply.children.all %}
+{% if not child.is_hidden %}
+{% include "families/thread/_reply_card.html" with reply=child depth=new_depth %}
+{% endif %}
+{% endfor %}
+{% endwith %}
+{% endif %}

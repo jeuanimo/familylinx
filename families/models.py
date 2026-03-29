@@ -4295,3 +4295,461 @@ class PrayerTestimony(models.Model):
         verbose_name = "Prayer Testimony"
         verbose_name_plural = "Prayer Testimonies"
         ordering = ['-created_at']
+
+
+# =============================================================================
+# TREE AND GENEALOGY THREAD - Reddit-Style Discussion Forum
+# =============================================================================
+
+class ThreadCategory(models.Model):
+    """
+    Category/Flair for organizing discussion threads.
+    
+    Categories help organize discussions in the genealogy thread similar
+    to subreddit flairs or categories.
+    
+    Attributes:
+        family (FamilySpace): The family space this category belongs to
+        name (str): Category name (e.g., "Research Help", "DNA Results")
+        color (str): Hex color for visual distinction
+        icon (str): Optional icon identifier
+        description (str): What this category is for
+        is_active (bool): Whether category is available for new posts
+    """
+    
+    family = models.ForeignKey(
+        FamilySpace,
+        on_delete=models.CASCADE,
+        related_name="thread_categories",
+        help_text="The family space this category belongs to"
+    )
+    name = models.CharField(
+        max_length=50,
+        help_text="Category name"
+    )
+    color = models.CharField(
+        max_length=7,
+        default="#6366f1",
+        help_text="Hex color code for the category badge"
+    )
+    icon = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Icon identifier (e.g., 'dna', 'tree', 'photo')"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Description of what this category is for"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this category is available for new posts"
+    )
+    display_order = models.PositiveIntegerField(
+        default=0,
+        help_text="Order in which categories appear"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.name} ({self.family.name})"
+    
+    class Meta:
+        verbose_name = "Thread Category"
+        verbose_name_plural = "Thread Categories"
+        ordering = ['display_order', 'name']
+        unique_together = ['family', 'name']
+
+
+class ThreadPost(models.Model):
+    """
+    A discussion post in the Tree and Genealogy Thread.
+    
+    This model represents a Reddit-style post that family members can
+    create to discuss genealogy topics, share discoveries, ask questions,
+    and collaborate on family research.
+    
+    Attributes:
+        family (FamilySpace): The family space this post belongs to
+        author (User): The user who created this post
+        title (str): Post title (like Reddit post title)
+        content (str): Post body content (supports markdown)
+        category (ThreadCategory): Optional category/flair
+        image (ImageField): Optional image attachment
+        link_url (str): Optional external link
+        is_pinned (bool): Pin to top of thread
+        is_locked (bool): Prevent new replies
+        is_hidden (bool): Moderation flag
+        view_count (int): Number of views
+    
+    Security Notes:
+        - Posts are scoped to family space (privacy enforcement)
+        - Only family members can view and interact
+        - Moderation via is_hidden and is_locked flags
+    """
+    
+    class PostType(models.TextChoices):
+        DISCUSSION = 'DISCUSSION', 'Discussion'
+        QUESTION = 'QUESTION', 'Question'
+        DISCOVERY = 'DISCOVERY', 'Discovery'
+        RESEARCH = 'RESEARCH', 'Research Help'
+        PHOTO = 'PHOTO', 'Photo Share'
+        DNA = 'DNA', 'DNA Discussion'
+        LINK = 'LINK', 'Link'
+    
+    family = models.ForeignKey(
+        FamilySpace,
+        on_delete=models.CASCADE,
+        related_name="thread_posts",
+        help_text="The family space this post belongs to"
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="thread_posts",
+        help_text="The user who created this post"
+    )
+    title = models.CharField(
+        max_length=300,
+        help_text="Post title"
+    )
+    content = models.TextField(
+        blank=True,
+        help_text="Post body content (supports markdown)"
+    )
+    post_type = models.CharField(
+        max_length=20,
+        choices=PostType.choices,
+        default=PostType.DISCUSSION,
+        help_text="Type of post"
+    )
+    category = models.ForeignKey(
+        ThreadCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="posts",
+        help_text="Optional category/flair for the post"
+    )
+    
+    # Media attachments
+    image = models.ImageField(
+        upload_to="threads/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Optional image attachment"
+    )
+    link_url = models.URLField(
+        blank=True,
+        help_text="Optional external link"
+    )
+    link_title = models.CharField(
+        max_length=300,
+        blank=True,
+        help_text="Title for external link"
+    )
+    
+    # Tagged people from family tree
+    tagged_people = models.ManyToManyField(
+        "Person",
+        blank=True,
+        related_name="thread_mentions",
+        help_text="Family tree members mentioned in this post"
+    )
+    
+    # Moderation and status
+    is_pinned = models.BooleanField(
+        default=False,
+        help_text="Pin this post to the top"
+    )
+    is_locked = models.BooleanField(
+        default=False,
+        help_text="Prevent new replies"
+    )
+    is_hidden = models.BooleanField(
+        default=False,
+        help_text="Hide this post (moderation)"
+    )
+    is_answered = models.BooleanField(
+        default=False,
+        help_text="Mark question as answered"
+    )
+    
+    # Statistics
+    view_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of views"
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    @property
+    def vote_score(self):
+        """Calculate net vote score (upvotes - downvotes)."""
+        upvotes = self.votes.filter(vote_type=ThreadVote.VoteType.UPVOTE).count()
+        downvotes = self.votes.filter(vote_type=ThreadVote.VoteType.DOWNVOTE).count()
+        return upvotes - downvotes
+    
+    @property
+    def upvote_count(self):
+        """Return number of upvotes."""
+        return self.votes.filter(vote_type=ThreadVote.VoteType.UPVOTE).count()
+    
+    @property
+    def downvote_count(self):
+        """Return number of downvotes."""
+        return self.votes.filter(vote_type=ThreadVote.VoteType.DOWNVOTE).count()
+    
+    @property
+    def reply_count(self):
+        """Return total number of replies (including nested)."""
+        return self.replies.filter(is_hidden=False).count()
+    
+    @property
+    def hot_score(self):
+        """Calculate hot score for sorting (Reddit-style algorithm)."""
+        import math
+        from datetime import datetime
+        
+        score = self.vote_score
+        order = math.log10(max(abs(score), 1))
+        sign = 1 if score > 0 else -1 if score < 0 else 0
+        
+        # Epoch for the algorithm (adjust as needed)
+        epoch = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        seconds = (self.created_at - epoch).total_seconds()
+        
+        return round(sign * order + seconds / 45000, 7)
+    
+    def __str__(self):
+        return f"{self.title} - {self.author}"
+    
+    class Meta:
+        verbose_name = "Thread Post"
+        verbose_name_plural = "Thread Posts"
+        ordering = ['-is_pinned', '-created_at']
+        indexes = [
+            models.Index(fields=['family', '-created_at']),
+            models.Index(fields=['family', 'category']),
+            models.Index(fields=['author']),
+        ]
+
+
+class ThreadReply(models.Model):
+    """
+    A reply/comment on a thread post, supporting nested replies.
+    
+    Implements threaded/nested comments similar to Reddit where users
+    can reply directly to a post or to another reply.
+    
+    Attributes:
+        post (ThreadPost): The post this reply belongs to
+        parent (ThreadReply): Parent reply for nested comments (null for top-level)
+        author (User): The user who wrote this reply
+        content (str): Reply content (supports markdown)
+        is_hidden (bool): Moderation flag
+        is_op_reply (bool): Whether this is from the original poster
+    """
+    
+    post = models.ForeignKey(
+        ThreadPost,
+        on_delete=models.CASCADE,
+        related_name="replies",
+        help_text="The post this reply belongs to"
+    )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="children",
+        help_text="Parent reply for nested comments"
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="thread_replies",
+        help_text="The user who wrote this reply"
+    )
+    content = models.TextField(
+        help_text="Reply content (supports markdown)"
+    )
+    
+    # Moderation
+    is_hidden = models.BooleanField(
+        default=False,
+        help_text="Hide this reply (moderation)"
+    )
+    is_edited = models.BooleanField(
+        default=False,
+        help_text="Whether this reply has been edited"
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    @property
+    def vote_score(self):
+        """Calculate net vote score (upvotes - downvotes)."""
+        upvotes = self.votes.filter(vote_type=ThreadVote.VoteType.UPVOTE).count()
+        downvotes = self.votes.filter(vote_type=ThreadVote.VoteType.DOWNVOTE).count()
+        return upvotes - downvotes
+    
+    @property
+    def is_op(self):
+        """Check if reply author is the original poster."""
+        return self.author == self.post.author
+    
+    @property
+    def depth(self):
+        """Calculate nesting depth of this reply."""
+        depth = 0
+        current = self
+        while current.parent:
+            depth += 1
+            current = current.parent
+        return depth
+    
+    def get_children_recursive(self):
+        """Get all nested replies recursively."""
+        children = list(self.children.filter(is_hidden=False))
+        for child in self.children.filter(is_hidden=False):
+            children.extend(child.get_children_recursive())
+        return children
+    
+    def __str__(self):
+        preview = self.content[:50] + "..." if len(self.content) > 50 else self.content
+        return f"Reply by {self.author}: {preview}"
+    
+    class Meta:
+        verbose_name = "Thread Reply"
+        verbose_name_plural = "Thread Replies"
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['post', 'created_at']),
+            models.Index(fields=['parent']),
+        ]
+
+
+class ThreadVote(models.Model):
+    """
+    Upvote/Downvote system for posts and replies.
+    
+    Users can vote on both posts and replies. Each user can only
+    have one vote per item (can change vote type).
+    
+    Attributes:
+        user (User): The user who cast this vote
+        post (ThreadPost): The post being voted on (null if voting on reply)
+        reply (ThreadReply): The reply being voted on (null if voting on post)
+        vote_type (str): UPVOTE or DOWNVOTE
+    """
+    
+    class VoteType(models.TextChoices):
+        UPVOTE = 'UPVOTE', 'Upvote'
+        DOWNVOTE = 'DOWNVOTE', 'Downvote'
+    
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="thread_votes",
+        help_text="The user who cast this vote"
+    )
+    post = models.ForeignKey(
+        ThreadPost,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="votes",
+        help_text="The post being voted on"
+    )
+    reply = models.ForeignKey(
+        ThreadReply,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="votes",
+        help_text="The reply being voted on"
+    )
+    vote_type = models.CharField(
+        max_length=10,
+        choices=VoteType.choices,
+        help_text="Type of vote"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        target = self.post or self.reply
+        return f"{self.user} {self.vote_type} on {target}"
+    
+    class Meta:
+        verbose_name = "Thread Vote"
+        verbose_name_plural = "Thread Votes"
+        # Ensure one vote per user per item
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'post'],
+                name='unique_user_post_vote',
+                condition=models.Q(post__isnull=False)
+            ),
+            models.UniqueConstraint(
+                fields=['user', 'reply'],
+                name='unique_user_reply_vote',
+                condition=models.Q(reply__isnull=False)
+            ),
+            # Ensure vote is on either post OR reply, not both
+            models.CheckConstraint(
+                condition=(
+                    models.Q(post__isnull=False, reply__isnull=True) |
+                    models.Q(post__isnull=True, reply__isnull=False)
+                ),
+                name='vote_on_post_or_reply'
+            ),
+        ]
+
+
+class ThreadBookmark(models.Model):
+    """
+    Allow users to bookmark/save posts for later.
+    
+    Similar to Reddit's save feature, users can bookmark interesting
+    posts to easily find them later.
+    
+    Attributes:
+        user (User): The user who bookmarked
+        post (ThreadPost): The bookmarked post
+        note (str): Optional personal note about why it was saved
+    """
+    
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="thread_bookmarks",
+        help_text="The user who bookmarked this post"
+    )
+    post = models.ForeignKey(
+        ThreadPost,
+        on_delete=models.CASCADE,
+        related_name="bookmarks",
+        help_text="The bookmarked post"
+    )
+    note = models.TextField(
+        blank=True,
+        help_text="Optional personal note"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.user} bookmarked: {self.post.title}"
+    
+    class Meta:
+        verbose_name = "Thread Bookmark"
+        verbose_name_plural = "Thread Bookmarks"
+        unique_together = ['user', 'post']
+        ordering = ['-created_at']

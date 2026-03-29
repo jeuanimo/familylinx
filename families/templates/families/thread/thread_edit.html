@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Edit Post - Tree & Genealogy Thread{% endblock title %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="mb-4">
+        <h2><i class="bi bi-pencil"></i> Edit Post</h2>
+        <p class="text-muted">Update your discussion post</p>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <!-- Title -->
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Title <span class="text-danger">*</span></label>
+                            <input type="text" name="title" id="title" class="form-control" 
+                                   maxlength="300" required value="{{ post.title }}">
+                        </div>
+                        
+                        <!-- Post Type -->
+                        <div class="mb-3">
+                            <label for="post_type" class="form-label">Post Type</label>
+                            <select name="post_type" id="post_type" class="form-select">
+                                {% for value, label in post_types %}
+                                <option value="{{ value }}" {% if post.post_type == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <!-- Category -->
+                        <div class="mb-3">
+                            <label for="category" class="form-label">Category</label>
+                            <select name="category" id="category" class="form-select">
+                                <option value="">No category</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.id }}" {% if post.category_id == cat.id %}selected{% endif %}>
+                                    {{ cat.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <!-- Content -->
+                        <div class="mb-3">
+                            <label for="content" class="form-label">Content</label>
+                            <textarea name="content" id="content" class="form-control" rows="8">{{ post.content }}</textarea>
+                        </div>
+                        
+                        <!-- Link (optional) -->
+                        <div class="mb-3">
+                            <label for="link_url" class="form-label">External Link (optional)</label>
+                            <input type="url" name="link_url" id="link_url" class="form-control" 
+                                   placeholder="https://..." value="{{ post.link_url }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="link_title" class="form-label">Link Title (optional)</label>
+                            <input type="text" name="link_title" id="link_title" class="form-control" 
+                                   value="{{ post.link_title }}">
+                        </div>
+                        
+                        <!-- Current Image -->
+                        {% if post.image %}
+                        <div class="mb-3">
+                            <label class="form-label">Current Image</label>
+                            <div class="mb-2">
+                                <img src="{{ post.image.url }}" alt="Current image" class="img-thumbnail" style="max-height: 150px;">
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- New Image -->
+                        <div class="mb-3">
+                            <label for="image" class="form-label">{% if post.image %}Replace Image{% else %}Add Image{% endif %} (optional)</label>
+                            <input type="file" name="image" id="image" class="form-control" accept="image/*">
+                        </div>
+                        
+                        <!-- Tag People -->
+                        <div class="mb-4">
+                            <label class="form-label">Tag Family Members (optional)</label>
+                            <select name="tagged_people" id="tagged_people" class="form-select" multiple>
+                                {% for person in people %}
+                                <option value="{{ person.id }}" {% if person in post.tagged_people.all %}selected{% endif %}>
+                                    {{ person.full_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Hold Ctrl/Cmd to select multiple people.</div>
+                        </div>
+                        
+                        <!-- Submit -->
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check"></i> Save Changes
+                            </button>
+                            <a href="{% url 'families:thread_detail' family_id=family.id post_id=post.id %}" class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sidebar Info -->
+        <div class="col-lg-4">
+            <div class="card bg-light">
+                <div class="card-header">
+                    <i class="bi bi-info-circle"></i> Post Info
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled small mb-0">
+                        <li><strong>Created:</strong> {{ post.created_at|date:"M d, Y H:i" }}</li>
+                        <li><strong>Last Updated:</strong> {{ post.updated_at|date:"M d, Y H:i" }}</li>
+                        <li><strong>Views:</strong> {{ post.view_count }}</li>
+                        <li><strong>Replies:</strong> {{ post.reply_count }}</li>
+                        <li><strong>Score:</strong> {{ post.vote_score }}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}

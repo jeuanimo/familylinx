@@ -9,7 +9,7 @@ from .models import (
     FamilySpace, Membership, Invite, Post, Comment, Event, RSVP, 
     Person, Relationship, Album, Photo, Notification, ChatMessage, 
     GedcomImport, PotentialDuplicate, DNAKit, DNAMatch, RelationshipSuggestion,
-    FamilyKudos
+    FamilyKudos, ThreadCategory, ThreadPost, ThreadReply, ThreadVote, ThreadBookmark
 )
 
 
@@ -577,3 +577,61 @@ class RelationshipSuggestionAdmin(admin.ModelAdmin):
             'fields': ('notes', 'created_at'),
         }),
     )
+
+
+# =============================================================================
+# Tree and Genealogy Thread Admin
+# =============================================================================
+
+@admin.register(ThreadCategory)
+class ThreadCategoryAdmin(admin.ModelAdmin):
+    """Admin configuration for ThreadCategory model."""
+    list_display = ('name', 'family', 'color', 'is_active', 'display_order')
+    list_filter = ('is_active', 'family')
+    search_fields = ('name', 'description', 'family__name')
+    list_editable = ('display_order', 'is_active')
+
+
+@admin.register(ThreadPost)
+class ThreadPostAdmin(admin.ModelAdmin):
+    """Admin configuration for ThreadPost model."""
+    list_display = ('title', 'family', 'author', 'post_type', 'vote_score', 'reply_count', 'is_pinned', 'is_locked', 'created_at')
+    list_filter = ('post_type', 'is_pinned', 'is_locked', 'is_hidden', 'is_answered', 'family', 'created_at')
+    search_fields = ('title', 'content', 'author__email', 'family__name')
+    readonly_fields = ('view_count', 'created_at', 'updated_at')
+    raw_id_fields = ('author', 'family', 'category')
+    filter_horizontal = ('tagged_people',)
+    date_hierarchy = 'created_at'
+    list_editable = ('is_pinned', 'is_locked')
+
+
+@admin.register(ThreadReply)
+class ThreadReplyAdmin(admin.ModelAdmin):
+    """Admin configuration for ThreadReply model."""
+    list_display = ('truncated_content', 'post', 'author', 'parent', 'vote_score', 'is_hidden', 'created_at')
+    list_filter = ('is_hidden', 'created_at', 'post__family')
+    search_fields = ('content', 'author__email', 'post__title')
+    readonly_fields = ('created_at', 'updated_at')
+    raw_id_fields = ('post', 'parent', 'author')
+    
+    def truncated_content(self, obj):
+        return obj.content[:50] + '...' if len(obj.content) > 50 else obj.content
+    truncated_content.short_description = 'Content'
+
+
+@admin.register(ThreadVote)
+class ThreadVoteAdmin(admin.ModelAdmin):
+    """Admin configuration for ThreadVote model."""
+    list_display = ('user', 'vote_type', 'post', 'reply', 'created_at')
+    list_filter = ('vote_type', 'created_at')
+    search_fields = ('user__email', 'post__title')
+    raw_id_fields = ('user', 'post', 'reply')
+
+
+@admin.register(ThreadBookmark)
+class ThreadBookmarkAdmin(admin.ModelAdmin):
+    """Admin configuration for ThreadBookmark model."""
+    list_display = ('user', 'post', 'created_at')
+    list_filter = ('created_at', 'post__family')
+    search_fields = ('user__email', 'post__title', 'note')
+    raw_id_fields = ('user', 'post')

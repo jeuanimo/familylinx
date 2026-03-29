@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Manage Categories - Tree & Genealogy Thread{% endblock title %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-tags"></i> Manage Categories</h2>
+            <p class="text-muted mb-0">Organize discussions in {{ family.name }}'s thread</p>
+        </div>
+        <a href="{% url 'families:thread_list' family_id=family.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Thread
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Category List -->
+        <div class="col-md-7">
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-list"></i> Current Categories
+                </div>
+                <div class="card-body p-0">
+                    {% if categories %}
+                    <ul class="list-group list-group-flush">
+                        {% for cat in categories %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge me-2" style="background: {{ cat.color }};">
+                                    {% if cat.icon %}<i class="bi bi-{{ cat.icon }}"></i>{% endif %}
+                                </span>
+                                <strong>{{ cat.name }}</strong>
+                                {% if cat.description %}
+                                <small class="text-muted d-block">{{ cat.description }}</small>
+                                {% endif %}
+                                {% if not cat.is_active %}
+                                <span class="badge bg-secondary ms-2">Inactive</span>
+                                {% endif %}
+                            </div>
+                            <div class="d-flex gap-1">
+                                <form method="post" style="display: inline;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="toggle_active">
+                                    <input type="hidden" name="category_id" value="{{ cat.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-{% if cat.is_active %}warning{% else %}success{% endif %}" 
+                                            title="{% if cat.is_active %}Deactivate{% else %}Activate{% endif %}">
+                                        <i class="bi bi-{% if cat.is_active %}pause{% else %}play{% endif %}"></i>
+                                    </button>
+                                </form>
+                                <form method="post" style="display: inline;" onsubmit="return confirm('Delete this category? Posts will keep their content but lose this category tag.');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="category_id" value="{{ cat.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-tags"></i> No categories yet
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Add New Category -->
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-plus-circle"></i> Add New Category
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create">
+                        
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Category Name <span class="text-danger">*</span></label>
+                            <input type="text" name="name" id="name" class="form-control" 
+                                   placeholder="e.g., Migration Records" required maxlength="50">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="color" class="form-label">Color</label>
+                            <input type="color" name="color" id="color" class="form-control form-control-color" 
+                                   value="#6366f1" title="Choose a color">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="icon" class="form-label">Icon (Bootstrap Icons)</label>
+                            <input type="text" name="icon" id="icon" class="form-control" 
+                                   placeholder="e.g., tree, person, book">
+                            <div class="form-text">
+                                <a href="https://icons.getbootstrap.com/" target="_blank" rel="noopener">Browse icons</a>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description (optional)</label>
+                            <textarea name="description" id="description" class="form-control" rows="2"
+                                      placeholder="Brief description of what this category is for"></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-plus"></i> Add Category
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Suggested Icons -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <i class="bi bi-lightbulb"></i> Suggested Icons
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('icon').value='tree'">
+                            <i class="bi bi-tree"></i> tree
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('icon').value='person'">
+                            <i class="bi bi-person"></i> person
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('icon').value='image'">
+                            <i class="bi bi-image"></i> image
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('icon').value='file-text'">
+                            <i class="bi bi-file-text"></i> file-text
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('icon').value='search'">
+                            <i class="bi bi-search"></i> search
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('icon').value='question-circle'">
+                            <i class="bi bi-question-circle"></i> question-circle
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('icon').value='globe'">
+                            <i class="bi bi-globe"></i> globe
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('icon').value='book'">
+                            <i class="bi bi-book"></i> book
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}

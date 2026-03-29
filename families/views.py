@@ -27,6 +27,7 @@ Templates Required:
 
 import logging
 import smtplib
+from urllib.parse import urlencode
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -50,7 +51,8 @@ from .models import (
     AuditLog, DeletionRequest, MemoryStory, MemoryMedia, MemoryComment, 
     MemoryReaction, MuseumShare, ChatConversation, ChatConversationParticipant,
     ChatConversationMessage, ChatMessageReadReceipt, EventReminderLog,
-    LifeStory, TimeCapsule, FamilyMilestone, FamilyKudos
+    LifeStory, TimeCapsule, FamilyMilestone, FamilyKudos,
+    ThreadCategory, ThreadPost, ThreadReply, ThreadVote, ThreadBookmark
 )
 from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ChatMessageForm, ConversationMessageForm, LifeStorySectionForm, TimeCapsuleForm, FamilyMilestoneForm, FamilyKudosForm
 from utils.image_utils import process_cropped_image
@@ -5241,7 +5243,13 @@ def direct_conversation_start(request, family_id, user_id):
 
     other_membership = get_object_or_404(Membership.objects.select_related("user"), family=family, user_id=user_id)
     conversation = _get_or_create_direct_conversation(family, request.user, other_membership.user)
-    return redirect(URL_CONVERSATION_ROOM, family_id=family.id, conversation_id=conversation.id)
+    conversation_url = reverse(
+        URL_CONVERSATION_ROOM,
+        kwargs={"family_id": family.id, "conversation_id": conversation.id},
+    )
+    if request.GET.get("embed") == "1":
+        conversation_url = f"{conversation_url}?{urlencode({'embed': '1'})}"
+    return redirect(conversation_url)
 
 
 @login_required
@@ -5289,6 +5297,47 @@ def conversation_room(request, family_id, conversation_id):
     if not participant:
         return render(request, TEMPLATE_NO_ACCESS, {"family": family})
 
+    embed_mode = request.GET.get("embed") == "1"
+    conversation_base_url = reverse(
+        URL_CONVERSATION_ROOM,
+        kwargs={"family_id": family.id, "conversation_id": conversation.id},
+    )
+    conversation_url = conversation_base_url
+    if embed_mode:
+        conversation_url = f"{conversation_url}?{urlencode({'embed': '1'})}"
+
+    if request.method == "POST":
+        if membership.role == Membership.Role.VIEWER:
+            messages.error(request, "Viewers can read messages but cannot send them.")
+            return redirect(conversation_url)
+
+        form = ConversationMessageForm(request.POST)
+        if form.is_valid():
+            message = ChatConversationMessage.objects.create(
+                conversation=conversation,
+                author=request.user,
+                content=form.cleaned_data["content"],
+            )
+            conversation.save(update_fields=["updated_at"])
+
+            other_participants = ChatConversationParticipant.objects.filter(
+                conversation=conversation,
+            ).exclude(user=request.user).select_related("user")
+            for other_participant in other_participants:
+                create_notification(
+                    recipient=other_participant.user,
+                    notification_type=Notification.NotificationType.CHAT,
+                    title=f"New message in {conversation.title or conversation.get_conversation_type_display()}",
+                    message=f"{_display_name_for_user(request.user)}: {message.content[:50]}...",
+                    link=conversation_base_url,
+                    family=conversation.family,
+                )
+
+            _mark_conversation_read(conversation, request.user)
+            return redirect(conversation_url)
+    else:
+        form = ConversationMessageForm()
+
     _mark_conversation_read(conversation, request.user)
 
     messages_qs = conversation.messages.filter(is_deleted=False).select_related(
@@ -5308,8 +5357,9 @@ def conversation_room(request, family_id, conversation_id):
         "conversation_title": _conversation_title(conversation, request.user),
         "messages_data": messages_data,
         "participants": participants,
-        "form": ConversationMessageForm(),
+        "form": form,
         "ws_path": f"/ws/families/{family.id}/conversations/{conversation.id}/",
+        "embed_mode": embed_mode,
     })
 
 
@@ -8438,4 +8488,666 @@ def merge_with_person(request, family_id, person_id):
         "membership": membership,
         "person": person,
         "pending_data": pending_data,
+    })
+
+
+# =============================================================================
+# TREE AND GENEALOGY THREAD - Reddit-Style Discussion Forum
+# =============================================================================
+
+URL_THREAD_LIST = "families:thread_list"
+URL_THREAD_DETAIL = "families:thread_detail"
+TEMPLATE_THREAD_LIST = "families/thread/thread_list.html"
+TEMPLATE_THREAD_DETAIL = "families/thread/thread_detail.html"
+TEMPLATE_THREAD_CREATE = "families/thread/thread_create.html"
+TEMPLATE_THREAD_EDIT = "families/thread/thread_edit.html"
+
+
+@login_required
+def thread_list(request, family_id):
+    """
+    Display the Tree and Genealogy Thread - a Reddit-style discussion forum.
+    
+    Supports sorting by:
+    - hot: Reddit's hot algorithm (vote score + time decay)
+    - new: Most recent first
+    - top: Highest vote score
+    - discussed: Most replies
+    
+    Supports filtering by category.
+    """
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    # Get sorting preference
+    sort = request.GET.get('sort', 'hot')
+    category_id = request.GET.get('category')
+    post_type = request.GET.get('type')
+    
+    # Base queryset
+    posts = ThreadPost.objects.filter(
+        family=family,
+        is_hidden=False
+    ).select_related('author', 'category').prefetch_related('votes', 'replies')
+    
+    # Filter by category
+    if category_id:
+        posts = posts.filter(category_id=category_id)
+    
+    # Filter by post type
+    if post_type:
+        posts = posts.filter(post_type=post_type)
+    
+    # Sort posts
+    if sort == 'new':
+        posts = posts.order_by('-is_pinned', '-created_at')
+    elif sort == 'top':
+        # Annotate with vote score for sorting
+        posts = posts.annotate(
+            upvotes=Count('votes', filter=Q(votes__vote_type='UPVOTE')),
+            downvotes=Count('votes', filter=Q(votes__vote_type='DOWNVOTE'))
+        ).annotate(
+            score=models.F('upvotes') - models.F('downvotes')
+        ).order_by('-is_pinned', '-score', '-created_at')
+    elif sort == 'discussed':
+        posts = posts.annotate(
+            reply_total=Count('replies', filter=Q(replies__is_hidden=False))
+        ).order_by('-is_pinned', '-reply_total', '-created_at')
+    else:  # hot (default)
+        # For hot sorting, we'll use Python since it requires complex calculation
+        posts = list(posts.order_by('-is_pinned'))
+        # Separate pinned and regular posts
+        pinned = [p for p in posts if p.is_pinned]
+        regular = [p for p in posts if not p.is_pinned]
+        regular.sort(key=lambda p: p.hot_score, reverse=True)
+        posts = pinned + regular
+    
+    # Get user's votes for display
+    user_votes = {}
+    if request.user.is_authenticated:
+        votes = ThreadVote.objects.filter(
+            user=request.user,
+            post__in=[p.id for p in posts] if isinstance(posts, list) else posts
+        )
+        for vote in votes:
+            user_votes[vote.post_id] = vote.vote_type
+    
+    # Pagination
+    if not isinstance(posts, list):
+        posts = list(posts)
+    
+    paginator = Paginator(posts, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Get categories for filter dropdown
+    categories = ThreadCategory.objects.filter(family=family, is_active=True)
+    
+    # Create default categories if none exist
+    if not categories.exists():
+        _create_default_thread_categories(family)
+        categories = ThreadCategory.objects.filter(family=family, is_active=True)
+    
+    return render(request, TEMPLATE_THREAD_LIST, {
+        "family": family,
+        "membership": membership,
+        "page_obj": page_obj,
+        "posts": page_obj,
+        "categories": categories,
+        "current_sort": sort,
+        "current_category": category_id,
+        "current_type": post_type,
+        "post_types": ThreadPost.PostType.choices,
+        "user_votes": user_votes,
+    })
+
+
+def _create_default_thread_categories(family):
+    """Create default categories for a family's thread."""
+    default_categories = [
+        {"name": "General Discussion", "icon": "chat", "color": "#6366f1"},
+        {"name": "Research Help", "icon": "search", "color": "#10b981"},
+        {"name": "DNA Results", "icon": "dna", "color": "#f59e0b"},
+        {"name": "Photo Identification", "icon": "image", "color": "#ec4899"},
+        {"name": "Document Translation", "icon": "document", "color": "#8b5cf6"},
+        {"name": "Family Stories", "icon": "book", "color": "#06b6d4"},
+        {"name": "Discoveries", "icon": "lightbulb", "color": "#84cc16"},
+        {"name": "Questions", "icon": "question", "color": "#f97316"},
+    ]
+    
+    for i, cat_data in enumerate(default_categories):
+        ThreadCategory.objects.create(
+            family=family,
+            name=cat_data["name"],
+            icon=cat_data["icon"],
+            color=cat_data["color"],
+            display_order=i
+        )
+
+
+@login_required
+def thread_create(request, family_id):
+    """Create a new thread post."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    if membership.role == Membership.Role.VIEWER:
+        messages.error(request, "You don't have permission to create posts.")
+        return redirect(URL_THREAD_LIST, family_id=family.id)
+    
+    categories = ThreadCategory.objects.filter(family=family, is_active=True)
+    
+    if request.method == "POST":
+        title = request.POST.get('title', '').strip()
+        content = request.POST.get('content', '').strip()
+        post_type = request.POST.get('post_type', 'DISCUSSION')
+        category_id = request.POST.get('category')
+        link_url = request.POST.get('link_url', '').strip()
+        link_title = request.POST.get('link_title', '').strip()
+        image = request.FILES.get('image')
+        
+        if not title:
+            messages.error(request, "Title is required.")
+            return render(request, TEMPLATE_THREAD_CREATE, {
+                "family": family,
+                "membership": membership,
+                "categories": categories,
+                "post_types": ThreadPost.PostType.choices,
+            })
+        
+        # Create the post
+        post = ThreadPost.objects.create(
+            family=family,
+            author=request.user,
+            title=title,
+            content=content,
+            post_type=post_type,
+            category_id=category_id if category_id else None,
+            link_url=link_url,
+            link_title=link_title,
+            image=image
+        )
+        
+        # Handle tagged people
+        tagged_ids = request.POST.getlist('tagged_people')
+        if tagged_ids:
+            people = Person.objects.filter(id__in=tagged_ids, family=family)
+            post.tagged_people.set(people)
+        
+        messages.success(request, "Post created successfully!")
+        return redirect(URL_THREAD_DETAIL, family_id=family.id, post_id=post.id)
+    
+    # GET request - show form
+    people = Person.objects.filter(family=family, is_deleted=False).order_by('first_name')
+    
+    return render(request, TEMPLATE_THREAD_CREATE, {
+        "family": family,
+        "membership": membership,
+        "categories": categories,
+        "post_types": ThreadPost.PostType.choices,
+        "people": people,
+    })
+
+
+@login_required
+def thread_detail(request, family_id, post_id):
+    """View a thread post and its replies."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    post = get_object_or_404(
+        ThreadPost.objects.select_related('author', 'category'),
+        id=post_id,
+        family=family
+    )
+    
+    # Increment view count
+    ThreadPost.objects.filter(id=post_id).update(view_count=models.F('view_count') + 1)
+    
+    # Get user's vote on this post
+    user_vote = None
+    if request.user.is_authenticated:
+        vote = ThreadVote.objects.filter(user=request.user, post=post).first()
+        if vote:
+            user_vote = vote.vote_type
+    
+    # Get bookmarked status
+    is_bookmarked = ThreadBookmark.objects.filter(user=request.user, post=post).exists()
+    
+    # Get replies sorted by vote score (best first) or by time
+    sort = request.GET.get('sort', 'best')
+    
+    # Get top-level replies only
+    replies = ThreadReply.objects.filter(
+        post=post,
+        parent__isnull=True,
+        is_hidden=False
+    ).select_related('author').prefetch_related('votes', 'children')
+    
+    if sort == 'new':
+        replies = replies.order_by('-created_at')
+    elif sort == 'old':
+        replies = replies.order_by('created_at')
+    else:  # best (by vote score)
+        replies = list(replies)
+        replies.sort(key=lambda r: r.vote_score, reverse=True)
+    
+    # Get user's votes on replies
+    user_reply_votes = {}
+    if request.user.is_authenticated:
+        reply_ids = [r.id for r in replies]
+        # Include nested reply IDs
+        for reply in replies:
+            for child in reply.children.filter(is_hidden=False):
+                reply_ids.append(child.id)
+        
+        votes = ThreadVote.objects.filter(user=request.user, reply_id__in=reply_ids)
+        for vote in votes:
+            user_reply_votes[vote.reply_id] = vote.vote_type
+    
+    # Check permissions
+    can_edit = post.author == request.user or membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN]
+    can_delete = can_edit
+    can_moderate = membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN]
+    
+    return render(request, TEMPLATE_THREAD_DETAIL, {
+        "family": family,
+        "membership": membership,
+        "post": post,
+        "replies": replies,
+        "user_vote": user_vote,
+        "user_reply_votes": user_reply_votes,
+        "is_bookmarked": is_bookmarked,
+        "can_edit": can_edit,
+        "can_delete": can_delete,
+        "can_moderate": can_moderate,
+        "current_sort": sort,
+    })
+
+
+@login_required
+def thread_edit(request, family_id, post_id):
+    """Edit a thread post."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    post = get_object_or_404(ThreadPost, id=post_id, family=family)
+    
+    # Check permission
+    if post.author != request.user and membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        messages.error(request, "You don't have permission to edit this post.")
+        return redirect(URL_THREAD_DETAIL, family_id=family.id, post_id=post.id)
+    
+    categories = ThreadCategory.objects.filter(family=family, is_active=True)
+    
+    if request.method == "POST":
+        post.title = request.POST.get('title', '').strip()
+        post.content = request.POST.get('content', '').strip()
+        post.post_type = request.POST.get('post_type', 'DISCUSSION')
+        category_id = request.POST.get('category')
+        post.category_id = category_id if category_id else None
+        post.link_url = request.POST.get('link_url', '').strip()
+        post.link_title = request.POST.get('link_title', '').strip()
+        
+        if request.FILES.get('image'):
+            post.image = request.FILES.get('image')
+        
+        if not post.title:
+            messages.error(request, "Title is required.")
+        else:
+            post.save()
+            
+            # Update tagged people
+            tagged_ids = request.POST.getlist('tagged_people')
+            if tagged_ids:
+                people = Person.objects.filter(id__in=tagged_ids, family=family)
+                post.tagged_people.set(people)
+            else:
+                post.tagged_people.clear()
+            
+            messages.success(request, "Post updated successfully!")
+            return redirect(URL_THREAD_DETAIL, family_id=family.id, post_id=post.id)
+    
+    people = Person.objects.filter(family=family, is_deleted=False).order_by('first_name')
+    
+    return render(request, TEMPLATE_THREAD_EDIT, {
+        "family": family,
+        "membership": membership,
+        "post": post,
+        "categories": categories,
+        "post_types": ThreadPost.PostType.choices,
+        "people": people,
+    })
+
+
+@login_required
+def thread_delete(request, family_id, post_id):
+    """Delete a thread post."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    post = get_object_or_404(ThreadPost, id=post_id, family=family)
+    
+    # Check permission
+    if post.author != request.user and membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        messages.error(request, "You don't have permission to delete this post.")
+        return redirect(URL_THREAD_DETAIL, family_id=family.id, post_id=post.id)
+    
+    if request.method == "POST":
+        post.delete()
+        messages.success(request, "Post deleted successfully!")
+        return redirect(URL_THREAD_LIST, family_id=family.id)
+    
+    return render(request, "families/thread/thread_delete_confirm.html", {
+        "family": family,
+        "membership": membership,
+        "post": post,
+    })
+
+
+@login_required
+def thread_vote(request, family_id, post_id):
+    """Vote on a thread post (AJAX endpoint)."""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"error": "Access denied"}, status=403)
+    
+    post = get_object_or_404(ThreadPost, id=post_id, family=family)
+    vote_type = request.POST.get('vote_type', 'UPVOTE')
+    
+    if vote_type not in ['UPVOTE', 'DOWNVOTE']:
+        return JsonResponse({"error": "Invalid vote type"}, status=400)
+    
+    # Get or create vote
+    vote, created = ThreadVote.objects.get_or_create(
+        user=request.user,
+        post=post,
+        defaults={'vote_type': vote_type}
+    )
+    
+    if not created:
+        if vote.vote_type == vote_type:
+            # Same vote type - remove vote (toggle off)
+            vote.delete()
+            user_vote = None
+        else:
+            # Different vote type - change vote
+            vote.vote_type = vote_type
+            vote.save()
+            user_vote = vote_type
+    else:
+        user_vote = vote_type
+    
+    # Refresh post to get updated counts
+    post.refresh_from_db()
+    
+    return JsonResponse({
+        "success": True,
+        "vote_score": post.vote_score,
+        "upvotes": post.upvote_count,
+        "downvotes": post.downvote_count,
+        "user_vote": user_vote,
+    })
+
+
+@login_required
+def thread_reply_create(request, family_id, post_id):
+    """Create a reply to a thread post or another reply."""
+    if request.method != "POST":
+        return redirect(URL_THREAD_DETAIL, family_id=family_id, post_id=post_id)
+    
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    if membership.role == Membership.Role.VIEWER:
+        messages.error(request, "You don't have permission to reply.")
+        return redirect(URL_THREAD_DETAIL, family_id=family.id, post_id=post_id)
+    
+    post = get_object_or_404(ThreadPost, id=post_id, family=family)
+    
+    if post.is_locked:
+        messages.error(request, "This post is locked and cannot receive new replies.")
+        return redirect(URL_THREAD_DETAIL, family_id=family.id, post_id=post_id)
+    
+    content = request.POST.get('content', '').strip()
+    parent_id = request.POST.get('parent_id')
+    
+    if not content:
+        messages.error(request, "Reply content is required.")
+        return redirect(URL_THREAD_DETAIL, family_id=family.id, post_id=post_id)
+    
+    parent = None
+    if parent_id:
+        parent = ThreadReply.objects.filter(id=parent_id, post=post).first()
+    
+    ThreadReply.objects.create(
+        post=post,
+        parent=parent,
+        author=request.user,
+        content=content
+    )
+    
+    messages.success(request, "Reply posted!")
+    return redirect(URL_THREAD_DETAIL, family_id=family.id, post_id=post_id)
+
+
+@login_required
+def thread_reply_vote(request, family_id, reply_id):
+    """Vote on a thread reply (AJAX endpoint)."""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"error": "Access denied"}, status=403)
+    
+    reply = get_object_or_404(ThreadReply, id=reply_id, post__family=family)
+    vote_type = request.POST.get('vote_type', 'UPVOTE')
+    
+    if vote_type not in ['UPVOTE', 'DOWNVOTE']:
+        return JsonResponse({"error": "Invalid vote type"}, status=400)
+    
+    # Get or create vote
+    vote, created = ThreadVote.objects.get_or_create(
+        user=request.user,
+        reply=reply,
+        defaults={'vote_type': vote_type}
+    )
+    
+    if not created:
+        if vote.vote_type == vote_type:
+            vote.delete()
+            user_vote = None
+        else:
+            vote.vote_type = vote_type
+            vote.save()
+            user_vote = vote_type
+    else:
+        user_vote = vote_type
+    
+    return JsonResponse({
+        "success": True,
+        "vote_score": reply.vote_score,
+        "user_vote": user_vote,
+    })
+
+
+@login_required
+def thread_reply_delete(request, family_id, reply_id):
+    """Delete a thread reply."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    reply = get_object_or_404(ThreadReply, id=reply_id, post__family=family)
+    post_id = reply.post_id
+    
+    # Check permission
+    if reply.author != request.user and membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        messages.error(request, "You don't have permission to delete this reply.")
+        return redirect(URL_THREAD_DETAIL, family_id=family.id, post_id=post_id)
+    
+    if request.method == "POST":
+        reply.delete()
+        messages.success(request, "Reply deleted!")
+    
+    return redirect(URL_THREAD_DETAIL, family_id=family.id, post_id=post_id)
+
+
+@login_required
+def thread_bookmark_toggle(request, family_id, post_id):
+    """Toggle bookmark on a thread post."""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"error": "Access denied"}, status=403)
+    
+    post = get_object_or_404(ThreadPost, id=post_id, family=family)
+    
+    bookmark, created = ThreadBookmark.objects.get_or_create(
+        user=request.user,
+        post=post
+    )
+    
+    if not created:
+        bookmark.delete()
+        is_bookmarked = False
+    else:
+        is_bookmarked = True
+    
+    return JsonResponse({
+        "success": True,
+        "is_bookmarked": is_bookmarked,
+    })
+
+
+@login_required
+def thread_bookmarks(request, family_id):
+    """View user's bookmarked posts in a family."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    bookmarks = ThreadBookmark.objects.filter(
+        user=request.user,
+        post__family=family
+    ).select_related('post', 'post__author', 'post__category').order_by('-created_at')
+    
+    return render(request, "families/thread/thread_bookmarks.html", {
+        "family": family,
+        "membership": membership,
+        "bookmarks": bookmarks,
+    })
+
+
+@login_required
+def thread_moderate(request, family_id, post_id):
+    """Moderate a thread post (hide/unhide, lock/unlock, pin/unpin)."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        messages.error(request, "You don't have moderation permissions.")
+        return redirect(URL_THREAD_DETAIL, family_id=family.id, post_id=post_id)
+    
+    post = get_object_or_404(ThreadPost, id=post_id, family=family)
+    
+    if request.method == "POST":
+        action = request.POST.get('action')
+        
+        if action == 'toggle_hide':
+            post.is_hidden = not post.is_hidden
+            post.save()
+            status = "hidden" if post.is_hidden else "visible"
+            messages.success(request, f"Post is now {status}.")
+        
+        elif action == 'toggle_lock':
+            post.is_locked = not post.is_locked
+            post.save()
+            status = "locked" if post.is_locked else "unlocked"
+            messages.success(request, f"Post is now {status}.")
+        
+        elif action == 'toggle_pin':
+            post.is_pinned = not post.is_pinned
+            post.save()
+            status = "pinned" if post.is_pinned else "unpinned"
+            messages.success(request, f"Post is now {status}.")
+        
+        elif action == 'mark_answered':
+            post.is_answered = not post.is_answered
+            post.save()
+            status = "marked as answered" if post.is_answered else "marked as unanswered"
+            messages.success(request, f"Post {status}.")
+    
+    return redirect(URL_THREAD_DETAIL, family_id=family.id, post_id=post_id)
+
+
+@login_required
+def thread_categories(request, family_id):
+    """Manage thread categories (admin only)."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": None})
+    
+    if membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        messages.error(request, "You don't have permission to manage categories.")
+        return redirect(URL_THREAD_LIST, family_id=family.id)
+    
+    categories = ThreadCategory.objects.filter(family=family).order_by('display_order')
+    
+    if request.method == "POST":
+        action = request.POST.get('action')
+        
+        if action == 'create':
+            name = request.POST.get('name', '').strip()
+            color = request.POST.get('color', '#6366f1')
+            icon = request.POST.get('icon', '').strip()
+            description = request.POST.get('description', '').strip()
+            
+            if name:
+                max_order = categories.aggregate(models.Max('display_order'))['display_order__max'] or 0
+                ThreadCategory.objects.create(
+                    family=family,
+                    name=name,
+                    color=color,
+                    icon=icon,
+                    description=description,
+                    display_order=max_order + 1
+                )
+                messages.success(request, f"Category '{name}' created.")
+        
+        elif action == 'delete':
+            cat_id = request.POST.get('category_id')
+            if cat_id:
+                ThreadCategory.objects.filter(id=cat_id, family=family).delete()
+                messages.success(request, "Category deleted.")
+        
+        elif action == 'toggle_active':
+            cat_id = request.POST.get('category_id')
+            if cat_id:
+                cat = ThreadCategory.objects.filter(id=cat_id, family=family).first()
+                if cat:
+                    cat.is_active = not cat.is_active
+                    cat.save()
+                    status = "activated" if cat.is_active else "deactivated"
+                    messages.success(request, f"Category {status}.")
+        
+        return redirect("families:thread_categories", family_id=family.id)
+    
+    return render(request, "families/thread/thread_categories.html", {
+        "family": family,
+        "membership": membership,
+        "categories": categories,
     })

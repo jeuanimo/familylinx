@@ -375,4 +375,35 @@ urlpatterns = [
     path("prayers/<int:prayer_id>/answered/", views.prayer_mark_answered, name="global_prayer_mark_answered"),
     path("prayers/<int:prayer_id>/testimony/edit/", views.prayer_testimony_edit, name="global_prayer_testimony_edit"),
     path("prayers/reply/<int:reply_id>/delete/", views.prayer_reply_delete, name="global_prayer_reply_delete"),
+    
+    # ==========================================================================
+    # Tree and Genealogy Thread - Reddit-Style Discussion Forum
+    # ==========================================================================
+    
+    # Thread list and create
+    path("<int:family_id>/thread/", views.thread_list, name="thread_list"),
+    path("<int:family_id>/thread/new/", views.thread_create, name="thread_create"),
+    
+    # Thread post detail, edit, delete
+    path("<int:family_id>/thread/<int:post_id>/", views.thread_detail, name="thread_detail"),
+    path("<int:family_id>/thread/<int:post_id>/edit/", views.thread_edit, name="thread_edit"),
+    path("<int:family_id>/thread/<int:post_id>/delete/", views.thread_delete, name="thread_delete"),
+    
+    # Voting
+    path("<int:family_id>/thread/<int:post_id>/vote/", views.thread_vote, name="thread_vote"),
+    path("<int:family_id>/thread/reply/<int:reply_id>/vote/", views.thread_reply_vote, name="thread_reply_vote"),
+    
+    # Replies
+    path("<int:family_id>/thread/<int:post_id>/reply/", views.thread_reply_create, name="thread_reply_create"),
+    path("<int:family_id>/thread/reply/<int:reply_id>/delete/", views.thread_reply_delete, name="thread_reply_delete"),
+    
+    # Bookmarks
+    path("<int:family_id>/thread/<int:post_id>/bookmark/", views.thread_bookmark_toggle, name="thread_bookmark_toggle"),
+    path("<int:family_id>/thread/bookmarks/", views.thread_bookmarks, name="thread_bookmarks"),
+    
+    # Moderation
+    path("<int:family_id>/thread/<int:post_id>/moderate/", views.thread_moderate, name="thread_moderate"),
+    
+    # Categories management
+    path("<int:family_id>/thread/categories/", views.thread_categories, name="thread_categories"),
 ]

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Bookmarks - Tree & Genealogy Thread{% endblock title %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-bookmark-fill"></i> My Saved Posts</h2>
+            <p class="text-muted mb-0">{{ family.name }} Thread Bookmarks</p>
+        </div>
+        <a href="{% url 'families:thread_list' family_id=family.id %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Thread
+        </a>
+    </div>
+
+    {% if bookmarks %}
+    <div class="list-group">
+        {% for bookmark in bookmarks %}
+        <div class="list-group-item">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    {% if bookmark.post.category %}
+                    <span class="badge mb-1" style="background: {{ bookmark.post.category.color }}20; color: {{ bookmark.post.category.color }}; border: 1px solid {{ bookmark.post.category.color }}40;">
+                        {{ bookmark.post.category.name }}
+                    </span>
+                    {% endif %}
+                    
+                    <h5 class="mb-1">
+                        <a href="{% url 'families:thread_detail' family_id=family.id post_id=bookmark.post.id %}" class="text-decoration-none">
+                            {{ bookmark.post.title }}
+                        </a>
+                    </h5>
+                    
+                    <p class="text-muted small mb-1">
+                        By {{ bookmark.post.author.get_full_name|default:bookmark.post.author.email }} • 
+                        {{ bookmark.post.created_at|timesince }} ago •
+                        <i class="bi bi-arrow-up"></i> {{ bookmark.post.vote_score }} •
+                        <i class="bi bi-chat"></i> {{ bookmark.post.reply_count }}
+                    </p>
+                    
+                    <p class="text-muted small mb-0">
+                        <i class="bi bi-bookmark"></i> Saved {{ bookmark.created_at|timesince }} ago
+                    </p>
+                </div>
+                
+                <form method="post" action="{% url 'families:thread_bookmark_toggle' family_id=family.id post_id=bookmark.post.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove bookmark">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-bookmark display-1 text-muted"></i>
+        <h4 class="mt-3">No saved posts yet</h4>
+        <p class="text-muted">Save interesting posts to find them easily later.</p>
+        <a href="{% url 'families:thread_list' family_id=family.id %}" class="btn btn-primary">
+            Browse Thread
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock content %}

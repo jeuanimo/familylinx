@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ post.title }} - Tree & Genealogy Thread{% endblock title %}
+
+{% block extra_css %}
+<style>
+    .vote-buttons {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 50px;
+    }
+    .vote-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 2px 8px;
+        font-size: 1.4rem;
+        color: #6c757d;
+        transition: color 0.2s;
+    }
+    .vote-btn:hover {
+        color: #6366f1;
+    }
+    .vote-btn.upvoted {
+        color: #10b981;
+    }
+    .vote-btn.downvoted {
+        color: #ef4444;
+    }
+    .vote-score {
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+    .vote-score.positive {
+        color: #10b981;
+    }
+    .vote-score.negative {
+        color: #ef4444;
+    }
+    .category-badge {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 999px;
+    }
+    .reply-card {
+        border-left: 3px solid #e5e7eb;
+        margin-left: 0;
+    }
+    .reply-card.nested {
+        margin-left: 2rem;
+        border-left-color: #d1d5db;
+    }
+    .reply-card.nested-2 {
+        margin-left: 4rem;
+        border-left-color: #9ca3af;
+    }
+    .reply-card .op-badge {
+        background: #6366f1;
+        color: white;
+        font-size: 0.65rem;
+        padding: 0.1rem 0.4rem;
+        border-radius: 999px;
+    }
+    .reply-vote-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0 4px;
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    .reply-vote-btn:hover {
+        color: #6366f1;
+    }
+    .reply-vote-btn.upvoted {
+        color: #10b981;
+    }
+    .reply-vote-btn.downvoted {
+        color: #ef4444;
+    }
+    .post-content {
+        line-height: 1.7;
+    }
+    .post-content p {
+        margin-bottom: 1rem;
+    }
+    .mod-actions .btn {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+    }
+</style>
+{% endblock extra_css %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'families:thread_list' family_id=family.id %}">Thread</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ post.title|truncatewords:5 }}</li>
+        </ol>
+    </nav>
+
+    <!-- Main Post -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex">
+                <!-- Vote Buttons -->
+                <div class="vote-buttons me-4">
+                    <button class="vote-btn {% if user_vote == 'UPVOTE' %}upvoted{% endif %}"
+                            onclick="votePost('UPVOTE')" id="post-upvote">
+                        <i class="bi bi-arrow-up-circle{% if user_vote == 'UPVOTE' %}-fill{% endif %}"></i>
+                    </button>
+                    <span class="vote-score {% if post.vote_score > 0 %}positive{% elif post.vote_score < 0 %}negative{% endif %}" 
+                          id="post-score">{{ post.vote_score }}</span>
+                    <button class="vote-btn {% if user_vote == 'DOWNVOTE' %}downvoted{% endif %}"
+                            onclick="votePost('DOWNVOTE')" id="post-downvote">
+                        <i class="bi bi-arrow-down-circle{% if user_vote == 'DOWNVOTE' %}-fill{% endif %}"></i>
+                    </button>
+                </div>
+                
+                <!-- Post Content -->
+                <div class="flex-grow-1">
+                    <!-- Badges -->
+                    <div class="mb-2">
+                        {% if post.category %}
+                        <span class="category-badge" style="background: {{ post.category.color }}20; color: {{ post.category.color }}; border: 1px solid {{ post.category.color }}40;">
+                            {{ post.category.name }}
+                        </span>
+                        {% endif %}
+                        <span class="badge bg-secondary">{{ post.get_post_type_display }}</span>
+                        {% if post.is_pinned %}
+                        <span class="badge bg-warning text-dark"><i class="bi bi-pin-fill"></i> Pinned</span>
+                        {% endif %}
+                        {% if post.is_locked %}
+                        <span class="badge bg-danger"><i class="bi bi-lock"></i> Locked</span>
+                        {% endif %}
+                        {% if post.is_answered %}
+                        <span class="badge bg-success"><i class="bi bi-check-circle"></i> Answered</span>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Title -->
+                    <h3 class="mb-3">{{ post.title }}</h3>
+                    
+                    <!-- Author Info -->
+                    <div class="d-flex align-items-center mb-3 text-muted small">
+                        <span class="me-3">
+                            <i class="bi bi-person-circle"></i>
+                            {% if post.author %}{{ post.author.get_full_name|default:post.author.email }}{% else %}[deleted]{% endif %}
+                        </span>
+                        <span class="me-3"><i class="bi bi-clock"></i> {{ post.created_at|timesince }} ago</span>
+                        <span class="me-3"><i class="bi bi-eye"></i> {{ post.view_count }} views</span>
+                        {% if post.updated_at != post.created_at %}
+                        <span class="text-warning"><i class="bi bi-pencil"></i> edited</span>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Image -->
+                    {% if post.image %}
+                    <div class="mb-3">
+                        <img src="{{ post.image.url }}" alt="Post image" class="img-fluid rounded" style="max-height: 400px;">
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Content -->
+                    {% if post.content %}
+                    <div class="post-content mb-3">
+                        {{ post.content|linebreaks }}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Link -->
+                    {% if post.link_url %}
+                    <div class="mb-3">
+                        <a href="{{ post.link_url }}" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-link-45deg"></i> {{ post.link_title|default:post.link_url|truncatechars:50 }}
+                        </a>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Tagged People -->
+                    {% if post.tagged_people.exists %}
+                    <div class="mb-3">
+                        <small class="text-muted">Tagged:</small>
+                        {% for person in post.tagged_people.all %}
+                        <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" class="badge bg-light text-dark text-decoration-none">
+                            {{ person.full_name }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Actions -->
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-sm {% if is_bookmarked %}btn-secondary{% else %}btn-outline-secondary{% endif %}" 
+                                onclick="toggleBookmark()" id="bookmark-btn">
+                            <i class="bi bi-bookmark{% if is_bookmarked %}-fill{% endif %}"></i>
+                            <span id="bookmark-text">{% if is_bookmarked %}Saved{% else %}Save{% endif %}</span>
+                        </button>
+                        
+                        {% if can_edit %}
+                        <a href="{% url 'families:thread_edit' family_id=family.id post_id=post.id %}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                        {% endif %}
+                        
+                        {% if can_delete %}
+                        <a href="{% url 'families:thread_delete' family_id=family.id post_id=post.id %}" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-trash"></i> Delete
+                        </a>
+                        {% endif %}
+                        
+                        {% if can_moderate %}
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-warning dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-shield"></i> Moderate
+                            </button>
+                            <ul class="dropdown-menu mod-actions">
+                                <li>
+                                    <form method="post" action="{% url 'families:thread_moderate' family_id=family.id post_id=post.id %}" class="dropdown-item p-0">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="toggle_pin">
+                                        <button type="submit" class="btn btn-sm btn-link text-decoration-none w-100 text-start">
+                                            <i class="bi bi-pin"></i> {% if post.is_pinned %}Unpin{% else %}Pin{% endif %}
+                                        </button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" action="{% url 'families:thread_moderate' family_id=family.id post_id=post.id %}" class="dropdown-item p-0">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="toggle_lock">
+                                        <button type="submit" class="btn btn-sm btn-link text-decoration-none w-100 text-start">
+                                            <i class="bi bi-lock"></i> {% if post.is_locked %}Unlock{% else %}Lock{% endif %}
+                                        </button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" action="{% url 'families:thread_moderate' family_id=family.id post_id=post.id %}" class="dropdown-item p-0">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="toggle_hide">
+                                        <button type="submit" class="btn btn-sm btn-link text-decoration-none w-100 text-start text-danger">
+                                            <i class="bi bi-eye-slash"></i> {% if post.is_hidden %}Show{% else %}Hide{% endif %}
+                                        </button>
+                                    </form>
+                                </li>
+                                {% if post.post_type == 'QUESTION' %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <form method="post" action="{% url 'families:thread_moderate' family_id=family.id post_id=post.id %}" class="dropdown-item p-0">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="mark_answered">
+                                        <button type="submit" class="btn btn-sm btn-link text-decoration-none w-100 text-start text-success">
+                                            <i class="bi bi-check-circle"></i> {% if post.is_answered %}Mark Unanswered{% else %}Mark Answered{% endif %}
+                                        </button>
+                                    </form>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reply Form -->
+    {% if not post.is_locked %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="bi bi-chat-dots"></i> Leave a Reply
+        </div>
+        <div class="card-body">
+            <form method="post" action="{% url 'families:thread_reply_create' family_id=family.id post_id=post.id %}">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <textarea name="content" class="form-control" rows="3" placeholder="Write your reply..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-send"></i> Post Reply
+                </button>
+            </form>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+        <i class="bi bi-lock"></i> This post is locked and cannot receive new replies.
+    </div>
+    {% endif %}
+
+    <!-- Replies Section -->
+    <div class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5><i class="bi bi-chat-left-text"></i> {{ post.reply_count }} Replies</h5>
+            <div class="btn-group btn-group-sm">
+                <a href="?sort=best" class="btn {% if current_sort == 'best' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Best</a>
+                <a href="?sort=new" class="btn {% if current_sort == 'new' %}btn-primary{% else %}btn-outline-secondary{% endif %}">New</a>
+                <a href="?sort=old" class="btn {% if current_sort == 'old' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Old</a>
+            </div>
+        </div>
+
+        {% if replies %}
+        <div class="replies-container">
+            {% for reply in replies %}
+            {% include "families/thread/_reply_card.html" with reply=reply depth=0 %}
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+            <i class="bi bi-chat display-4"></i>
+            <p class="mt-2">No replies yet. Be the first to respond!</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Back Link -->
+    <a href="{% url 'families:thread_list' family_id=family.id %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Thread
+    </a>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+function votePost(voteType) {
+    fetch("{% url 'families:thread_vote' family_id=family.id post_id=post.id %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'vote_type=' + voteType
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const scoreEl = document.getElementById('post-score');
+            scoreEl.textContent = data.vote_score;
+            scoreEl.className = 'vote-score ' + (data.vote_score > 0 ? 'positive' : data.vote_score < 0 ? 'negative' : '');
+            
+            const upBtn = document.getElementById('post-upvote');
+            const downBtn = document.getElementById('post-downvote');
+            
+            upBtn.classList.remove('upvoted');
+            downBtn.classList.remove('downvoted');
+            
+            if (data.user_vote === 'UPVOTE') {
+                upBtn.classList.add('upvoted');
+            } else if (data.user_vote === 'DOWNVOTE') {
+                downBtn.classList.add('downvoted');
+            }
+        }
+    });
+}
+
+function voteReply(replyId, voteType) {
+    fetch("{% url 'families:thread_reply_vote' family_id=family.id reply_id=0 %}".replace('/0/', '/' + replyId + '/'), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'vote_type=' + voteType
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const scoreEl = document.getElementById('reply-score-' + replyId);
+            if (scoreEl) {
+                scoreEl.textContent = data.vote_score;
+            }
+        }
+    });
+}
+
+function toggleBookmark() {
+    fetch("{% url 'families:thread_bookmark_toggle' family_id=family.id post_id=post.id %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const btn = document.getElementById('bookmark-btn');
+            const text = document.getElementById('bookmark-text');
+            if (data.is_bookmarked) {
+                btn.classList.remove('btn-outline-secondary');
+                btn.classList.add('btn-secondary');
+                text.textContent = 'Saved';
+            } else {
+                btn.classList.remove('btn-secondary');
+                btn.classList.add('btn-outline-secondary');
+                text.textContent = 'Save';
+            }
+        }
+    });
+}
+
+function toggleReplyForm(replyId) {
+    const form = document.getElementById('reply-form-' + replyId);
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+{% endblock extra_js %}

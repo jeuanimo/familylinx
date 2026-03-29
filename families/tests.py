@@ -15,7 +15,18 @@ from django.utils.formats import date_format
 from django.utils import timezone
 
 from .forms import GedcomUploadForm
-from .models import CrossSpacePersonLink, FamilyKudos, FamilySpace, FamilyMilestone, Invite, Membership, Person, Relationship
+from .models import (
+    ChatConversationMessage,
+    CrossSpacePersonLink,
+    FamilyKudos,
+    FamilySpace,
+    FamilyMilestone,
+    Invite,
+    Membership,
+    Notification,
+    Person,
+    Relationship,
+)
 from .services.tree_builder import build_tree_json
 
 
@@ -191,6 +202,45 @@ class MessagingEmbedTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "families/conversation_room.html")
         self.assertEqual(response.headers.get("X-Frame-Options"), "SAMEORIGIN")
+
+    def test_direct_conversation_embed_redirect_preserves_embed_flag(self):
+        response = self.client.get(
+            f"{reverse('families:direct_conversation_start', kwargs={'family_id': self.family.id, 'user_id': self.recipient.id})}?embed=1",
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("?embed=1", response.headers["Location"])
+
+    def test_conversation_room_post_creates_message_without_websocket(self):
+        start_response = self.client.get(
+            reverse(
+                "families:direct_conversation_start",
+                kwargs={"family_id": self.family.id, "user_id": self.recipient.id},
+            ),
+            secure=True,
+        )
+
+        room_url = start_response.headers["Location"]
+        response = self.client.post(
+            room_url,
+            {"content": "Fallback message"},
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            ChatConversationMessage.objects.filter(
+                author=self.sender,
+                content="Fallback message",
+            ).exists()
+        )
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.recipient,
+                notification_type=Notification.NotificationType.CHAT,
+            ).exists()
+        )
 
 
 class LinkToTreeViewTests(TestCase):
