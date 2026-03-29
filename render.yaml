@@ -40,6 +40,8 @@ services:
         value: "contact@fam-linx.org"
       - key: INVITE_BCC_EMAIL
         value: "contact@fam-linx.org"
+      - key: CHAT_ENABLE_WEBSOCKETS
+        value: "false"
       - key: SECURITY_BLOCKER_ENABLED
         value: "true"
       - key: SECURITY_BLOCKER_RATE_LIMIT_ENABLED

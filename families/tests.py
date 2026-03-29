@@ -242,6 +242,103 @@ class MessagingEmbedTests(TestCase):
             ).exists()
         )
 
+    def test_conversation_room_ajax_post_returns_message_payload(self):
+        start_response = self.client.get(
+            reverse(
+                "families:direct_conversation_start",
+                kwargs={"family_id": self.family.id, "user_id": self.recipient.id},
+            ),
+            secure=True,
+        )
+
+        room_url = start_response.headers["Location"]
+        response = self.client.post(
+            room_url,
+            {"content": "Ajax fallback message"},
+            secure=True,
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["message"]["content"], "Ajax fallback message")
+        self.assertTrue(payload["message"]["is_own"])
+        self.assertTrue(
+            ChatConversationMessage.objects.filter(
+                author=self.sender,
+                content="Ajax fallback message",
+            ).exists()
+        )
+
+    def test_conversation_messages_json_returns_new_messages(self):
+        start_response = self.client.get(
+            reverse(
+                "families:direct_conversation_start",
+                kwargs={"family_id": self.family.id, "user_id": self.recipient.id},
+            ),
+            secure=True,
+        )
+        room_url = start_response.headers["Location"]
+        self.client.post(
+            room_url,
+            {"content": "Polling message"},
+            secure=True,
+        )
+
+        response = self.client.get(
+            f"{room_url}updates/?after=0",
+            secure=True,
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["messages"][-1]["content"], "Polling message")
+        self.assertIn("receipt_updates", payload)
+
+    def test_polling_marks_messages_read_without_websocket(self):
+        start_response = self.client.get(
+            reverse(
+                "families:direct_conversation_start",
+                kwargs={"family_id": self.family.id, "user_id": self.recipient.id},
+            ),
+            secure=True,
+        )
+        room_url = start_response.headers["Location"]
+        self.client.post(
+            room_url,
+            {"content": "Please read this"},
+            secure=True,
+        )
+        message = ChatConversationMessage.objects.get(content="Please read this")
+
+        self.client.force_login(self.recipient)
+        recipient_response = self.client.get(
+            f"{room_url}updates/?after=0",
+            secure=True,
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(recipient_response.status_code, 200)
+        self.assertTrue(message.read_receipts.filter(user=self.recipient).exists())
+
+        self.client.force_login(self.sender)
+        sender_response = self.client.get(
+            f"{room_url}updates/?after={message.id}",
+            secure=True,
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(sender_response.status_code, 200)
+        payload = sender_response.json()
+        receipt_update = next(
+            (update for update in payload["receipt_updates"] if update["message_id"] == message.id),
+            None,
+        )
+        self.assertIsNotNone(receipt_update)
+        self.assertTrue(receipt_update["receipt_text"])
+
 
 class LinkToTreeViewTests(TestCase):
     def setUp(self):

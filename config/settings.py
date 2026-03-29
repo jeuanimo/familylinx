@@ -75,6 +75,7 @@ SECURITY_BLOCKER_MAX_REQUESTS_PER_WINDOW = int(
     os.environ.get('SECURITY_BLOCKER_MAX_REQUESTS_PER_WINDOW', '240')
 )
 SECURITY_BLOCKER_LOG_LEVEL = os.environ.get('SECURITY_BLOCKER_LOG_LEVEL', 'WARNING')
+CHAT_ENABLE_WEBSOCKETS = _env_bool('CHAT_ENABLE_WEBSOCKETS', False)
 
 
 # =============================================================================

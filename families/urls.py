@@ -205,6 +205,7 @@ urlpatterns = [
     path("<int:family_id>/messages/branch/<int:person_id>/", views.branch_conversation_start, name="branch_conversation_start"),
     path("<int:family_id>/messages/event/<int:event_id>/", views.event_conversation_start, name="event_conversation_start"),
     path("<int:family_id>/messages/conversations/<int:conversation_id>/", views.conversation_room, name="conversation_room"),
+    path("<int:family_id>/messages/conversations/<int:conversation_id>/updates/", views.conversation_messages_json, name="conversation_messages_json"),
     path("<int:family_id>/messages/conversations/<int:conversation_id>/messages/<int:message_id>/delete/", views.conversation_message_delete, name="conversation_message_delete"),
 
     # Legacy Family Group Chat route

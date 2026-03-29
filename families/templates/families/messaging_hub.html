@@ -27,16 +27,49 @@
 
     <div class="messaging-hub-grid">
       <div class="stack-lg">
-        <div class="card">
+        <div class="card messaging-section-card">
           <div class="card-header">
-            <span class="card-title"><i class="bi bi-inboxes"></i> Conversations</span>
+            <div>
+              <span class="card-title"><i class="bi bi-inboxes"></i> Conversations</span>
+              <p class="messaging-panel-intro">Active threads with recent updates, unread counts, and the newest message preview.</p>
+            </div>
+            <span class="badge badge-blue">{{ conversations|length }}</span>
           </div>
           {% if conversations %}
           <div class="message-card-list">
             {% for item in conversations %}
             <a href="{% url 'families:conversation_room' family_id=family.id conversation_id=item.conversation.id %}" class="message-card-link">
               <div class="message-card-row">
+                <div class="message-card-symbol">
+                  {% if item.conversation.conversation_type == 'DIRECT' %}
+                  <i class="bi bi-person"></i>
+                  {% elif item.conversation.conversation_type == 'EVENT' %}
+                  <i class="bi bi-calendar-event"></i>
+                  {% elif item.conversation.conversation_type == 'BRANCH' %}
+                  <i class="bi bi-diagram-3"></i>
+                  {% else %}
+                  <i class="bi bi-people"></i>
+                  {% endif %}
+                </div>
                 <div class="message-card-main">
+                  <div class="message-card-badge-row">
+                    <span class="badge {% if item.conversation.conversation_type == 'DIRECT' %}badge-blue{% elif item.conversation.conversation_type == 'BRANCH' %}badge-green{% elif item.conversation.conversation_type == 'EVENT' %}badge-gold{% else %}badge-blue{% endif %}">
+                      {% if item.conversation.conversation_type == 'DIRECT' %}
+                      <i class="bi bi-person"></i> Direct
+                      {% elif item.conversation.conversation_type == 'EVENT' %}
+                      <i class="bi bi-calendar-event"></i> Event
+                      {% elif item.conversation.conversation_type == 'BRANCH' %}
+                      <i class="bi bi-diagram-3"></i> Branch
+                      {% else %}
+                      <i class="bi bi-people"></i> Family
+                      {% endif %}
+                    </span>
+                    {% if item.unread_count %}
+                    <span class="badge badge-red"><i class="bi bi-bell-fill"></i> {{ item.unread_count }} new</span>
+                    {% else %}
+                    <span class="badge badge-green"><i class="bi bi-check2-circle"></i> Caught up</span>
+                    {% endif %}
+                  </div>
                   <div class="message-card-title">{{ item.title }}</div>
                   <div class="message-card-snippet">
                     {% if item.latest_message %}
@@ -47,9 +80,6 @@
                   </div>
                 </div>
                 <div class="message-card-meta">
-                  {% if item.unread_count %}
-                  <span class="badge badge-red">{{ item.unread_count }} new</span>
-                  {% endif %}
                   {% if item.latest_message %}
                   <div class="message-card-time">{{ item.latest_message.created_at|timesince }} ago</div>
                   {% endif %}
@@ -59,7 +89,8 @@
             {% endfor %}
           </div>
           {% else %}
-          <div class="card-body">
+          <div class="card-body message-card-empty">
+            <i class="bi bi-chat-square-text"></i>
             <p class="muted mb-0">No conversations yet.</p>
           </div>
           {% endif %}
@@ -67,50 +98,93 @@
       </div>
 
       <div class="stack-lg">
-        <div class="card">
+        <div class="card messaging-section-card">
           <div class="card-header">
-            <span class="card-title"><i class="bi bi-person-lines-fill"></i> Direct Messages</span>
+            <div>
+              <span class="card-title"><i class="bi bi-person-lines-fill"></i> Direct Messages</span>
+              <p class="messaging-panel-intro">Start a one-on-one thread with anyone already in this family space.</p>
+            </div>
+            <span class="badge badge-blue">{{ members|length }}</span>
           </div>
           <div class="message-card-list">
             {% for member in members %}
             <a href="{% url 'families:direct_conversation_start' family_id=family.id user_id=member.user.id %}" class="message-card-link message-directory-card">
-              <div class="message-card-title">{{ member.user.profile.get_display_name|default:member.user.email }}</div>
-              <div class="message-directory-note">{{ member.role }}</div>
+              <div class="message-card-row">
+                <div class="message-card-symbol"><i class="bi bi-person"></i></div>
+                <div class="message-card-main">
+                  <div class="message-card-badge-row">
+                    <span class="badge badge-blue"><i class="bi bi-chat-dots"></i> Direct message</span>
+                    <span class="badge badge-gold">{{ member.role }}</span>
+                  </div>
+                  <div class="message-card-title">{{ member.user.profile.get_display_name|default:member.user.email }}</div>
+                  <div class="message-directory-note-row">
+                    <span class="message-directory-note">Start a private thread with this family member.</span>
+                  </div>
+                </div>
+              </div>
             </a>
             {% empty %}
-            <div class="card-body"><p class="muted mb-0">No other family members yet.</p></div>
+            <div class="card-body message-card-empty"><p class="muted mb-0">No other family members yet.</p></div>
             {% endfor %}
           </div>
         </div>
 
-        <div class="card">
+        <div class="card messaging-section-card">
           <div class="card-header">
-            <span class="card-title"><i class="bi bi-diagram-3"></i> Branch Chats</span>
+            <div>
+              <span class="card-title"><i class="bi bi-diagram-3"></i> Branch Chats</span>
+              <p class="messaging-panel-intro">Open a conversation around one branch of the tree without pulling in everyone else.</p>
+            </div>
+            <span class="badge badge-blue">{{ branch_people|length }}</span>
           </div>
           <div class="message-card-list">
             {% for person in branch_people %}
             <a href="{% url 'families:branch_conversation_start' family_id=family.id person_id=person.id %}" class="message-card-link message-directory-card">
-              <div class="message-card-title">{{ person.full_name }}</div>
-              <div class="message-directory-note">Open branch conversation</div>
+              <div class="message-card-row">
+                <div class="message-card-symbol"><i class="bi bi-diagram-3"></i></div>
+                <div class="message-card-main">
+                  <div class="message-card-badge-row">
+                    <span class="badge badge-green"><i class="bi bi-diagram-3"></i> Branch chat</span>
+                  </div>
+                  <div class="message-card-title">{{ person.full_name }}</div>
+                  <div class="message-directory-note-row">
+                    <span class="message-directory-note">Open a focused conversation around this branch.</span>
+                  </div>
+                </div>
+              </div>
             </a>
             {% empty %}
-            <div class="card-body"><p class="muted mb-0">No people available yet.</p></div>
+            <div class="card-body message-card-empty"><p class="muted mb-0">No people available yet.</p></div>
             {% endfor %}
           </div>
         </div>
 
-        <div class="card">
+        <div class="card messaging-section-card">
           <div class="card-header">
-            <span class="card-title"><i class="bi bi-calendar-event"></i> Event Chats</span>
+            <div>
+              <span class="card-title"><i class="bi bi-calendar-event"></i> Event Chats</span>
+              <p class="messaging-panel-intro">Keep reunion plans, memorial details, and other event talk in their own thread.</p>
+            </div>
+            <span class="badge badge-blue">{{ events|length }}</span>
           </div>
           <div class="message-card-list">
             {% for event in events %}
             <a href="{% url 'families:event_conversation_start' family_id=family.id event_id=event.id %}" class="message-card-link message-directory-card">
-              <div class="message-card-title">{{ event.title }}</div>
-              <div class="message-directory-note">{{ event.start_datetime|date:"M j, Y g:i A" }}</div>
+              <div class="message-card-row">
+                <div class="message-card-symbol"><i class="bi bi-calendar-event"></i></div>
+                <div class="message-card-main">
+                  <div class="message-card-badge-row">
+                    <span class="badge badge-gold"><i class="bi bi-calendar-event"></i> Event thread</span>
+                  </div>
+                  <div class="message-card-title">{{ event.title }}</div>
+                  <div class="message-directory-note-row">
+                    <span class="badge badge-blue"><i class="bi bi-clock-history"></i> {{ event.start_datetime|date:"M j, Y g:i A" }}</span>
+                  </div>
+                </div>
+              </div>
             </a>
             {% empty %}
-            <div class="card-body"><p class="muted mb-0">No events available yet.</p></div>
+            <div class="card-body message-card-empty"><p class="muted mb-0">No events available yet.</p></div>
             {% endfor %}
           </div>
         </div>

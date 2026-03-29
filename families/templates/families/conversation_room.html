@@ -30,6 +30,25 @@
           Family-wide conversation
           {% endif %}
         </p>
+        <div class="chat-room-badge-row">
+          <span class="badge {% if conversation.conversation_type == 'DIRECT' %}badge-blue{% elif conversation.conversation_type == 'BRANCH' %}badge-green{% elif conversation.conversation_type == 'EVENT' %}badge-gold{% else %}badge-blue{% endif %}">
+            {% if conversation.conversation_type == 'DIRECT' %}
+            <i class="bi bi-person"></i> Direct chat
+            {% elif conversation.conversation_type == 'BRANCH' %}
+            <i class="bi bi-diagram-3"></i> Branch chat
+            {% elif conversation.conversation_type == 'EVENT' %}
+            <i class="bi bi-calendar-event"></i> Event chat
+            {% else %}
+            <i class="bi bi-people"></i> Family chat
+            {% endif %}
+          </span>
+          <span class="badge badge-blue"><i class="bi bi-people-fill"></i> {{ participants|length }} participant{{ participants|length|pluralize }}</span>
+          {% if websocket_enabled %}
+          <span class="badge badge-green"><i class="bi bi-broadcast-pin"></i> Realtime on</span>
+          {% else %}
+          <span class="badge badge-gold"><i class="bi bi-arrow-repeat"></i> Auto refresh</span>
+          {% endif %}
+        </div>
       </div>
       <div class="page-actions">
         <a href="{% url 'families:messaging_hub' family_id=family.id %}" class="btn btn-outline">
@@ -42,6 +61,14 @@
       <div>
         <div class="chat-embed-kicker">Direct message</div>
         <div class="chat-embed-title">{{ conversation_title }}</div>
+        <div class="chat-embed-meta">
+          <span class="badge badge-blue"><i class="bi bi-people-fill"></i> {{ participants|length }} participant{{ participants|length|pluralize }}</span>
+          {% if websocket_enabled %}
+          <span class="badge badge-green"><i class="bi bi-broadcast-pin"></i> Realtime</span>
+          {% else %}
+          <span class="badge badge-gold"><i class="bi bi-arrow-repeat"></i> Refreshing</span>
+          {% endif %}
+        </div>
       </div>
       <a href="{% url 'families:conversation_room' family_id=family.id conversation_id=conversation.id %}" class="btn btn-outline btn-sm" target="_top">
         Open Full
@@ -53,7 +80,7 @@
       {% if embed_mode or conversation.conversation_type == 'DIRECT' %}
       <div class="chat-thread-strip">
         {% for participant in participants %}
-        <div class="chat-thread-chip">
+        <div class="chat-thread-chip{% if participant.user == request.user %} chat-thread-chip-self{% endif %}">
           <div class="member-avatar">
             {% if participant.user.profile.profile_picture %}
             <img src="{{ participant.user.profile.profile_picture.url }}" alt="{{ participant.user.profile.get_display_name }}">
@@ -62,9 +89,27 @@
             {% endif %}
           </div>
           <div class="chat-thread-chip-copy">
-            <span class="member-name">{{ participant.user.profile.get_display_name|default:participant.user.email }}{% if participant.user == request.user %} (you){% endif %}</span>
+            <div class="member-card-top">
+              <span class="member-name">{{ participant.user.profile.get_display_name|default:participant.user.email }}</span>
+              <div class="chat-thread-chip-meta">
+                {% if participant.user == request.user %}
+                <span class="badge badge-blue chat-mini-badge"><i class="bi bi-person-check"></i> You</span>
+                {% endif %}
+                <span class="badge {% if participant.last_read_at %}badge-green{% else %}badge-gold{% endif %} chat-mini-badge">
+                  {% if participant.last_read_at %}
+                  <i class="bi bi-check2-circle"></i> Caught up
+                  {% else %}
+                  <i class="bi bi-bell"></i> Unread
+                  {% endif %}
+                </span>
+              </div>
+            </div>
             <span class="member-role">
-              {% if participant.last_read_at %}Read {{ participant.last_read_at|timesince }} ago{% else %}Unread{% endif %}
+              {% if participant.last_read_at %}
+              <i class="bi bi-clock-history"></i> Read {{ participant.last_read_at|timesince }} ago
+              {% else %}
+              <i class="bi bi-bell"></i> Has unread activity
+              {% endif %}
             </span>
           </div>
         </div>
@@ -78,7 +123,7 @@
           <h3><i class="bi bi-people"></i> Participants</h3>
           <ul class="members-list">
             {% for participant in participants %}
-            <li class="member-item">
+            <li class="member-item{% if participant.user == request.user %} member-item-self{% endif %}">
               <div class="member-avatar">
                 {% if participant.user.profile.profile_picture %}
                 <img src="{{ participant.user.profile.profile_picture.url }}" alt="{{ participant.user.profile.get_display_name }}">
@@ -87,9 +132,27 @@
                 {% endif %}
               </div>
               <div class="member-info">
-                <span class="member-name">{{ participant.user.profile.get_display_name|default:participant.user.email }}{% if participant.user == request.user %} (you){% endif %}</span>
+                <div class="member-card-top">
+                  <span class="member-name">{{ participant.user.profile.get_display_name|default:participant.user.email }}</span>
+                  <div class="member-badge-row">
+                    {% if participant.user == request.user %}
+                    <span class="badge badge-blue chat-mini-badge"><i class="bi bi-person-check"></i> You</span>
+                    {% endif %}
+                    <span class="badge {% if participant.last_read_at %}badge-green{% else %}badge-gold{% endif %} chat-mini-badge">
+                      {% if participant.last_read_at %}
+                      <i class="bi bi-check2-circle"></i> Caught up
+                      {% else %}
+                      <i class="bi bi-bell"></i> Unread
+                      {% endif %}
+                    </span>
+                  </div>
+                </div>
                 <span class="member-role">
-                  {% if participant.last_read_at %}Read {{ participant.last_read_at|timesince }} ago{% else %}Unread{% endif %}
+                  {% if participant.last_read_at %}
+                  <i class="bi bi-clock-history"></i> Read {{ participant.last_read_at|timesince }} ago
+                  {% else %}
+                  <i class="bi bi-bell"></i> Has unread activity
+                  {% endif %}
                 </span>
               </div>
             </li>
@@ -106,7 +169,16 @@
             {% for message in messages_data %}
             <div class="chat-message {% if message.is_own %}chat-message-own{% endif %}" data-message-id="{{ message.id }}">
               <div class="chat-message-header">
-                <span class="chat-author">{{ message.author_label }}</span>
+                <div class="chat-message-meta">
+                  <span class="chat-author">{{ message.author_label }}</span>
+                  <span class="badge {% if message.is_own %}badge-blue{% else %}badge-green{% endif %} chat-message-badge">
+                    {% if message.is_own %}
+                    <i class="bi bi-send-check"></i> You
+                    {% else %}
+                    <i class="bi bi-person-badge"></i> Member
+                    {% endif %}
+                  </span>
+                </div>
                 <span class="chat-time">{{ message.created_at|date:"g:i A" }}</span>
               </div>
               <div class="chat-message-body">{{ message.content|linebreaks }}</div>
@@ -135,6 +207,25 @@
 
         {% if membership.role != 'VIEWER' %}
         <div class="chat-input-container">
+          <div class="chat-composer-meta">
+            <div>
+              <div class="chat-composer-title">Reply in {{ conversation_title }}</div>
+              <p class="chat-composer-help">
+                {% if websocket_enabled %}
+                New messages appear in realtime and still refresh in the background.
+                {% else %}
+                Messages send normally and the room refreshes in the background every few seconds.
+                {% endif %}
+              </p>
+            </div>
+            <span class="badge {% if websocket_enabled %}badge-green{% else %}badge-gold{% endif %}">
+              {% if websocket_enabled %}
+              <i class="bi bi-broadcast-pin"></i> Live
+              {% else %}
+              <i class="bi bi-arrow-repeat"></i> Polling
+              {% endif %}
+            </span>
+          </div>
           <form method="post" class="chat-form" id="chat-form">
             {% csrf_token %}
             <div class="chat-input-wrapper">
@@ -155,22 +246,16 @@
   </div>
 </main>
 
-<style>
-.chat-read-receipt {
-  margin-top: 0.35rem;
-  font-size: 0.8rem;
-  color: var(--fl-muted);
-}
-</style>
-
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   const container = document.getElementById('chat-messages');
   const form = document.getElementById('chat-form');
   const textarea = form ? form.querySelector('textarea') : null;
+  const sendButton = form ? form.querySelector('button[type="submit"]') : null;
   const status = document.getElementById('chat-connection-status');
-  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const socket = new WebSocket(`${scheme}://${window.location.host}{{ ws_path }}`);
+  const updatesUrl = "{% url 'families:conversation_messages_json' family_id=family.id conversation_id=conversation.id %}";
+  let lastMessageId = 0;
+  let httpSendInFlight = false;
 
   function setConnectionStatus(message, variant) {
     if (!status) return;
@@ -200,16 +285,15 @@ document.addEventListener('DOMContentLoaded', function () {
       .replace(/'/g, '&#039;');
   }
 
-  function markRead() {
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ action: 'mark_read' }));
-    }
-  }
-
   function appendMessage(message) {
     const emptyState = document.getElementById('chat-empty');
     if (emptyState) {
       emptyState.remove();
+    }
+
+    if (container.querySelector(`[data-message-id="${message.id}"]`)) {
+      lastMessageId = Math.max(lastMessageId, Number(message.id || 0));
+      return;
     }
 
     const messageEl = document.createElement('div');
@@ -224,7 +308,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     messageEl.innerHTML = `
       <div class="chat-message-header">
-        <span class="chat-author">${escapeHtml(message.author_label)}</span>
+        <div class="chat-message-meta">
+          <span class="chat-author">${escapeHtml(message.author_label)}</span>
+          <span class="badge ${message.is_own ? 'badge-blue' : 'badge-green'} chat-message-badge">
+            <i class="bi ${message.is_own ? 'bi-send-check' : 'bi-person-badge'}"></i>
+            ${message.is_own ? 'You' : 'Member'}
+          </span>
+        </div>
         <span class="chat-time">${timeLabel}</span>
       </div>
       <div class="chat-message-body"><p>${escapeHtml(message.content).replace(/\n/g, '<br>')}</p></div>
@@ -232,47 +322,119 @@ document.addEventListener('DOMContentLoaded', function () {
     `;
 
     container.appendChild(messageEl);
+    lastMessageId = Math.max(lastMessageId, Number(message.id || 0));
     scrollToBottom();
-    if (!message.is_own) {
-      markRead();
+  }
+
+  function updateReceipt(messageId, receiptText) {
+    const messageEl = container.querySelector(`[data-message-id="${messageId}"]`);
+    if (!messageEl) return;
+    let receiptEl = messageEl.querySelector('.chat-read-receipt');
+    if (!receiptText) {
+      if (receiptEl) receiptEl.remove();
+      return;
+    }
+    if (!receiptEl) {
+      receiptEl = document.createElement('div');
+      receiptEl.className = 'chat-read-receipt';
+      messageEl.appendChild(receiptEl);
+    }
+    receiptEl.textContent = receiptText;
+  }
+
+  function resetComposer() {
+    if (!textarea) return;
+    textarea.value = '';
+    textarea.style.height = 'auto';
+  }
+
+  function setSendingState(isSending) {
+    httpSendInFlight = isSending;
+    if (textarea) {
+      textarea.disabled = isSending;
+    }
+    if (sendButton) {
+      sendButton.disabled = isSending;
     }
   }
 
-  socket.addEventListener('open', function () {
-    setConnectionStatus('', '');
-    scrollToBottom();
-    markRead();
-  });
-
-  socket.addEventListener('message', function (event) {
-    const data = JSON.parse(event.data);
-    if (data.type === 'message') {
-      appendMessage(data.message);
+  function sendMessageViaHttp(content) {
+    if (!form || !textarea) {
+      return Promise.reject(new Error('Chat form is unavailable.'));
     }
-    if (data.type === 'receipt') {
-      const messageEl = container.querySelector(`[data-message-id="${data.message_id}"]`);
-      if (!messageEl) return;
-      let receiptEl = messageEl.querySelector('.chat-read-receipt');
-      if (!data.receipt_text) {
-        if (receiptEl) receiptEl.remove();
-        return;
-      }
-      if (!receiptEl) {
-        receiptEl = document.createElement('div');
-        receiptEl.className = 'chat-read-receipt';
-        messageEl.appendChild(receiptEl);
-      }
-      receiptEl.textContent = data.receipt_text;
+
+    const formData = new FormData(form);
+    formData.set('content', content);
+    setSendingState(true);
+
+    return fetch(window.location.href, {
+      method: 'POST',
+      body: formData,
+      credentials: 'same-origin',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'application/json',
+      },
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error(`Send failed with ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(function (data) {
+        if (data.message) {
+          appendMessage(data.message);
+          pollConversation();
+        }
+        resetComposer();
+        setConnectionStatus('Message sent without realtime connection. Background refresh is keeping the room updated.', 'is-info');
+      })
+      .catch(function () {
+        setConnectionStatus('Backup send failed. Reloading the room to finish sending your message.', 'is-warning');
+        form.submit();
+      })
+      .finally(function () {
+        setSendingState(false);
+      });
+  }
+
+  function pollConversation() {
+    const params = new URLSearchParams();
+    if (lastMessageId) {
+      params.set('after', String(lastMessageId));
     }
-  });
+    const url = params.toString() ? `${updatesUrl}?${params.toString()}` : updatesUrl;
+    fetch(url, {
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      credentials: 'same-origin',
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error(`Polling failed with ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(function (data) {
+        (data.messages || []).forEach(function (message) {
+          appendMessage(message);
+        });
+        (data.receipt_updates || []).forEach(function (update) {
+          updateReceipt(update.message_id, update.receipt_text);
+        });
+      })
+      .catch(function () {
+        setConnectionStatus('Chat refresh failed. We will keep trying in the background.', 'is-warning');
+      });
+  }
 
-  socket.addEventListener('error', function () {
-    setConnectionStatus('Realtime chat connection failed. Messages will still send with a page refresh.', 'is-warning');
-  });
-
-  socket.addEventListener('close', function () {
-    setConnectionStatus('Realtime chat is unavailable right now. You can still send messages and this page will reload.', 'is-warning');
-  });
+  {% if websocket_enabled %}
+  setConnectionStatus('Realtime chat is enabled for this room, with background refresh as backup.', 'is-info');
+  {% else %}
+  setConnectionStatus('', '');
+  {% endif %}
 
   if (textarea) {
     textarea.addEventListener('keydown', function (event) {
@@ -285,27 +447,41 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (form) {
     form.addEventListener('submit', function (event) {
+      if (httpSendInFlight) {
+        event.preventDefault();
+        return;
+      }
       const content = textarea.value.trim();
       if (!content) {
         event.preventDefault();
         return;
       }
-      if (socket.readyState !== WebSocket.OPEN) {
-        setConnectionStatus('Sending without realtime connection. The chat will refresh after submit.', 'is-info');
-        return;
-      }
       event.preventDefault();
-      socket.send(JSON.stringify({ action: 'send_message', content }));
-      textarea.value = '';
-      textarea.style.height = 'auto';
+      setConnectionStatus('Sending message...', 'is-info');
+      sendMessageViaHttp(content);
     });
   }
 
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') {
-      markRead();
+  container.querySelectorAll('.chat-message').forEach(function (messageEl) {
+    const messageId = Number(messageEl.dataset.messageId || 0);
+    if (messageId) {
+      lastMessageId = Math.max(lastMessageId, messageId);
     }
   });
+
+  setInterval(function () {
+    if (document.visibilityState === 'visible') {
+      pollConversation();
+    }
+  }, 4000);
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      pollConversation();
+    }
+  });
+
+  pollConversation();
 });
 </script>
 {% endblock %}

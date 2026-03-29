@@ -28,6 +28,8 @@ Templates Required:
 import logging
 import smtplib
 from urllib.parse import urlencode
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -1287,6 +1289,48 @@ def _serialize_conversation_message(message, current_user):
         "read_by": read_by,
         "read_receipt_text": f"Seen by {', '.join(read_by)}" if read_by else "",
     }
+
+
+def _conversation_message_json_payload(message_data):
+    """Convert serialized conversation data into JSON-friendly payload."""
+    payload = dict(message_data)
+    created_at = payload.get("created_at")
+    if created_at is not None:
+        payload["created_at"] = created_at.isoformat()
+    return payload
+
+
+def _broadcast_conversation_message(conversation, message):
+    """Fan out a newly created message to websocket listeners when available."""
+    channel_layer = get_channel_layer()
+    if not channel_layer:
+        return
+
+    payload = {
+        "id": message.id,
+        "author_id": message.author_id,
+        "author_label": _display_name_for_user(message.author) if message.author else "Deleted User",
+        "content": message.content,
+        "created_at": message.created_at.isoformat(),
+        "is_own": False,
+        "receipt_text": "",
+    }
+
+    try:
+        async_to_sync(channel_layer.group_send)(
+            f"conversation_{conversation.id}",
+            {
+                "type": "chat_message",
+                "message": payload,
+            },
+        )
+    except Exception:
+        logger.exception(
+            "Conversation websocket broadcast failed for family=%s conversation=%s message=%s",
+            conversation.family_id,
+            conversation.id,
+            message.id,
+        )
 
 
 def _event_type_badge(event_type):
@@ -5333,7 +5377,16 @@ def conversation_room(request, family_id, conversation_id):
                     family=conversation.family,
                 )
 
+            _broadcast_conversation_message(conversation, message)
             _mark_conversation_read(conversation, request.user)
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return JsonResponse(
+                    {
+                        "message": _conversation_message_json_payload(
+                            _serialize_conversation_message(message, request.user)
+                        )
+                    }
+                )
             return redirect(conversation_url)
     else:
         form = ConversationMessageForm()
@@ -5358,8 +5411,70 @@ def conversation_room(request, family_id, conversation_id):
         "messages_data": messages_data,
         "participants": participants,
         "form": form,
-        "ws_path": f"/ws/families/{family.id}/conversations/{conversation.id}/",
         "embed_mode": embed_mode,
+        "websocket_enabled": settings.CHAT_ENABLE_WEBSOCKETS,
+    })
+
+
+@login_required
+def conversation_messages_json(request, family_id, conversation_id):
+    """Polling endpoint for unified conversation updates."""
+    family, membership = _get_membership_or_deny(request, family_id)
+    if not membership:
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
+
+    conversation = get_object_or_404(ChatConversation, id=conversation_id, family=family)
+    if conversation.conversation_type != ChatConversation.ConversationType.DIRECT:
+        _ensure_shared_conversation_participants(conversation)
+
+    participant = ChatConversationParticipant.objects.filter(conversation=conversation, user=request.user).first()
+    if not participant:
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
+
+    try:
+        after_id = int(request.GET.get("after", 0))
+    except (TypeError, ValueError):
+        after_id = 0
+
+    _mark_conversation_read(conversation, request.user)
+
+    messages_qs = conversation.messages.filter(is_deleted=False).select_related(
+        "author",
+        "author__profile",
+    ).prefetch_related(
+        "read_receipts__user",
+        "read_receipts__user__profile",
+    ).order_by("created_at")
+    if after_id:
+        messages_qs = messages_qs.filter(id__gt=after_id)
+
+    messages_payload = [
+        _conversation_message_json_payload(_serialize_conversation_message(message, request.user))
+        for message in messages_qs[:50]
+    ]
+
+    recent_own_messages = conversation.messages.filter(
+        is_deleted=False,
+        author=request.user,
+    ).select_related(
+        "author",
+        "author__profile",
+    ).prefetch_related(
+        "read_receipts__user",
+        "read_receipts__user__profile",
+    ).order_by("-created_at")[:25]
+
+    receipt_updates = [
+        {
+            "message_id": message.id,
+            "receipt_text": _serialize_conversation_message(message, request.user)["read_receipt_text"],
+        }
+        for message in recent_own_messages
+    ]
+
+    return JsonResponse({
+        "messages": messages_payload,
+        "receipt_updates": receipt_updates,
     })
 
 

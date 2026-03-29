@@ -538,14 +538,30 @@
         </div>
         
         <!-- Family Chat -->
-        <div class="card">
+        <div class="card messaging-launch-card">
             <div class="card-header">
                 <span class="card-title"><i class="bi bi-chat-dots"></i> Messaging</span>
             </div>
             <div class="card-body">
-                <a href="{% url 'families:messaging_hub' family_id=family.id %}" class="btn btn-primary w-full">
-                    <i class="bi bi-chat-dots"></i> Open Messages
-                </a>
+                <p class="messaging-launch-copy">Jump into the family chat, start a direct message, or pick up a branch conversation without digging through the tree.</p>
+                <div class="messaging-stat-strip">
+                    <span class="messaging-stat-pill">
+                        <i class="bi bi-people"></i>
+                        {{ members|length }} member{{ members|length|pluralize }}
+                    </span>
+                    <span class="messaging-stat-pill">
+                        <i class="bi bi-chat-square-dots"></i>
+                        Family + direct chats
+                    </span>
+                </div>
+                <div class="messaging-launch-actions">
+                    <a href="{% url 'families:messaging_hub' family_id=family.id %}" class="btn btn-primary w-full">
+                        <i class="bi bi-chat-dots"></i> Open Messages
+                    </a>
+                    <a href="{% url 'families:chat_room' family_id=family.id %}" class="btn btn-outline w-full">
+                        <i class="bi bi-people"></i> Family Chat
+                    </a>
+                </div>
             </div>
         </div>
         
