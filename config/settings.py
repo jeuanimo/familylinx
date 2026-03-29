@@ -223,6 +223,7 @@ LOGIN_URL = '/u/access/'
 
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'contact@fam-linx.org')
 INVITE_BCC_EMAIL = os.environ.get('INVITE_BCC_EMAIL', DEFAULT_FROM_EMAIL)
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '20'))
 
 # Email backend (console for development, SMTP for production)
 if DEBUG:

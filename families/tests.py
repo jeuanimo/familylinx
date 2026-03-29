@@ -632,6 +632,25 @@ class InviteEmailWorkflowTests(TestCase):
         self.assertContains(response, "manual invite link")
         self.assertIn("sending limit", invite.last_email_error.lower())
 
+    @patch("families.views.EmailMessage")
+    def test_invite_create_handles_mail_timeout_without_server_error(self, mock_email_message):
+        mock_email_message.return_value.send.side_effect = TimeoutError("timed out")
+
+        response = self.client.post(
+            reverse("families:invite_create", kwargs={"family_id": self.family.id}),
+            {"email": "cousin@example.com", "role": Membership.Role.MEMBER},
+            secure=True,
+            follow=True,
+        )
+
+        invite = Invite.objects.get(family=self.family, email="cousin@example.com")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "did not respond in time")
+        self.assertContains(response, "manual invite link")
+        self.assertIsNotNone(invite.last_email_attempt_at)
+        self.assertIn("did not respond in time", invite.last_email_error)
+
     def test_invite_login_page_preserves_next_on_signup_link(self):
         invite = Invite.objects.create(
             family=self.family,

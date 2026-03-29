@@ -7,7 +7,7 @@
 <style>
   .tree-container {
     width: 100%;
-    height: calc(100vh - 200px);
+    height: calc(100vh - 220px);
     min-height: 600px;
     background: #f8f9fa;
     border-radius: var(--fl-radius-lg);
@@ -40,15 +40,57 @@
   .child-line { stroke: #666; stroke-width: 2px; fill: none; }
   
   .tree-controls {
-    position: absolute; top: 1rem; right: 1rem;
-    display: flex; flex-direction: column; gap: 0.5rem; z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    z-index: 100;
   }
   .tree-controls button {
-    width: 36px; height: 36px; border-radius: 50%;
-    border: none; background: white; color: #333;
-    cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    width: 40px;
+    height: 40px;
+    border-radius: 16px;
+    border: none;
+    background: white;
+    color: #333;
+    cursor: pointer;
+    box-shadow: 0 8px 18px rgba(0,0,0,0.15);
   }
   .tree-controls button:hover { background: #2196f3; color: white; }
+
+  .controls-wrap {
+    position: absolute;
+    top: 0.9rem;
+    right: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.6rem;
+    z-index: 110;
+  }
+
+  .gen-buttons {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .controls-legend {
+    display: grid;
+    gap: 0.3rem;
+    padding: 0.7rem 0.8rem;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.12);
+    color: #475569;
+    font-size: 0.76rem;
+    line-height: 1.35;
+    max-width: 190px;
+    backdrop-filter: blur(8px);
+  }
+  .controls-legend span {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
   
   .person-selector {
     position: relative;
@@ -64,10 +106,22 @@
     border-radius: 4px; font-size: 14px; min-width: 220px;
   }
   .person-selector label { display: block; font-size: 12px; color: #666; margin-bottom: 0.25rem; }
+
+  .person-selector .flex {
+    align-items: flex-end;
+  }
+
+  .tree-mobile-hint {
+    display: none;
+    margin: 0.55rem 0 0;
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.45;
+  }
   
   .tree-stats {
     padding: 0.5rem 1rem; background: white; border-bottom: 1px solid #eee;
-    display: flex; gap: 1.5rem; font-size: 0.85rem;
+    display: flex; gap: 1.5rem; font-size: 0.85rem; flex-wrap: wrap;
   }
   .tree-stat { color: #666; }
   .tree-stat strong { color: #333; }
@@ -104,9 +158,11 @@
   [data-theme="dark"] .tree-stat strong { color: #e2e8f0; }
   [data-theme="dark"] .person-selector { background: #0b1220; border: 1px solid #1f2937; color: #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.45); }
   [data-theme="dark"] .person-selector label { color: #94a3b8; }
-  [data-theme="dark"] .person-selector select { background: #111827; color: #e2e8f0; border-color: #1f2937; }
+  [data-theme="dark"] .person-selector select,
+  [data-theme="dark"] .person-selector input { background: #111827; color: #e2e8f0; border-color: #1f2937; }
   [data-theme="dark"] .tree-controls button { background: #0b1220; color: #e2e8f0; }
   [data-theme="dark"] .tree-controls button:hover { background: #2563eb; color: #e2e8f0; }
+  [data-theme="dark"] .controls-legend { background: rgba(11, 18, 32, 0.92); color: #cbd5e1; border: 1px solid #1f2937; }
   [data-theme="dark"] .info-panel { background: #0b1220; color: #e2e8f0; border: 1px solid #1f2937; }
   [data-theme="dark"] .info-panel-header { border-bottom-color: #1f2937; }
   [data-theme="dark"] .info-panel-actions { border-top-color: #1f2937; }
@@ -123,17 +179,79 @@
 
   /* Responsive tweaks for tablets/phones */
   @media (max-width: 992px) {
-    .tree-container { height: calc(100vh - 260px); min-height: 480px; }
+    .tree-container { height: calc(100vh - 285px); min-height: 480px; }
     .page-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
     .page-actions { width: 100%; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .person-name { font-size: 10px; }
+    .person-dates { font-size: 8px; }
+    .person-relation { font-size: 8px; }
   }
   @media (max-width: 768px) {
-    .tree-container { height: 70vh; min-height: 420px; }
-    .person-selector { margin: 0.75rem; }
+    .tree-container { height: 68vh; min-height: 400px; border-radius: 18px; }
+    .tree-stats { gap: 0.6rem 0.9rem; padding: 0.75rem; }
+    .tree-stat { flex: 1 1 120px; }
+    .person-selector { margin: 0.75rem; padding: 0.85rem; }
     .person-selector .flex { flex-direction: column; align-items: stretch; gap: 0.35rem; }
-    .tree-controls button { width: 32px; height: 32px; }
-    .controls-wrap { top: 0.25rem !important; right: 0.25rem !important; }
-    .controls-legend { font-size: 10px; max-width: 150px; }
+    .person-selector select,
+    .person-selector input,
+    .person-selector .btn { width: 100%; min-width: 0; }
+    .tree-mobile-hint { display: block; }
+    .controls-wrap {
+      top: auto !important;
+      right: 0.75rem !important;
+      left: 0.75rem;
+      bottom: 0.75rem;
+      align-items: stretch;
+    }
+    .tree-controls {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.55rem;
+      padding: 0.55rem;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(8px);
+    }
+    .tree-controls button { width: 38px; height: 38px; }
+    .gen-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.45rem;
+    }
+    .controls-legend { display: none; }
+    .info-panel {
+      left: 0.75rem;
+      right: 0.75rem;
+      bottom: 4.8rem;
+      width: auto;
+      max-width: none;
+      border-radius: 20px;
+    }
+    .info-panel-actions {
+      flex-direction: column;
+    }
+    .info-panel-actions .btn {
+      width: 100%;
+    }
+    .person-name { font-size: 9px; }
+    .person-dates,
+    .person-relation { font-size: 7px; }
+  }
+
+  @media (max-width: 560px) {
+    .tree-container { height: 64vh; min-height: 360px; }
+    .page-actions .btn { width: 100%; justify-content: center; }
+    .tree-stats { font-size: 0.78rem; }
+    .tree-controls {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .gen-buttons {
+      justify-content: flex-start;
+    }
   }
 
   .branch-space-group {
@@ -233,7 +351,7 @@
     <div class="page-header">
       <div class="page-header-content">
         <h1><i class="bi bi-diagram-3"></i> Family Tree</h1>
-        <p class="muted">Select a person to center the tree. Double-click to navigate.</p>
+        <p class="muted">Tap or click a person to view details, then use Center Here to refocus the tree.</p>
       </div>
       <div class="page-actions">
         <a href="{% url 'families:family_tree' family_id=family.id %}" class="btn btn-outline">
@@ -325,6 +443,7 @@
           <input id="focalPersonInput" type="text" placeholder="Type a name..." onkeydown="if(event.key==='Enter'){findFocalByName();}" />
           <button class="btn btn-primary btn-sm" type="button" onclick="findFocalByName()">Go</button>
         </div>
+        <p class="tree-mobile-hint"><i class="bi bi-hand-index-thumb"></i> Drag to move the tree, pinch or use the controls to zoom, and tap a person card for quick details.</p>
       </div>
       
       <div class="tree-container" id="treeContainer">
@@ -385,10 +504,13 @@ const queryPersonId = (() => {
 const apiUrl = '/api/families/' + familyId + '/tree/';
 const familyName = '{{ family.name|escapejs }}';
 
-const CARD_W = 220, CARD_H = 95;
-const AVATAR_R = 24;
-const SPOUSE_GAP = 70, SIBLING_GAP = 140, GEN_GAP = 160;
-const NAME_LINE_MAX = 22;
+let CARD_W = 220;
+let CARD_H = 95;
+let AVATAR_R = 24;
+let SPOUSE_GAP = 70;
+let SIBLING_GAP = 140;
+let GEN_GAP = 160;
+let NAME_LINE_MAX = 22;
 const MAX_UP_DEFAULT = 3;   // generations above (parents=1)
 const MAX_DOWN_DEFAULT = 3; // generations below (children=1)
 
@@ -397,10 +519,12 @@ let svg, g, zoom;
 let personById = {}, childToParents = {}, parentToChildren = {}, spouseOf = {};
 let maxUp = MAX_UP_DEFAULT;
 let maxDown = MAX_DOWN_DEFAULT;
+let resizeTimer = null;
 
 document.addEventListener('DOMContentLoaded', init);
 
 function init() {
+  updateTreeMetrics();
   const container = document.getElementById('treeContainer');
   svg = d3.select('#treeContainer').append('svg')
     .attr('class', 'tree-svg')
@@ -420,6 +544,64 @@ function init() {
   });
   document.getElementById('lineMode')?.addEventListener('change', updateBranchSpaceNameSuggestion);
   document.getElementById('lineSpouseId')?.addEventListener('change', syncBranchSideControls);
+  window.addEventListener('resize', handleTreeResize);
+}
+
+function updateTreeMetrics() {
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1200;
+  if (viewportWidth <= 560) {
+    CARD_W = 158;
+    CARD_H = 84;
+    AVATAR_R = 18;
+    SPOUSE_GAP = 28;
+    SIBLING_GAP = 72;
+    GEN_GAP = 108;
+    NAME_LINE_MAX = 14;
+    return;
+  }
+  if (viewportWidth <= 768) {
+    CARD_W = 172;
+    CARD_H = 86;
+    AVATAR_R = 19;
+    SPOUSE_GAP = 34;
+    SIBLING_GAP = 84;
+    GEN_GAP = 118;
+    NAME_LINE_MAX = 16;
+    return;
+  }
+  if (viewportWidth <= 992) {
+    CARD_W = 192;
+    CARD_H = 90;
+    AVATAR_R = 21;
+    SPOUSE_GAP = 48;
+    SIBLING_GAP = 108;
+    GEN_GAP = 136;
+    NAME_LINE_MAX = 18;
+    return;
+  }
+  CARD_W = 220;
+  CARD_H = 95;
+  AVATAR_R = 24;
+  SPOUSE_GAP = 70;
+  SIBLING_GAP = 140;
+  GEN_GAP = 160;
+  NAME_LINE_MAX = 22;
+}
+
+function handleTreeResize() {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    updateTreeMetrics();
+    const container = document.getElementById('treeContainer');
+    if (!container || !svg) return;
+    svg
+      .attr('width', container.clientWidth)
+      .attr('height', container.clientHeight);
+    if (allData) {
+      renderTree();
+      fitToScreen();
+    }
+  }, 120);
 }
 
 async function loadData() {
@@ -845,10 +1027,11 @@ function fitToScreen() {
   const container = document.getElementById('treeContainer');
   const bounds = g.node().getBBox();
   if (bounds.width === 0) return;
+  const viewportPadding = window.innerWidth <= 768 ? 28 : 100;
   
   const scale = Math.min(
-    (container.clientWidth - 100) / bounds.width,
-    (container.clientHeight - 100) / bounds.height,
+    (container.clientWidth - viewportPadding) / bounds.width,
+    (container.clientHeight - viewportPadding) / bounds.height,
     1.5
   );
   const tx = container.clientWidth / 2 - (bounds.x + bounds.width / 2) * scale;

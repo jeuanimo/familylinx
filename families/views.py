@@ -46,6 +46,7 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from datetime import date, timedelta
 from collections import deque
 import json
+import socket
 
 from .models import (
     FamilySpace, Membership, Invite, Post, Comment, Event, RSVP, Person, 
@@ -403,12 +404,25 @@ def _is_invite_rate_limit_error(error):
     )
 
 
+def _is_invite_timeout_error(error):
+    """Return True when the mail server timed out before the invite email could be sent."""
+    if isinstance(error, (TimeoutError, socket.timeout)):
+        return True
+    message = str(error).lower()
+    return "timed out" in message or "timeout" in message
+
+
 def _friendly_invite_email_error(error):
     """Return a user-friendly invite delivery error message."""
     if _is_invite_rate_limit_error(error):
         return (
             "Your email provider has temporarily reached its sending limit. "
             "Please try again later or use the manual invite link below."
+        )
+    if _is_invite_timeout_error(error):
+        return (
+            "Your email provider did not respond in time. "
+            "Please try again in a moment or use the manual invite link below."
         )
     return str(error)
 

@@ -40,6 +40,8 @@ services:
         value: "contact@fam-linx.org"
       - key: INVITE_BCC_EMAIL
         value: "contact@fam-linx.org"
+      - key: EMAIL_TIMEOUT
+        value: "20"
       - key: CHAT_ENABLE_WEBSOCKETS
         value: "false"
       - key: SECURITY_BLOCKER_ENABLED

@@ -522,8 +522,8 @@ a:hover { text-decoration: underline; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1.25rem;
-  padding: 1.15rem 1.45rem;
+  gap: 1.4rem;
+  padding: 1.25rem 1.55rem;
   border-bottom: 1px solid var(--fl-border);
   background: rgba(31,58,95,0.02);
 }
@@ -536,43 +536,59 @@ a:hover { text-decoration: underline; }
 }
 
 .card-body {
-  padding: 1.5rem;
+  padding: 1.65rem;
   color: var(--fl-text);
 }
 
 .card-body > * + * {
-  margin-top: 1rem;
+  margin-top: 1.2rem;
+}
+
+.card-body > :is(.stack, .stack-lg) + *,
+.card-body > * + :is(.stack, .stack-lg) {
+  margin-top: 1.3rem;
 }
 
 .card .flex-between {
-  gap: 1rem;
+  gap: 1.2rem;
 }
 
 .card .gap-xs {
-  gap: 0.55rem;
+  gap: 0.7rem;
 }
 
 .card .gap-sm {
-  gap: 0.8rem;
+  gap: 0.95rem;
 }
 
 .card .gap-md {
-  gap: 1rem;
+  gap: 1.15rem;
 }
 
 .card .gap-lg {
-  gap: 1.3rem;
+  gap: 1.5rem;
 }
 
 .card .page-actions,
 .card .form-actions,
 .card .feed-post-actions,
 .card .rsvp-buttons {
-  gap: 0.9rem;
+  gap: 1.05rem;
+  row-gap: 0.9rem;
+  flex-wrap: wrap;
 }
 
 .card .btn {
-  margin: 0.1rem 0;
+  margin: 0.18rem 0.18rem 0.18rem 0;
+}
+
+.card .badge {
+  margin: 0.12rem 0.32rem 0.12rem 0;
+}
+
+.card .btn + .btn,
+.card .badge + .badge {
+  margin-left: 0;
 }
 
 .card-body h3 {
@@ -581,6 +597,7 @@ a:hover { text-decoration: underline; }
 
 .card-body p {
   color: var(--fl-text);
+  line-height: 1.65;
 }
 
 /* Headings */
@@ -2101,6 +2118,123 @@ main {
   margin-top: 0.5rem;
 }
 
+.chat-toast-stack {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.85rem;
+  pointer-events: none;
+}
+
+.chat-toast {
+  width: min(360px, calc(100vw - 2rem));
+  border-radius: 20px;
+  border: 1px solid rgba(31, 58, 95, 0.14);
+  background:
+    radial-gradient(circle at top right, rgba(31, 58, 95, 0.12) 0%, rgba(31, 58, 95, 0) 48%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(245, 247, 250, 0.98) 100%);
+  box-shadow: 0 22px 38px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+  pointer-events: auto;
+  transform: translateY(18px) scale(0.98);
+  opacity: 0;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.chat-toast.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.chat-toast-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding: 0.95rem 1rem 0.35rem;
+}
+
+.chat-toast-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.chat-toast-icon {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(31, 58, 95, 0.1);
+  color: var(--fl-blue);
+  flex-shrink: 0;
+}
+
+.chat-toast-heading {
+  min-width: 0;
+}
+
+.chat-toast-heading strong {
+  display: block;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  color: var(--fl-text);
+}
+
+.chat-toast-family {
+  display: inline-block;
+  margin-top: 0.18rem;
+  font-size: 0.78rem;
+  color: var(--fl-muted);
+}
+
+.chat-toast-body {
+  padding: 0 1rem 0.95rem;
+  color: var(--fl-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.chat-toast-actions {
+  display: flex;
+  gap: 0.65rem;
+  padding: 0 1rem 1rem;
+  flex-wrap: wrap;
+}
+
+.chat-toast-dismiss {
+  border: none;
+  background: transparent;
+  color: var(--fl-muted);
+  padding: 0;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+[data-theme="dark"] .chat-toast {
+  border-color: rgba(148, 163, 184, 0.2);
+  background:
+    radial-gradient(circle at top right, rgba(96, 165, 250, 0.1) 0%, rgba(96, 165, 250, 0) 48%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%);
+  box-shadow: 0 22px 40px rgba(0, 0, 0, 0.38);
+}
+
+[data-theme="dark"] .chat-toast-icon {
+  background: rgba(96, 165, 250, 0.16);
+  color: #bfdbfe;
+}
+
+[data-theme="dark"] .chat-toast-dismiss:hover {
+  color: #fff;
+}
+
 /* Chat Room */
 .chat-container {
   display: flex;
@@ -3014,6 +3148,17 @@ main {
 
 /* Responsive Chat */
 @media (max-width: 600px) {
+  .chat-toast-stack {
+    right: 0.75rem;
+    left: 0.75rem;
+    bottom: 0.75rem;
+    align-items: stretch;
+  }
+
+  .chat-toast {
+    width: 100%;
+  }
+
   .chat-container {
     height: calc(100vh - 200px);
   }

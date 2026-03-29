@@ -305,6 +305,8 @@
         {% endfor %}
     </div>
     {% endif %}
+
+    <div class="chat-toast-stack" id="chat-toast-stack" aria-live="polite" aria-atomic="false"></div>
     
     <!-- Main Content -->
     <main>
@@ -665,11 +667,119 @@
             
             // Notification badge polling (for authenticated users)
             {% if user.is_authenticated %}
+            const chatToastStack = document.getElementById('chat-toast-stack');
+            const seenNotificationStorageKey = 'familylinx_seen_notification_ids_v1';
+            let notificationBaselineCaptured = false;
+
+            function escapeHtml(value) {
+                return String(value || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+
+            function getSeenNotificationIds() {
+                try {
+                    const raw = sessionStorage.getItem(seenNotificationStorageKey);
+                    const parsed = raw ? JSON.parse(raw) : [];
+                    return Array.isArray(parsed) ? parsed.map(id => Number(id)).filter(Number.isFinite) : [];
+                } catch (error) {
+                    return [];
+                }
+            }
+
+            function setSeenNotificationIds(ids) {
+                try {
+                    const uniqueIds = [...new Set(ids.map(id => Number(id)).filter(Number.isFinite))].slice(0, 80);
+                    sessionStorage.setItem(seenNotificationStorageKey, JSON.stringify(uniqueIds));
+                } catch (error) {
+                    console.log('Could not persist seen notifications:', error);
+                }
+            }
+
+            function rememberNotificationIds(ids) {
+                setSeenNotificationIds([...getSeenNotificationIds(), ...ids]);
+            }
+
+            function normalizeNotificationLink(link) {
+                if (!link) return null;
+                try {
+                    return new URL(link, window.location.origin);
+                } catch (error) {
+                    return null;
+                }
+            }
+
+            function dismissChatToast(toast) {
+                if (!toast) return;
+                toast.classList.remove('is-visible');
+                window.setTimeout(() => toast.remove(), 220);
+            }
+
+            function showChatToast(notification) {
+                if (!chatToastStack || !notification || !notification.id) return;
+                if (chatToastStack.querySelector(`[data-notification-id="${notification.id}"]`)) return;
+
+                const toast = document.createElement('article');
+                toast.className = 'chat-toast';
+                toast.dataset.notificationId = notification.id;
+                toast.innerHTML = `
+                    <div class="chat-toast-header">
+                        <div class="chat-toast-title-row">
+                            <div class="chat-toast-icon"><i class="bi bi-chat-dots"></i></div>
+                            <div class="chat-toast-heading">
+                                <strong>${escapeHtml(notification.title || 'New message')}</strong>
+                                ${notification.family_name ? `<span class="chat-toast-family">${escapeHtml(notification.family_name)}</span>` : ''}
+                            </div>
+                        </div>
+                        <button type="button" class="chat-toast-dismiss" aria-label="Dismiss notification">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    <div class="chat-toast-body">${escapeHtml(notification.message || 'You have a new chat message.')}</div>
+                    <div class="chat-toast-actions">
+                        <a class="btn btn-primary btn-sm" href="${escapeHtml(notification.link || '{% url "families:notification_list" %}')}">
+                            <i class="bi bi-box-arrow-up-right"></i> Open Chat
+                        </a>
+                        <button type="button" class="btn btn-outline btn-sm chat-toast-close-btn">
+                            Not now
+                        </button>
+                    </div>
+                `;
+
+                const dismissButton = toast.querySelector('.chat-toast-dismiss');
+                const closeButton = toast.querySelector('.chat-toast-close-btn');
+                dismissButton?.addEventListener('click', () => dismissChatToast(toast));
+                closeButton?.addEventListener('click', () => dismissChatToast(toast));
+
+                chatToastStack.prepend(toast);
+                while (chatToastStack.children.length > 3) {
+                    chatToastStack.removeChild(chatToastStack.lastElementChild);
+                }
+
+                requestAnimationFrame(() => toast.classList.add('is-visible'));
+                window.setTimeout(() => dismissChatToast(toast), 7000);
+            }
+
+            function shouldShowChatToast(notification) {
+                if (!notification || String(notification.type || '').toUpperCase() !== 'CHAT') {
+                    return false;
+                }
+                const notificationUrl = normalizeNotificationLink(notification.link);
+                if (notificationUrl && notificationUrl.pathname === window.location.pathname) {
+                    return false;
+                }
+                return true;
+            }
+
             function updateNotificationBadge() {
                 fetch('{% url "families:notification_dropdown" %}')
                     .then(response => response.json())
                     .then(data => {
                         const badge = document.getElementById('notification-badge');
+                        const notifications = Array.isArray(data.notifications) ? data.notifications : [];
                         if (badge) {
                             if (data.unread_count > 0) {
                                 badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
@@ -678,6 +788,25 @@
                                 badge.style.display = 'none';
                             }
                         }
+
+                        const incomingIds = notifications
+                            .map(notification => Number(notification.id))
+                            .filter(Number.isFinite);
+
+                        if (!notificationBaselineCaptured) {
+                            rememberNotificationIds(incomingIds);
+                            notificationBaselineCaptured = true;
+                            return;
+                        }
+
+                        const seenIds = new Set(getSeenNotificationIds());
+                        const newChatNotifications = notifications.filter(notification => {
+                            const id = Number(notification.id);
+                            return Number.isFinite(id) && !seenIds.has(id) && shouldShowChatToast(notification);
+                        });
+
+                        rememberNotificationIds(incomingIds);
+                        newChatNotifications.reverse().forEach(showChatToast);
                     })
                     .catch(err => console.log('Notification fetch error:', err));
             }
@@ -685,8 +814,8 @@
             // Initial check
             updateNotificationBadge();
             
-            // Poll every 30 seconds
-            setInterval(updateNotificationBadge, 30000);
+            // Poll every 15 seconds so chat alerts feel timely without being too noisy.
+            setInterval(updateNotificationBadge, 15000);
             {% endif %}
         });
     </script>
