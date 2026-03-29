@@ -301,6 +301,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # =============================================================================
 # These settings are automatically enabled when DEBUG is False
 if not DEBUG:
+    # Render terminates TLS at the proxy, so trust its forwarded HTTPS header.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
