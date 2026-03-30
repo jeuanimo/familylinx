@@ -241,7 +241,7 @@
                 </div>
                 
                 <!-- Dark Mode Toggle -->
-                <button class="theme-toggle" id="theme-toggle" title="Toggle dark mode">
+                <button class="theme-toggle" type="button" title="Toggle dark mode" aria-label="Toggle dark mode">
                     <i class="bi bi-moon-fill"></i>
                     <i class="bi bi-sun-fill"></i>
                 </button>
@@ -292,6 +292,10 @@
                     </div>
                 </div>
                 {% else %}
+                <button class="theme-toggle" type="button" title="Toggle dark mode" aria-label="Toggle dark mode">
+                    <i class="bi bi-moon-fill"></i>
+                    <i class="bi bi-sun-fill"></i>
+                </button>
                 <a href="{% url 'accounts:auth_portal' %}" class="btn btn-primary btn-sm">
                     <i class="bi bi-person-circle"></i> Access Account
                 </a>
@@ -833,7 +837,7 @@
     <!-- Dark Mode Toggle -->
     <script>
         (function() {
-            const toggle = document.getElementById('theme-toggle');
+            const toggles = document.querySelectorAll('.theme-toggle');
             const html = document.documentElement;
             
             // Check for saved preference or system preference
@@ -844,7 +848,7 @@
                 html.setAttribute('data-theme', 'dark');
             }
             
-            if (toggle) {
+            toggles.forEach(function(toggle) {
                 toggle.addEventListener('click', function() {
                     const isDark = html.getAttribute('data-theme') === 'dark';
                     if (isDark) {
@@ -855,7 +859,7 @@
                         localStorage.setItem('theme', 'dark');
                     }
                 });
-            }
+            });
         })();
     </script>
     

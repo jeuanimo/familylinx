@@ -72,9 +72,9 @@
                         <!-- Current Image -->
                         {% if post.image %}
                         <div class="mb-3">
-                            <label class="form-label">Current Image</label>
+                            <label for="current_image" class="form-label">Current Image</label>
                             <div class="mb-2">
-                                <img src="{{ post.image.url }}" alt="Current image" class="img-thumbnail" style="max-height: 150px;">
+                                <img src="{{ post.image.url }}" alt="Current preview" id="current_image" class="img-thumbnail thread-preview-img" width="150" height="150">
                             </div>
                         </div>
                         {% endif %}
@@ -87,7 +87,7 @@
                         
                         <!-- Tag People -->
                         <div class="mb-4">
-                            <label class="form-label">Tag Family Members (optional)</label>
+                            <label for="tagged_people" class="form-label">Tag Family Members (optional)</label>
                             <select name="tagged_people" id="tagged_people" class="form-select" multiple>
                                 {% for person in people %}
                                 <option value="{{ person.id }}" {% if person in post.tagged_people.all %}selected{% endif %}>

@@ -3456,3 +3456,40 @@ main {
 .fs-1 { font-size: 2rem !important; }
 .fs-2 { font-size: 1.75rem !important; }
 .fs-4 { font-size: 1.5rem !important; }
+
+/* =========================================================
+   Thread/Forum Utilities
+   ========================================================= */
+
+/* Inline form/button container */
+.d-inline-form {
+  display: inline;
+}
+
+/* Hidden reply forms */
+.reply-form-hidden {
+  display: none;
+}
+
+/* Thread post card positioning */
+.thread-post-card {
+  position: relative;
+}
+
+/* Post thumbnail styling */
+.post-thumbnail {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+/* Post detail image */
+.post-detail-img {
+  max-height: 400px;
+}
+
+/* Thread edit preview image */
+.thread-preview-img {
+  max-height: 150px;
+}

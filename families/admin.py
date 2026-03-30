@@ -12,6 +12,9 @@ from .models import (
     FamilyKudos, ThreadCategory, ThreadPost, ThreadReply, ThreadVote, ThreadBookmark
 )
 
+# Constants for duplicate literals
+FIELDSET_ADDITIONAL_INFO = 'Additional Info'
+
 
 @admin.register(FamilySpace)
 class FamilySpaceAdmin(admin.ModelAdmin):
@@ -358,7 +361,11 @@ class PhotoAdmin(admin.ModelAdmin):
     
     def caption_display(self, obj):
         """Return caption or a default."""
-        return obj.caption[:50] + '...' if len(obj.caption) > 50 else obj.caption if obj.caption else '(No caption)'
+        if not obj.caption:
+            return '(No caption)'
+        if len(obj.caption) > 50:
+            return obj.caption[:50] + '...'
+        return obj.caption
     caption_display.short_description = 'Caption'
     
     def tag_count(self, obj):
@@ -514,7 +521,7 @@ class DNAKitAdmin(admin.ModelAdmin):
         ('Family Tree', {
             'fields': ('linked_person',),
         }),
-        ('Additional Info', {
+        (FIELDSET_ADDITIONAL_INFO, {
             'fields': ('notes', 'uploaded_at'),
         }),
     )
@@ -545,7 +552,7 @@ class DNAMatchAdmin(admin.ModelAdmin):
         ('Confirmation', {
             'fields': ('is_confirmed', 'confirmed_by_kit1', 'confirmed_by_kit2'),
         }),
-        ('Additional Info', {
+        (FIELDSET_ADDITIONAL_INFO, {
             'fields': ('notes', 'discovered_at'),
         }),
     )
@@ -573,7 +580,7 @@ class RelationshipSuggestionAdmin(admin.ModelAdmin):
         ('Review', {
             'fields': ('status', 'reviewed_by', 'reviewed_at'),
         }),
-        ('Additional Info', {
+        (FIELDSET_ADDITIONAL_INFO, {
             'fields': ('notes', 'created_at'),
         }),
     )

@@ -148,7 +148,7 @@
     {% if posts %}
     <div class="thread-posts">
         {% for post in posts %}
-        <div class="card thread-post-card mb-3 {% if post.is_pinned %}border-warning{% endif %}" style="position: relative;">
+        <div class="card thread-post-card mb-3 {% if post.is_pinned %}border-warning{% endif %}">
             {% if post.is_pinned %}
             <span class="pinned-indicator"><i class="bi bi-pin-fill"></i> Pinned</span>
             {% endif %}
@@ -222,7 +222,7 @@
                     {% if post.image %}
                     <div class="ms-3">
                         <img src="{{ post.image.url }}" alt="Post thumbnail" 
-                             style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;">
+                             class="post-thumbnail" width="80" height="80">
                     </div>
                     {% endif %}
                 </div>

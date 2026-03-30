@@ -82,7 +82,7 @@
                         
                         <!-- Tag People -->
                         <div class="mb-4">
-                            <label class="form-label">Tag Family Members (optional)</label>
+                            <label for="tagged_people" class="form-label">Tag Family Members (optional)</label>
                             <select name="tagged_people" id="tagged_people" class="form-select" multiple>
                                 {% for person in people %}
                                 <option value="{{ person.id }}">{{ person.full_name }}</option>
