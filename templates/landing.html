@@ -1,94 +1,1508 @@
 {% extends "base.html" %}
 
-{% block title %}FamilyLinx - Connect with Your Family{% endblock %}
+{% block title %}FamilyLinx | Your Family. Your Legacy. One Place.{% endblock %}
+
+{% block extra_css %}
+<style>
+  @import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap");
+
+  /* Landing page design system */
+  .landing-page {
+    --landing-ink: #15253f;
+    --landing-ink-soft: #4f6384;
+    --landing-accent: #1d5ff2;
+    --landing-accent-deep: #123ea3;
+    --landing-gold: #f0b848;
+    --landing-blush: #fff2ea;
+    --landing-surface: rgba(255, 255, 255, 0.78);
+    --landing-border: rgba(21, 37, 63, 0.1);
+    --landing-shadow: 0 28px 80px rgba(20, 36, 67, 0.14);
+    margin: -1rem calc(50% - 50vw) -2rem;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 12% 10%, rgba(240, 184, 72, 0.2), transparent 32%),
+      radial-gradient(circle at 85% 8%, rgba(29, 95, 242, 0.15), transparent 32%),
+      linear-gradient(180deg, #fff9f2 0%, #f7fbff 46%, #f3f7fb 100%);
+    color: var(--landing-ink);
+    font-family: "Manrope", "Segoe UI", sans-serif;
+  }
+
+  html[data-theme="dark"] .landing-page {
+    --landing-ink: #f5f8ff;
+    --landing-ink-soft: #b6c1da;
+    --landing-accent: #7eb1ff;
+    --landing-accent-deep: #9fc2ff;
+    --landing-gold: #ffcf70;
+    --landing-blush: #162238;
+    --landing-surface: rgba(11, 20, 36, 0.8);
+    --landing-border: rgba(179, 201, 255, 0.12);
+    --landing-shadow: 0 32px 90px rgba(0, 0, 0, 0.35);
+    background:
+      radial-gradient(circle at 15% 12%, rgba(255, 207, 112, 0.12), transparent 28%),
+      radial-gradient(circle at 85% 10%, rgba(126, 177, 255, 0.12), transparent 30%),
+      linear-gradient(180deg, #0b1323 0%, #0e1a30 46%, #111f38 100%);
+  }
+
+  .landing-page * {
+    box-sizing: border-box;
+  }
+
+  .landing-page a:hover {
+    text-decoration: none;
+  }
+
+  .landing-inner {
+    width: min(1180px, calc(100% - 2rem));
+    margin: 0 auto;
+  }
+
+  .landing-section {
+    position: relative;
+    padding: 4.5rem 0;
+  }
+
+  .landing-section + .landing-section {
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
+  }
+
+  .section-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.68);
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    color: var(--landing-accent-deep);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    box-shadow: 0 12px 30px rgba(21, 37, 63, 0.08);
+  }
+
+  .section-tag-dark {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.22);
+    color: #dbe7ff;
+  }
+
+  .section-heading {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 2.25rem;
+    max-width: 720px;
+  }
+
+  .section-heading h2,
+  .landing-trust-copy h2,
+  .steps-heading h2,
+  .proof-heading h2,
+  .cta-panel h2 {
+    margin: 0;
+    font-family: "Fraunces", Georgia, serif;
+    font-size: clamp(2rem, 4vw, 3.3rem);
+    line-height: 1.06;
+    letter-spacing: -0.04em;
+  }
+
+  .section-heading p,
+  .landing-trust-copy p,
+  .steps-heading p,
+  .proof-heading p,
+  .cta-panel p {
+    margin: 0;
+    color: var(--landing-ink-soft);
+    font-size: 1.03rem;
+    line-height: 1.7;
+  }
+
+  /* Hero */
+  .landing-hero {
+    padding-top: 5rem;
+    padding-bottom: 3.5rem;
+  }
+
+  .hero-grid {
+    display: grid;
+    gap: 2.5rem;
+    align-items: center;
+  }
+
+  .hero-copy {
+    display: grid;
+    gap: 1.4rem;
+  }
+
+  .hero-copy h1 {
+    margin: 0;
+    font-family: "Fraunces", Georgia, serif;
+    font-size: clamp(2.9rem, 7vw, 5.8rem);
+    line-height: 0.95;
+    letter-spacing: -0.06em;
+    max-width: 11ch;
+  }
+
+  .hero-subhead {
+    margin: 0;
+    max-width: 39rem;
+    font-size: 1.12rem;
+    line-height: 1.8;
+    color: var(--landing-ink-soft);
+  }
+
+  .hero-actions,
+  .cta-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    align-items: center;
+  }
+
+  .landing-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    min-height: 52px;
+    padding: 0.95rem 1.45rem;
+    border-radius: 18px;
+    border: 1px solid transparent;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease, border-color 0.25s ease;
+  }
+
+  .landing-btn:hover {
+    transform: translateY(-2px);
+  }
+
+  .landing-btn-primary {
+    background: linear-gradient(135deg, var(--landing-accent) 0%, #568fff 100%);
+    color: #fff;
+    box-shadow: 0 18px 36px rgba(29, 95, 242, 0.28);
+  }
+
+  .landing-btn-primary:hover {
+    color: #fff;
+    box-shadow: 0 24px 44px rgba(29, 95, 242, 0.34);
+  }
+
+  .landing-btn-secondary {
+    background: rgba(255, 255, 255, 0.72);
+    border-color: rgba(21, 37, 63, 0.1);
+    color: var(--landing-ink);
+    box-shadow: 0 16px 32px rgba(21, 37, 63, 0.08);
+  }
+
+  .landing-btn-secondary:hover {
+    color: var(--landing-ink);
+  }
+
+  .landing-btn-ghost {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .landing-btn-ghost:hover {
+    color: #fff;
+  }
+
+  .hero-proof-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hero-proof-pills li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.8rem 1rem;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.58);
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    box-shadow: 0 16px 34px rgba(21, 37, 63, 0.08);
+    color: var(--landing-ink);
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+
+  .hero-proof-pills i {
+    color: var(--landing-accent);
+  }
+
+  .hero-stage {
+    position: relative;
+    min-height: 540px;
+  }
+
+  .hero-glow {
+    position: absolute;
+    inset: auto;
+    border-radius: 999px;
+    filter: blur(12px);
+    opacity: 0.8;
+  }
+
+  .hero-glow-a {
+    top: 0;
+    right: 2rem;
+    width: 180px;
+    height: 180px;
+    background: rgba(240, 184, 72, 0.22);
+  }
+
+  .hero-glow-b {
+    bottom: 1.5rem;
+    left: 0;
+    width: 240px;
+    height: 240px;
+    background: rgba(29, 95, 242, 0.18);
+  }
+
+  .emotion-chip {
+    position: absolute;
+    z-index: 2;
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.95rem 1rem;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.86);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 22px 44px rgba(21, 37, 63, 0.12);
+    font-size: 0.88rem;
+  }
+
+  .emotion-chip strong {
+    font-size: 1rem;
+  }
+
+  .emotion-chip-top {
+    top: 1.2rem;
+    left: 0;
+  }
+
+  .emotion-chip-bottom {
+    right: 0;
+    bottom: 1rem;
+  }
+
+  .app-preview {
+    position: relative;
+    z-index: 1;
+    margin: 4rem auto 0;
+    width: min(100%, 620px);
+    border-radius: 32px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 251, 255, 0.82) 100%);
+    box-shadow: var(--landing-shadow);
+    backdrop-filter: blur(14px);
+  }
+
+  html[data-theme="dark"] .app-preview {
+    background: linear-gradient(180deg, rgba(12, 22, 39, 0.92) 0%, rgba(16, 28, 50, 0.86) 100%);
+  }
+
+  .app-preview-chrome {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid var(--landing-border);
+    background: rgba(255, 255, 255, 0.52);
+  }
+
+  html[data-theme="dark"] .app-preview-chrome {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .app-preview-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(21, 37, 63, 0.16);
+  }
+
+  .app-preview-brand {
+    margin-left: auto;
+    color: var(--landing-ink-soft);
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .app-preview-body {
+    display: grid;
+    gap: 1rem;
+    padding: 1.1rem;
+  }
+
+  .preview-summary-row {
+    display: grid;
+    gap: 0.9rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summary-tile {
+    padding: 1rem;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid var(--landing-border);
+    box-shadow: 0 10px 24px rgba(21, 37, 63, 0.06);
+  }
+
+  html[data-theme="dark"] .summary-tile {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .summary-tile span {
+    display: block;
+    color: var(--landing-ink-soft);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .summary-tile strong {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 1.1rem;
+  }
+
+  .hero-preview-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .preview-panel {
+    padding: 1.1rem;
+    border-radius: 24px;
+    border: 1px solid var(--landing-border);
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 12px 28px rgba(21, 37, 63, 0.07);
+  }
+
+  html[data-theme="dark"] .preview-panel {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .preview-panel-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.95rem;
+    font-size: 0.88rem;
+    font-weight: 800;
+  }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    background: rgba(29, 95, 242, 0.12);
+    color: var(--landing-accent-deep);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .tree-map {
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .tree-node {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 0.55rem 0.8rem;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(29, 95, 242, 0.16);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+    font-weight: 800;
+    font-size: 0.88rem;
+  }
+
+  html[data-theme="dark"] .tree-node {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .tree-node-focus {
+    background: linear-gradient(135deg, rgba(29, 95, 242, 0.18), rgba(86, 143, 255, 0.16));
+    border-color: rgba(29, 95, 242, 0.28);
+  }
+
+  .tree-connector {
+    width: 2px;
+    height: 16px;
+    margin: 0 auto;
+    background: linear-gradient(180deg, rgba(29, 95, 242, 0.32), rgba(240, 184, 72, 0.3));
+  }
+
+  .tree-row {
+    display: grid;
+    gap: 0.55rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .timeline-list {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .timeline-item {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+  }
+
+  .timeline-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(29, 95, 242, 0.2), rgba(240, 184, 72, 0.24));
+    display: grid;
+    place-items: center;
+    color: var(--landing-accent-deep);
+    font-size: 1rem;
+  }
+
+  .timeline-bubble {
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.85rem 0.95rem;
+    border-radius: 18px;
+    background: rgba(248, 251, 255, 0.86);
+    border: 1px solid rgba(21, 37, 63, 0.08);
+  }
+
+  html[data-theme="dark"] .timeline-bubble {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .timeline-bubble strong {
+    font-size: 0.94rem;
+  }
+
+  .timeline-bubble span {
+    color: var(--landing-ink-soft);
+    font-size: 0.84rem;
+    line-height: 1.6;
+  }
+
+  .vault-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .vault-photo {
+    aspect-ratio: 1 / 1;
+    border-radius: 18px;
+    background:
+      linear-gradient(135deg, rgba(240, 184, 72, 0.32), rgba(29, 95, 242, 0.26)),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0));
+    border: 1px solid rgba(255, 255, 255, 0.6);
+  }
+
+  .vault-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.9rem;
+    color: var(--landing-ink-soft);
+    font-size: 0.86rem;
+    font-weight: 700;
+  }
+
+  /* Emotional hook / trust */
+  .landing-trust {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.1));
+  }
+
+  .trust-grid {
+    display: grid;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  .landing-trust-copy {
+    display: grid;
+    gap: 1rem;
+    max-width: 40rem;
+  }
+
+  .benefit-list {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .benefit-list li {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 1rem;
+    padding: 1.15rem 1.2rem;
+    border-radius: 24px;
+    background: var(--landing-surface);
+    border: 1px solid var(--landing-border);
+    box-shadow: 0 18px 36px rgba(21, 37, 63, 0.08);
+  }
+
+  .benefit-list i {
+    width: 52px;
+    height: 52px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, rgba(29, 95, 242, 0.18), rgba(240, 184, 72, 0.18));
+    color: var(--landing-accent-deep);
+    font-size: 1.2rem;
+  }
+
+  .benefit-list strong {
+    display: block;
+    margin-bottom: 0.2rem;
+    font-size: 1rem;
+  }
+
+  .benefit-list span {
+    display: block;
+    color: var(--landing-ink-soft);
+    line-height: 1.65;
+    font-size: 0.94rem;
+  }
+
+  /* Feature cards */
+  .feature-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .feature-card {
+    display: grid;
+    gap: 1.1rem;
+    padding: 1.35rem;
+    border-radius: 28px;
+    background: var(--landing-surface);
+    border: 1px solid var(--landing-border);
+    box-shadow: 0 18px 42px rgba(21, 37, 63, 0.08);
+    transition: transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease;
+  }
+
+  .feature-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(29, 95, 242, 0.18);
+    box-shadow: 0 26px 56px rgba(21, 37, 63, 0.12);
+  }
+
+  .feature-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 20px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, rgba(29, 95, 242, 0.16), rgba(240, 184, 72, 0.16));
+    color: var(--landing-accent-deep);
+    font-size: 1.35rem;
+  }
+
+  .feature-card h3 {
+    margin: 0;
+    font-size: 1.16rem;
+    letter-spacing: -0.02em;
+  }
+
+  .feature-card p {
+    margin: 0;
+    color: var(--landing-ink-soft);
+    line-height: 1.7;
+  }
+
+  /* Showcase cards */
+  .landing-showcase {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0));
+  }
+
+  .showcase-grid {
+    display: grid;
+    gap: 1.2rem;
+  }
+
+  .showcase-card {
+    display: grid;
+    gap: 1.15rem;
+    padding: 1.35rem;
+    border-radius: 30px;
+    background: var(--landing-surface);
+    border: 1px solid var(--landing-border);
+    box-shadow: 0 18px 42px rgba(21, 37, 63, 0.08);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .showcase-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 28px 62px rgba(21, 37, 63, 0.12);
+  }
+
+  .showcase-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--landing-accent-deep);
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .showcase-screen {
+    min-height: 250px;
+    padding: 1rem;
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(244, 248, 255, 0.92));
+    border: 1px solid rgba(21, 37, 63, 0.08);
+    overflow: hidden;
+  }
+
+  html[data-theme="dark"] .showcase-screen {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.07));
+  }
+
+  .showcase-card h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    letter-spacing: -0.02em;
+  }
+
+  .showcase-card p {
+    margin: 0;
+    color: var(--landing-ink-soft);
+    line-height: 1.7;
+  }
+
+  .tree-screen-layout {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .tree-screen-layout .tree-node {
+    min-height: 38px;
+    font-size: 0.82rem;
+  }
+
+  .tree-screen-row {
+    display: grid;
+    gap: 0.6rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .timeline-screen {
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  .timeline-photo {
+    min-height: 112px;
+    border-radius: 18px;
+    background:
+      radial-gradient(circle at 20% 25%, rgba(255, 255, 255, 0.48), transparent 20%),
+      linear-gradient(135deg, rgba(29, 95, 242, 0.3), rgba(240, 184, 72, 0.34));
+  }
+
+  .timeline-screen-card {
+    display: grid;
+    gap: 0.45rem;
+    padding: 0.85rem;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(21, 37, 63, 0.08);
+  }
+
+  html[data-theme="dark"] .timeline-screen-card {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .line-short,
+  .line-long,
+  .line-mid {
+    height: 10px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(21, 37, 63, 0.16), rgba(21, 37, 63, 0.06));
+  }
+
+  .line-short { width: 42%; }
+  .line-mid { width: 64%; }
+  .line-long { width: 86%; }
+
+  .profile-screen {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .profile-top {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 0.85rem;
+    align-items: center;
+  }
+
+  .profile-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(240, 184, 72, 0.3), rgba(29, 95, 242, 0.3));
+  }
+
+  .profile-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .profile-tag {
+    padding: 0.4rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(29, 95, 242, 0.12);
+    color: var(--landing-accent-deep);
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  .profile-grid {
+    display: grid;
+    gap: 0.8rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-tile {
+    padding: 0.85rem;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(21, 37, 63, 0.08);
+  }
+
+  html[data-theme="dark"] .profile-tile {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .profile-tile strong {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.96rem;
+  }
+
+  .profile-tile span {
+    color: var(--landing-ink-soft);
+    font-size: 0.84rem;
+    line-height: 1.55;
+  }
+
+  /* Steps */
+  .steps-grid {
+    display: grid;
+    gap: 1rem;
+    margin-top: 2.2rem;
+  }
+
+  .step-card {
+    display: grid;
+    gap: 1rem;
+    padding: 1.3rem;
+    border-radius: 28px;
+    background: var(--landing-surface);
+    border: 1px solid var(--landing-border);
+    box-shadow: 0 18px 42px rgba(21, 37, 63, 0.08);
+  }
+
+  .step-number {
+    width: 56px;
+    height: 56px;
+    border-radius: 20px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, var(--landing-accent), #77a8ff);
+    color: #fff;
+    font-size: 1.15rem;
+    font-weight: 800;
+    box-shadow: 0 18px 28px rgba(29, 95, 242, 0.22);
+  }
+
+  .step-card h3 {
+    margin: 0;
+    font-size: 1.12rem;
+  }
+
+  .step-card p {
+    margin: 0;
+    color: var(--landing-ink-soft);
+    line-height: 1.7;
+  }
+
+  /* Testimonials / positioning */
+  .landing-proof {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0));
+  }
+
+  .proof-grid {
+    display: grid;
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+
+  .quote-card,
+  .proof-badge-card {
+    padding: 1.4rem;
+    border-radius: 28px;
+    background: var(--landing-surface);
+    border: 1px solid var(--landing-border);
+    box-shadow: 0 18px 42px rgba(21, 37, 63, 0.08);
+  }
+
+  .quote-card blockquote {
+    margin: 0 0 1rem;
+    font-size: 1.08rem;
+    line-height: 1.7;
+    color: var(--landing-ink);
+  }
+
+  .quote-card footer {
+    color: var(--landing-ink-soft);
+    font-size: 0.92rem;
+    font-weight: 700;
+  }
+
+  .proof-badge-card {
+    display: grid;
+    gap: 0.9rem;
+    align-content: start;
+  }
+
+  .proof-badge-card i {
+    width: 58px;
+    height: 58px;
+    border-radius: 20px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, rgba(240, 184, 72, 0.22), rgba(29, 95, 242, 0.18));
+    color: var(--landing-accent-deep);
+    font-size: 1.35rem;
+  }
+
+  .proof-badge-card strong {
+    font-size: 1.14rem;
+  }
+
+  .proof-badge-card p {
+    margin: 0;
+    color: var(--landing-ink-soft);
+    line-height: 1.7;
+  }
+
+  /* Final CTA */
+  .landing-final-cta {
+    padding-bottom: 5.5rem;
+  }
+
+  .cta-panel {
+    display: grid;
+    gap: 1.5rem;
+    padding: 2rem;
+    border-radius: 36px;
+    background:
+      radial-gradient(circle at top left, rgba(255, 255, 255, 0.18), transparent 36%),
+      linear-gradient(135deg, #0f2b66 0%, #153f97 52%, #1c65d7 100%);
+    color: #fff;
+    box-shadow: 0 34px 78px rgba(16, 35, 70, 0.28);
+  }
+
+  .cta-panel p {
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .cta-panel .landing-btn-primary {
+    box-shadow: none;
+    background: linear-gradient(135deg, #fff 0%, #edf4ff 100%);
+    color: #123b93;
+  }
+
+  /* Reveal animation */
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+
+  [data-reveal].reveal-hidden {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  [data-reveal].is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-reveal] {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+
+    .landing-btn,
+    .feature-card,
+    .showcase-card {
+      transition: none;
+    }
+  }
+
+  /* Tablet and up */
+  @media (min-width: 720px) {
+    .hero-preview-grid,
+    .feature-grid,
+    .steps-grid,
+    .proof-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .showcase-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* Desktop enhancements */
+  @media (min-width: 980px) {
+    .landing-section {
+      padding: 5.75rem 0;
+    }
+
+    .hero-grid,
+    .trust-grid,
+    .cta-panel {
+      grid-template-columns: minmax(0, 1.05fr) minmax(420px, 0.95fr);
+    }
+
+    .hero-preview-grid {
+      grid-template-columns: 1.1fr 1fr;
+    }
+
+    .preview-panel-vault {
+      grid-column: 1 / -1;
+    }
+
+    .feature-grid,
+    .showcase-grid,
+    .steps-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .proof-grid {
+      grid-template-columns: 1fr 1fr 0.8fr;
+    }
+
+    .landing-final-cta .cta-panel {
+      align-items: center;
+    }
+  }
+
+  @media (max-width: 719px) {
+    .landing-hero {
+      padding-top: 4rem;
+    }
+
+    .landing-section {
+      padding: 4rem 0;
+    }
+
+    .hero-stage {
+      min-height: 480px;
+    }
+
+    .emotion-chip {
+      position: static;
+      margin-top: 0.85rem;
+    }
+
+    .app-preview {
+      margin-top: 1rem;
+    }
+
+    .preview-summary-row,
+    .profile-grid,
+    .tree-row,
+    .vault-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .hero-copy h1 {
+      max-width: 9ch;
+    }
+  }
+</style>
+{% endblock extra_css %}
 
 {% block content %}
-<!-- Hero Section -->
-<section class="hero" style="margin: -1rem -1rem 0; padding: 4rem 0; background: var(--fl-surface);">
-    <div class="container">
-        <div class="hero-content">
-            <div>
-                <h1>Connect with Your Family,<br>Preserve Your Heritage</h1>
-                <p class="hero-lead">
-                    FamilyLinx brings your family together in one private space. 
-                    Share updates, plan events, and build your family tree together.
-                </p>
-                <div class="hero-actions">
-                    <a href="{% url 'accounts:auth_portal' %}" class="btn btn-primary btn-lg">
-                        <i class="bi bi-person-circle"></i> Access FamilyLinx
-                    </a>
+<div class="landing-page">
+  <!-- Hero Section -->
+  <section class="landing-section landing-hero">
+    <div class="landing-inner hero-grid">
+      <div class="hero-copy" data-reveal>
+        <span class="section-tag">
+          <i class="bi bi-heart-pulse-fill" aria-hidden="true"></i>
+          Private Family Network
+        </span>
+        <h1>Your Family. Your Legacy. One Place.</h1>
+        <p class="hero-subhead">
+          A private space to connect, share memories, and preserve your family story for generations.
+        </p>
+        <div class="hero-actions">
+          <a href="{% url 'accounts:auth_portal' %}" class="landing-btn landing-btn-primary">
+            <i class="bi bi-people-fill" aria-hidden="true"></i>
+            Start Your Family Network
+          </a>
+          <a href="#showcase" class="landing-btn landing-btn-secondary">
+            <i class="bi bi-play-circle" aria-hidden="true"></i>
+            View Demo
+          </a>
+        </div>
+        <ul class="hero-proof-pills" aria-label="FamilyLinx trust points">
+          <li><i class="bi bi-shield-lock-fill" aria-hidden="true"></i>Invite-only family spaces</li>
+          <li><i class="bi bi-diagram-3-fill" aria-hidden="true"></i>Interactive family tree</li>
+          <li><i class="bi bi-images" aria-hidden="true"></i>Stories, photos, and memories</li>
+        </ul>
+      </div>
+
+      <div class="hero-stage" data-reveal>
+        <div class="hero-glow hero-glow-a" aria-hidden="true"></div>
+        <div class="hero-glow hero-glow-b" aria-hidden="true"></div>
+
+        <div class="emotion-chip emotion-chip-top">
+          <span>Sunday dinner, grandparents, cousins</span>
+          <strong>Family moments finally have a home.</strong>
+        </div>
+
+        <div class="emotion-chip emotion-chip-bottom">
+          <span>Stories, milestones, time capsules</span>
+          <strong>Built to last longer than a group chat.</strong>
+        </div>
+
+        <div class="app-preview" aria-label="FamilyLinx dashboard preview">
+          <div class="app-preview-chrome">
+            <span class="app-preview-dot"></span>
+            <span class="app-preview-dot"></span>
+            <span class="app-preview-dot"></span>
+            <span class="app-preview-brand">FamilyLinx Space</span>
+          </div>
+
+          <div class="app-preview-body">
+            <div class="preview-summary-row">
+              <div class="summary-tile">
+                <span>Family space</span>
+                <strong>The Mitchell Legacy</strong>
+              </div>
+              <div class="summary-tile">
+                <span>Activity this week</span>
+                <strong>2 birthdays, 1 reunion, 8 new memories</strong>
+              </div>
+            </div>
+
+            <div class="hero-preview-grid">
+              <article class="preview-panel">
+                <div class="preview-panel-top">
+                  <span>Interactive Tree</span>
+                  <span class="status-pill">Live branches</span>
                 </div>
-            </div>
-            <div class="hero-visual">
-                <i class="bi bi-diagram-3 hero-icon"></i>
-            </div>
-        </div>
-    </div>
-</section>
+                <div class="tree-map">
+                  <div class="tree-node tree-node-focus">Grandma Lena</div>
+                  <div class="tree-connector" aria-hidden="true"></div>
+                  <div class="tree-row">
+                    <div class="tree-node">Aunt Carol</div>
+                    <div class="tree-node tree-node-focus">You</div>
+                    <div class="tree-node">Cousin Maya</div>
+                  </div>
+                  <div class="tree-connector" aria-hidden="true"></div>
+                  <div class="tree-row">
+                    <div class="tree-node">Wedding Photos</div>
+                    <div class="tree-node">Family Notes</div>
+                    <div class="tree-node">Legacy Stories</div>
+                  </div>
+                </div>
+              </article>
 
-<!-- Features Section -->
-<section class="features">
-    <h2>Everything Your Family Needs</h2>
-    <div class="features-grid">
-        <div class="card feature-card">
-            <div class="card-body">
-                <div class="feature-icon"><i class="bi bi-people"></i></div>
-                <h3>Private Family Spaces</h3>
-                <p>Create invite-only spaces for different branches of your family. 
-                   Control who sees what with role-based permissions.</p>
-            </div>
-        </div>
-        <div class="card feature-card">
-            <div class="card-body">
-                <div class="feature-icon"><i class="bi bi-chat-dots"></i></div>
-                <h3>Share Updates & Photos</h3>
-                <p>Post family news, share photos, and keep everyone connected 
-                   no matter the distance.</p>
-            </div>
-        </div>
-        <div class="card feature-card">
-            <div class="card-body">
-                <div class="feature-icon"><i class="bi bi-calendar-event"></i></div>
-                <h3>Plan Events Together</h3>
-                <p>Organize reunions, birthdays, and holidays. 
-                   Track RSVPs and keep everyone on the same page.</p>
-            </div>
-        </div>
-        <div class="card feature-card">
-            <div class="card-body">
-                <div class="feature-icon"><i class="bi bi-diagram-3"></i></div>
-                <h3>Build Your Family Tree</h3>
-                <p>Collaboratively build and explore your family tree. 
-                   New members are automatically placed in the right branch.</p>
-            </div>
-        </div>
-        <div class="card feature-card">
-            <div class="card-body">
-                <div class="feature-icon"><i class="bi bi-shield-check"></i></div>
-                <h3>Private & Secure</h3>
-                <p>Your family data stays private. Built with security 
-                   best practices following OWASP guidelines.</p>
-            </div>
-        </div>
-        <div class="card feature-card">
-            <div class="card-body">
-                <div class="feature-icon"><i class="bi bi-envelope-paper"></i></div>
-                <h3>Easy Invitations</h3>
-                <p>Invite relatives via email with secure links. 
-                   They join with just a few clicks.</p>
-            </div>
-        </div>
-    </div>
-</section>
+              <article class="preview-panel">
+                <div class="preview-panel-top">
+                  <span>Family Timeline</span>
+                  <span class="status-pill">Private</span>
+                </div>
+                <div class="timeline-list">
+                  <div class="timeline-item">
+                    <div class="timeline-avatar"><i class="bi bi-camera-fill" aria-hidden="true"></i></div>
+                    <div class="timeline-bubble">
+                      <strong>Reunion photos uploaded</strong>
+                      <span>Capture the stories behind every smile, table, and family tradition.</span>
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-avatar"><i class="bi bi-chat-heart-fill" aria-hidden="true"></i></div>
+                    <div class="timeline-bubble">
+                      <strong>Grandpa's story saved</strong>
+                      <span>Preserve the memories younger generations have never heard in full.</span>
+                    </div>
+                  </div>
+                </div>
+              </article>
 
-<!-- CTA Section -->
-<section class="cta" style="margin: 0 -1rem -2rem; padding: 4rem 0; background: var(--fl-surface);">
-    <div class="container">
-        <h2>Ready to Connect Your Family?</h2>
-        <p>Join FamilyLinx today and start building your family's digital home.</p>
-        <a href="{% url 'accounts:auth_portal' %}" class="btn btn-primary btn-lg">
-            <i class="bi bi-person-circle"></i> Access Your Account
-        </a>
+              <article class="preview-panel preview-panel-vault">
+                <div class="preview-panel-top">
+                  <span>Photo &amp; Memory Vault</span>
+                  <span class="status-pill">Always organized</span>
+                </div>
+                <div class="vault-grid" aria-hidden="true">
+                  <div class="vault-photo"></div>
+                  <div class="vault-photo"></div>
+                  <div class="vault-photo"></div>
+                </div>
+                <div class="vault-caption">
+                  <span>Albums, stories, and milestone keepsakes</span>
+                  <strong>128 memories saved</strong>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-</section>
-{% endblock %}
+  </section>
+
+  <!-- Emotional hook + trust section -->
+  <section class="landing-section landing-trust" id="about">
+    <div class="landing-inner trust-grid">
+      <div class="landing-trust-copy" data-reveal>
+        <span class="section-tag">
+          <i class="bi bi-stars" aria-hidden="true"></i>
+          Why Families Choose It
+        </span>
+        <h2>Because memories shouldn't be lost.</h2>
+        <p>
+          FamilyLinx gives every generation a shared place to talk, remember, organize, and preserve what matters,
+          without the noise, pressure, or algorithms of public social media.
+        </p>
+      </div>
+
+      <ul class="benefit-list" aria-label="FamilyLinx benefits" data-reveal>
+        <li>
+          <i class="bi bi-shield-lock" aria-hidden="true"></i>
+          <div>
+            <strong>Private &amp; secure</strong>
+            <span>Invite-only spaces keep your family conversations, memories, and relationships in trusted hands.</span>
+          </div>
+        </li>
+        <li>
+          <i class="bi bi-people" aria-hidden="true"></i>
+          <div>
+            <strong>Built for families, not algorithms</strong>
+            <span>Everything is designed to strengthen connection, not distract attention or bury important updates.</span>
+          </div>
+        </li>
+        <li>
+          <i class="bi bi-book-half" aria-hidden="true"></i>
+          <div>
+            <strong>Preserve stories forever</strong>
+            <span>Turn photos, milestones, and conversations into a living archive your children can still return to years from now.</span>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Feature Section -->
+  <section class="landing-section" id="features">
+    <div class="landing-inner">
+      <div class="section-heading" data-reveal>
+        <span class="section-tag">
+          <i class="bi bi-grid-1x2-fill" aria-hidden="true"></i>
+          Core Platform
+        </span>
+        <h2>Everything Your Family Needs</h2>
+        <p>
+          FamilyLinx blends communication, memory-keeping, and family history into one calm, beautiful private space.
+        </p>
+      </div>
+
+      <div class="feature-grid">
+        <article class="feature-card" data-reveal>
+          <div class="feature-icon"><i class="bi bi-clock-history" aria-hidden="true"></i></div>
+          <h3>Family Timeline</h3>
+          <p>Share updates, milestones, and everyday moments in a feed that feels personal instead of performative.</p>
+        </article>
+        <article class="feature-card" data-reveal>
+          <div class="feature-icon"><i class="bi bi-diagram-3" aria-hidden="true"></i></div>
+          <h3>Interactive Family Tree</h3>
+          <p>See your relatives, branches, and generations in one living tree everyone can help build and refine.</p>
+        </article>
+        <article class="feature-card" data-reveal>
+          <div class="feature-icon"><i class="bi bi-chat-dots" aria-hidden="true"></i></div>
+          <h3>Private Messaging</h3>
+          <p>Keep conversations close with direct chats and family discussions that stay inside your circle.</p>
+        </article>
+        <article class="feature-card" data-reveal>
+          <div class="feature-icon"><i class="bi bi-calendar-event" aria-hidden="true"></i></div>
+          <h3>Events &amp; Calendar</h3>
+          <p>Plan reunions, birthdays, anniversaries, and memorials without losing the details in endless text threads.</p>
+        </article>
+        <article class="feature-card" data-reveal>
+          <div class="feature-icon"><i class="bi bi-images" aria-hidden="true"></i></div>
+          <h3>Photo &amp; Memory Vault</h3>
+          <p>Save albums, snapshots, and family keepsakes in a place where the meaning behind them can stay attached.</p>
+        </article>
+        <article class="feature-card" data-reveal>
+          <div class="feature-icon"><i class="bi bi-hourglass-split" aria-hidden="true"></i></div>
+          <h3>Legacy Stories &amp; Time Capsules</h3>
+          <p>Capture personal stories, values, and reflections so future generations inherit more than dates and names.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Visual showcase with UI placeholders -->
+  <section class="landing-section landing-showcase" id="showcase">
+    <div class="landing-inner">
+      <div class="section-heading" data-reveal>
+        <span class="section-tag">
+          <i class="bi bi-window-stack" aria-hidden="true"></i>
+          Product Preview
+        </span>
+        <h2>See the experience before your family ever signs in.</h2>
+        <p>
+          These built-in mockups stand in for product screenshots and can be swapped later for live captures from your app.
+        </p>
+      </div>
+
+      <div class="showcase-grid">
+        <article class="showcase-card" data-reveal>
+          <div class="showcase-label"><i class="bi bi-diagram-3" aria-hidden="true"></i> Family Tree Preview</div>
+          <!-- Placeholder UI preview: replace with a real family tree screenshot when ready -->
+          <div class="showcase-screen">
+            <div class="tree-screen-layout">
+              <div class="tree-node tree-node-focus">Family Root</div>
+              <div class="tree-connector" aria-hidden="true"></div>
+              <div class="tree-screen-row">
+                <div class="tree-node">Maternal Side</div>
+                <div class="tree-node">Paternal Side</div>
+              </div>
+              <div class="tree-connector" aria-hidden="true"></div>
+              <div class="tree-screen-row">
+                <div class="tree-node">Stories</div>
+                <div class="tree-node">Photos</div>
+              </div>
+            </div>
+          </div>
+          <h3>Explore branches, not chaos</h3>
+          <p>Make the family tree something relatives actually use, not just something stored in a dusty export file.</p>
+        </article>
+
+        <article class="showcase-card" data-reveal>
+          <div class="showcase-label"><i class="bi bi-newspaper" aria-hidden="true"></i> Timeline Preview</div>
+          <!-- Placeholder UI preview: replace with a real timeline screenshot when ready -->
+          <div class="showcase-screen">
+            <div class="timeline-screen">
+              <div class="timeline-photo"></div>
+              <div class="timeline-screen-card">
+                <div class="line-short"></div>
+                <div class="line-long"></div>
+                <div class="line-mid"></div>
+              </div>
+              <div class="timeline-screen-card">
+                <div class="line-short"></div>
+                <div class="line-mid"></div>
+                <div class="line-long"></div>
+              </div>
+            </div>
+          </div>
+          <h3>Turn family updates into something meaningful</h3>
+          <p>Celebrate birthdays, share milestones, and keep the everyday moments from slipping away.</p>
+        </article>
+
+        <article class="showcase-card" data-reveal>
+          <div class="showcase-label"><i class="bi bi-person-badge" aria-hidden="true"></i> Profile Preview</div>
+          <!-- Placeholder UI preview: replace with a real profile screenshot when ready -->
+          <div class="showcase-screen">
+            <div class="profile-screen">
+              <div class="profile-top">
+                <div class="profile-avatar" aria-hidden="true"></div>
+                <div>
+                  <div class="line-mid"></div>
+                  <div class="line-short" style="margin-top: 0.45rem;"></div>
+                </div>
+              </div>
+              <div class="profile-tags">
+                <span class="profile-tag">Family stories</span>
+                <span class="profile-tag">Memories</span>
+                <span class="profile-tag">Connections</span>
+              </div>
+              <div class="profile-grid">
+                <div class="profile-tile">
+                  <strong>Story Archive</strong>
+                  <span>Memories and reflections that stay tied to the people they belong to.</span>
+                </div>
+                <div class="profile-tile">
+                  <strong>Legacy Details</strong>
+                  <span>Photos, milestones, and life facts gathered in one easy-to-understand profile.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <h3>Give every person more than a name on a tree</h3>
+          <p>Profiles become living memory pages where relatives can share the details that make someone unforgettable.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="landing-section" id="how-it-works">
+    <div class="landing-inner">
+      <div class="section-heading steps-heading" data-reveal>
+        <span class="section-tag">
+          <i class="bi bi-signpost-split" aria-hidden="true"></i>
+          How It Works
+        </span>
+        <h2>Simple to start. Powerful over time.</h2>
+        <p>
+          FamilyLinx is easy enough to launch today and valuable enough to still matter years from now.
+        </p>
+      </div>
+
+      <div class="steps-grid">
+        <article class="step-card" data-reveal>
+          <div class="step-number">1</div>
+          <h3>Create your family space</h3>
+          <p>Open a private home for your relatives with the structure, permissions, and family identity you want.</p>
+        </article>
+        <article class="step-card" data-reveal>
+          <div class="step-number">2</div>
+          <h3>Invite relatives</h3>
+          <p>Bring in parents, cousins, siblings, and elders with secure invitations that keep the network personal and trusted.</p>
+        </article>
+        <article class="step-card" data-reveal>
+          <div class="step-number">3</div>
+          <h3>Start sharing and building your legacy</h3>
+          <p>Post updates, save photos, record memories, and grow your family tree together over time.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Social proof / future positioning -->
+  <section class="landing-section landing-proof">
+    <div class="landing-inner">
+      <div class="section-heading proof-heading" data-reveal>
+        <span class="section-tag">
+          <i class="bi bi-chat-quote" aria-hidden="true"></i>
+          Why It Resonates
+        </span>
+        <h2>Built for families of all sizes.</h2>
+        <p>
+          Whether you are organizing one household or reconnecting a wide family tree, the experience stays personal, calm, and clear.
+        </p>
+      </div>
+
+      <div class="proof-grid">
+        <article class="quote-card" data-reveal>
+          <blockquote>
+            “This brought our family closer than ever. We finally had one place for updates, pictures, and the stories we always said we would write down.”
+          </blockquote>
+          <footer>Placeholder testimonial • Family organizer</footer>
+        </article>
+        <article class="quote-card" data-reveal>
+          <blockquote>
+            “It feels private, intentional, and easy for every generation to understand. It gave our family history a future.”
+          </blockquote>
+          <footer>Placeholder testimonial • Multi-generational family</footer>
+        </article>
+        <aside class="proof-badge-card" data-reveal>
+          <i class="bi bi-house-heart" aria-hidden="true"></i>
+          <strong>Designed to feel like home, not another platform.</strong>
+          <p>FamilyLinx helps families stay connected today while building a richer story for tomorrow.</p>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="landing-section landing-final-cta">
+    <div class="landing-inner">
+      <div class="cta-panel" data-reveal>
+        <div>
+          <span class="section-tag section-tag-dark">
+            <i class="bi bi-arrow-up-right-circle" aria-hidden="true"></i>
+            Start Today
+          </span>
+          <h2>Start building your family legacy today</h2>
+          <p>
+            Create a private digital home where your family can stay close, remember more, and preserve its story in one beautiful place.
+          </p>
+        </div>
+        <div class="cta-actions">
+          <a href="{% url 'accounts:auth_portal' %}" class="landing-btn landing-btn-primary">
+            <i class="bi bi-people-fill" aria-hidden="true"></i>
+            Create Your Family Network
+          </a>
+          <a href="{% url 'contact' %}" class="landing-btn landing-btn-ghost">
+            <i class="bi bi-envelope-heart" aria-hidden="true"></i>
+            Contact
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+  // Subtle fade-in for each section block as it enters the viewport.
+  (function() {
+    const items = document.querySelectorAll("[data-reveal]");
+    if (!items.length || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      items.forEach((item) => item.classList.add("is-visible"));
+      return;
+    }
+
+    items.forEach((item) => item.classList.add("reveal-hidden"));
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          entry.target.classList.remove("reveal-hidden");
+          observer.unobserve(entry.target);
+        }
+      });
+    }, {
+      threshold: 0.18,
+      rootMargin: "0px 0px -40px 0px"
+    });
+
+    items.forEach((item) => observer.observe(item));
+  })();
+</script>
+{% endblock extra_js %}

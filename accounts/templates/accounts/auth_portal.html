@@ -80,8 +80,20 @@
             <section class="auth-panel {% if active_mode == 'signup' %}auth-panel-active{% endif %}">
                 <div class="auth-panel-header">
                     <h2>Create Account</h2>
-                    <p class="muted">New here? Make your account and continue in one step.</p>
+                    <p class="muted">
+                        {% if invite_only_signup %}
+                        Account creation is invite-only. Use the same email address that received your family invitation.
+                        {% else %}
+                        New here? Make your account and continue in one step.
+                        {% endif %}
+                    </p>
                 </div>
+
+                {% if invite_only_signup %}
+                <div class="alert alert-info mb-3">
+                    <i class="bi bi-envelope-check"></i> New accounts must match a valid family invitation.
+                </div>
+                {% endif %}
 
                 <form method="post" action="{% url 'accounts:auth_portal' %}" class="auth-form">
                     {% csrf_token %}

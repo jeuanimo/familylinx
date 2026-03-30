@@ -26,7 +26,6 @@ Templates Required:
 """
 
 import logging
-import smtplib
 from urllib.parse import urlencode
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -51,13 +50,15 @@ import socket
 from .models import (
     FamilySpace, Membership, Invite, Post, Comment, Event, RSVP, Person, 
     Relationship, Album, Photo, Notification, ChatMessage, create_notification, 
-    AuditLog, DeletionRequest, MemoryStory, MemoryMedia, MemoryComment, 
-    MemoryReaction, MuseumShare, ChatConversation, ChatConversationParticipant,
+    AuditLog, DeletionRequest, MemoryStory, MemoryMedia,
+    ChatConversation, ChatConversationParticipant,
     ChatConversationMessage, ChatMessageReadReceipt, EventReminderLog,
     LifeStory, TimeCapsule, FamilyMilestone, FamilyKudos,
-    ThreadCategory, ThreadPost, ThreadReply, ThreadVote, ThreadBookmark
+    ThreadCategory, ThreadPost, ThreadReply, ThreadVote, ThreadBookmark,
+    CrossSpacePersonLink, TreeMergeRequest
 )
-from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ChatMessageForm, ConversationMessageForm, LifeStorySectionForm, TimeCapsuleForm, FamilyMilestoneForm, FamilyKudosForm
+from .forms import FamilySpaceCreateForm, InviteCreateForm, PostCreateForm, CommentForm, EventCreateForm, PersonForm, RelationshipForm, AlbumForm, PhotoUploadForm, ConversationMessageForm, LifeStorySectionForm, TimeCapsuleForm, FamilyMilestoneForm, FamilyKudosForm
+from .tree_matching import find_all_potential_matches, calculate_match_score, create_person_link
 from utils.image_utils import process_cropped_image
 from .services.tree_builder import build_tree_json
 
@@ -113,6 +114,11 @@ ERROR_ACCESS_DENIED = "Access denied"
 ERROR_PERMISSION_DENIED = "Permission denied"
 ERROR_POST_REQUIRED = "POST required"
 FAMILY_DATES_WINDOW_DAYS = 7
+
+# Other literals
+LABEL_DELETED_USER = "Deleted User"
+CONTENT_TYPE_JSON = "application/json"
+TEMPLATE_OCCASION_LIST = "families/occasion_list.html"
 
 # Ancestor generation labels
 GENERATION_LABELS = {
@@ -359,7 +365,6 @@ def family_delete(request, family_id):
         return redirect("home")
     
     # Get counts for confirmation page
-    from .models import Person, Relationship, Event, Photo, Album
     person_count = Person.objects.filter(family=fam).count()
     relationship_count = Relationship.objects.filter(family=fam).count()
     event_count = Event.objects.filter(family=fam).count()
@@ -515,6 +520,87 @@ def _send_invite_email(invite, request):
         return False, reason
 
 
+def _process_invite_emails(fam, request, invite_emails, invite_role):
+    """Process a list of invite emails and create invitations."""
+    created_invites = []
+    failed_invites = []
+    skipped_existing = []
+
+    for invite_email in invite_emails:
+        existing_invite = Invite.objects.filter(
+            family=fam,
+            email__iexact=invite_email,
+            accepted_at__isnull=True,
+            expires_at__gt=timezone.now(),
+        ).first()
+        if existing_invite:
+            skipped_existing.append(invite_email)
+            continue
+
+        inv = Invite(
+            family=fam,
+            created_by=request.user,
+            email=invite_email,
+            role=invite_role,
+            expires_at=timezone.now() + timezone.timedelta(days=14),
+        )
+        inv.save()
+
+        email_sent, email_error = _send_invite_email(inv, request)
+        if email_sent:
+            created_invites.append(inv)
+        else:
+            failed_invites.append((inv, email_error or "Unknown error"))
+
+    return created_invites, failed_invites, skipped_existing
+
+
+def _show_invite_messages(request, created_invites, failed_invites, skipped_existing):
+    """Show appropriate messages based on invite creation results."""
+    if created_invites:
+        count = len(created_invites)
+        if count == 1:
+            messages.success(request, f"Invitation sent to {created_invites[0].email}!")
+        else:
+            messages.success(request, f"{count} invitations were created and sent.")
+
+    if skipped_existing:
+        skipped_preview = ", ".join(skipped_existing[:3])
+        if len(skipped_existing) > 3:
+            skipped_preview += ", ..."
+        messages.warning(
+            request,
+            f"{len(skipped_existing)} address(es) already have a pending invite: {skipped_preview}",
+        )
+
+    if failed_invites:
+        _show_failed_invite_messages(request, failed_invites)
+
+    if not created_invites and not failed_invites and skipped_existing:
+        messages.info(request, "No new invitations were created.")
+
+
+def _show_failed_invite_messages(request, failed_invites):
+    """Show error messages for failed invites."""
+    if len(failed_invites) == 1:
+        failed_invite, failure_reason = failed_invites[0]
+        messages.error(
+            request,
+            f"Invitation created, but the email was not sent to {failed_invite.email}. "
+            f"Reason: {failure_reason}. "
+            f"Use the manual invite link in the Invitations panel below."
+        )
+    else:
+        failed_preview = ", ".join(inv.email for inv, _reason in failed_invites[:3])
+        if len(failed_invites) > 3:
+            failed_preview += ", ..."
+        messages.error(
+            request,
+            f"{len(failed_invites)} invitation email(s) were not sent: {failed_preview}. "
+            f"Use the manual invite links in the Invitations panel below."
+        )
+
+
 @login_required
 def invite_create(request, family_id):
     """
@@ -522,53 +608,11 @@ def invite_create(request, family_id):
     
     Only OWNER and ADMIN roles can create invitations. The invite includes
     a secure token for URL-based acceptance.
-    
-    HTTP Methods:
-        GET: Display the invite creation form
-        POST: Process form and create invitation
-    
-    Access Control:
-        - Requires authenticated user (@login_required)
-        - User must be OWNER or ADMIN of the family space
-        - Other roles see the no_access template
-    
-    Flow:
-        1. Verify user has OWNER or ADMIN role
-        2. Display form with email and role fields
-        3. On valid submission, create Invite with:
-           - Target family space
-           - Specified email and role
-           - Auto-generated secure token
-           - 14-day expiration
-        4. Future: Send email notification
-        5. Redirect to family detail page
-    
-    Args:
-        request: Django HttpRequest object
-        family_id (int): Primary key of the FamilySpace
-    
-    Returns:
-        HttpResponse: Rendered form, no_access page, or redirect
-    
-    Template:
-        families/invite_create.html (authorized)
-        families/no_access.html (unauthorized)
-    
-    Context:
-        family: FamilySpace instance
-        form: InviteCreateForm instance
-    
-    TODO:
-        - Implement email sending functionality
-        - Add rate limiting to prevent invite spam
     """
-    # Fetch family or return 404
     fam = get_object_or_404(FamilySpace, id=family_id)
     
-    # Check user's role - only OWNER and ADMIN can create invites
     membership = Membership.objects.filter(family=fam, user=request.user).first()
     if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
-        # User doesn't have permission to create invites
         return render(request, TEMPLATE_NO_ACCESS, {"family": fam})
 
     if request.method == "POST":
@@ -578,79 +622,10 @@ def invite_create(request, family_id):
             invite_role = form.cleaned_data["role"]
             family_detail_url = reverse(URL_FAMILY_DETAIL, kwargs={"family_id": fam.id})
 
-            created_invites = []
-            failed_invites = []
-            skipped_existing = []
+            created, failed, skipped = _process_invite_emails(fam, request, invite_emails, invite_role)
+            _show_invite_messages(request, created, failed, skipped)
 
-            for invite_email in invite_emails:
-                existing_invite = Invite.objects.filter(
-                    family=fam,
-                    email__iexact=invite_email,
-                    accepted_at__isnull=True,
-                    expires_at__gt=timezone.now(),
-                ).first()
-                if existing_invite:
-                    skipped_existing.append(invite_email)
-                    continue
-
-                inv = Invite(
-                    family=fam,
-                    created_by=request.user,
-                    email=invite_email,
-                    role=invite_role,
-                    expires_at=timezone.now() + timezone.timedelta(days=14),
-                )
-                inv.save()
-
-                email_sent, email_error = _send_invite_email(inv, request)
-                if email_sent:
-                    created_invites.append(inv)
-                else:
-                    failed_invites.append((inv, email_error or "Unknown error"))
-
-            if created_invites:
-                if len(created_invites) == 1:
-                    messages.success(request, f"Invitation sent to {created_invites[0].email}!")
-                else:
-                    messages.success(
-                        request,
-                        f"{len(created_invites)} invitations were created and sent.",
-                    )
-
-            if skipped_existing:
-                skipped_preview = ", ".join(skipped_existing[:3])
-                if len(skipped_existing) > 3:
-                    skipped_preview += ", ..."
-                messages.warning(
-                    request,
-                    f"{len(skipped_existing)} address(es) already have a pending invite: {skipped_preview}",
-                )
-
-            if failed_invites:
-                if len(failed_invites) == 1:
-                    failed_invite, failure_reason = failed_invites[0]
-                    messages.error(
-                        request,
-                        f"Invitation created, but the email was not sent to {failed_invite.email}. "
-                        f"Reason: {failure_reason}. "
-                        f"Use the manual invite link in the Invitations panel below."
-                    )
-                else:
-                    failed_preview = ", ".join(inv.email for inv, _reason in failed_invites[:3])
-                    if len(failed_invites) > 3:
-                        failed_preview += ", ..."
-                    messages.error(
-                        request,
-                        f"{len(failed_invites)} invitation email(s) were not sent: {failed_preview}. "
-                        f"Use the manual invite links in the Invitations panel below."
-                    )
-
-            if not created_invites and not failed_invites and skipped_existing:
-                messages.info(request, "No new invitations were created.")
-
-            redirect_target = family_detail_url
-            if failed_invites:
-                redirect_target = f"{family_detail_url}#family-invitations"
+            redirect_target = f"{family_detail_url}#family-invitations" if failed else family_detail_url
             return redirect(redirect_target)
     else:
         form = InviteCreateForm()
@@ -1291,7 +1266,7 @@ def _serialize_conversation_message(message, current_user):
     elif message.author:
         author_label = _display_name_for_user(message.author)
     else:
-        author_label = "Deleted User"
+        author_label = LABEL_DELETED_USER
     
     return {
         "id": message.id,
@@ -1323,7 +1298,7 @@ def _broadcast_conversation_message(conversation, message):
     payload = {
         "id": message.id,
         "author_id": message.author_id,
-        "author_label": _display_name_for_user(message.author) if message.author else "Deleted User",
+        "author_label": _display_name_for_user(message.author) if message.author else LABEL_DELETED_USER,
         "content": message.content,
         "created_at": message.created_at.isoformat(),
         "is_own": False,
@@ -2669,6 +2644,109 @@ def family_calendar(request, family_id):
     })
 
 
+def _wants_json_response(request):
+    """Check if the request expects a JSON response."""
+    return request.GET.get("format") == "json" or CONTENT_TYPE_JSON in request.headers.get("Accept", "")
+
+
+def _build_person_search_results(family, search_query):
+    """Build person search results for a family tree."""
+    persons = Person.objects.filter(
+        family=family,
+        is_deleted=False,
+    ).order_by("last_name", "first_name")
+
+    if search_query:
+        for term in search_query.split():
+            persons = persons.filter(
+                Q(first_name__icontains=term)
+                | Q(last_name__icontains=term)
+                | Q(maiden_name__icontains=term)
+            )
+
+    return persons
+
+
+def _serialize_person_for_link(person, linked_person_id):
+    """Serialize a person for the link-to-tree response."""
+    return {
+        "id": person.id,
+        "name": person.full_name.strip(),
+        "birth_year": person.birth_date.year if person.birth_date else None,
+        "death_year": person.death_date.year if person.death_date else None,
+        "maiden_name": person.maiden_name or "",
+        "is_linked": person.id == linked_person_id,
+    }
+
+
+def _handle_link_to_tree_get(request, family, membership, next_url):
+    """Handle GET request for link-to-tree."""
+    search_query = request.GET.get("q", "").strip()
+    results = _build_person_search_results(family, search_query)[:50]
+
+    if _wants_json_response(request):
+        return JsonResponse({
+            "linked_person_id": membership.linked_person_id,
+            "query": search_query,
+            "persons": [_serialize_person_for_link(p, membership.linked_person_id) for p in results],
+        })
+
+    return render(request, "families/link_to_tree.html", {
+        "family": family,
+        "membership": membership,
+        "search_query": search_query,
+        "results": results if search_query else [],
+        "result_limit": 50,
+        "next_url": next_url,
+    })
+
+
+def _get_person_id_from_request(request):
+    """Extract person_id from POST request (JSON or form data)."""
+    content_type = request.headers.get("Content-Type", "")
+    if CONTENT_TYPE_JSON in content_type:
+        try:
+            payload = json.loads(request.body)
+            return payload.get("person_id"), content_type, None
+        except json.JSONDecodeError:
+            return None, content_type, JsonResponse({"error": "Invalid JSON"}, status=400)
+    return request.POST.get("person_id"), content_type, None
+
+
+def _handle_link_to_tree_post(request, family, membership, next_url):
+    """Handle POST request for link-to-tree."""
+    person_id, content_type, error_response = _get_person_id_from_request(request)
+    if error_response:
+        return error_response
+    
+    expects_json = _wants_json_response(request) or CONTENT_TYPE_JSON in content_type
+
+    if person_id:
+        person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+        membership.linked_person = person
+        membership.save(update_fields=["linked_person"])
+
+        if expects_json:
+            return JsonResponse({
+                "success": True,
+                "message": f"Linked to {person.full_name}",
+                "person_id": person.id,
+                "person_name": person.full_name,
+            })
+
+        messages.success(request, f"Linked your account to {person.full_name}.")
+        return redirect(next_url)
+
+    membership.linked_person = None
+    membership.save(update_fields=["linked_person"])
+
+    if expects_json:
+        return JsonResponse({"success": True, "message": "Unlinked from tree"})
+
+    messages.success(request, "Removed your current tree link.")
+    return redirect(next_url)
+
+
 @login_required
 def link_to_tree(request, family_id):
     """
@@ -2676,7 +2754,6 @@ def link_to_tree(request, family_id):
 
     GET: Render a manual search page for browsers or return JSON for async search.
     POST: Links the user's membership to a selected person.
-    DELETE: Removes the link.
     """
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
@@ -2685,93 +2762,11 @@ def link_to_tree(request, family_id):
     fallback_url = reverse(URL_FAMILY_TREE_INTERACTIVE, kwargs={"family_id": family.id})
     next_url = _get_safe_next_url(request, fallback_url)
 
-    def wants_json_response():
-        return request.GET.get("format") == "json" or "application/json" in request.headers.get("Accept", "")
-
-    def build_person_search_results(search_query):
-        persons = Person.objects.filter(
-            family=family,
-            is_deleted=False,
-        ).order_by("last_name", "first_name")
-
-        if search_query:
-            for term in search_query.split():
-                persons = persons.filter(
-                    Q(first_name__icontains=term)
-                    | Q(last_name__icontains=term)
-                    | Q(maiden_name__icontains=term)
-                )
-
-        return persons
-
-    def serialize_person(person):
-        return {
-            "id": person.id,
-            "name": person.full_name.strip(),
-            "birth_year": person.birth_date.year if person.birth_date else None,
-            "death_year": person.death_date.year if person.death_date else None,
-            "maiden_name": person.maiden_name or "",
-            "is_linked": person.id == membership.linked_person_id,
-        }
-
     if request.method == "GET":
-        search_query = request.GET.get("q", "").strip()
-        results = build_person_search_results(search_query)[:50]
+        return _handle_link_to_tree_get(request, family, membership, next_url)
 
-        if wants_json_response():
-            return JsonResponse({
-                "linked_person_id": membership.linked_person_id,
-                "query": search_query,
-                "persons": [serialize_person(person) for person in results],
-            })
-
-        return render(request, "families/link_to_tree.html", {
-            "family": family,
-            "membership": membership,
-            "search_query": search_query,
-            "results": results if search_query else [],
-            "result_limit": 50,
-            "next_url": next_url,
-        })
-
-    elif request.method == "POST":
-        content_type = request.headers.get("Content-Type", "")
-        expects_json = request.GET.get("format") == "json" or "application/json" in request.headers.get("Accept", "")
-
-        if "application/json" in content_type:
-            import json
-            try:
-                payload = json.loads(request.body)
-            except json.JSONDecodeError:
-                return JsonResponse({"error": "Invalid JSON"}, status=400)
-            person_id = payload.get("person_id")
-        else:
-            person_id = request.POST.get("person_id")
-
-        if person_id:
-            person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
-            membership.linked_person = person
-            membership.save(update_fields=["linked_person"])
-
-            if expects_json or "application/json" in content_type:
-                return JsonResponse({
-                    "success": True,
-                    "message": f"Linked to {person.full_name}",
-                    "person_id": person.id,
-                    "person_name": person.full_name,
-                })
-
-            messages.success(request, f"Linked your account to {person.full_name}.")
-            return redirect(next_url)
-
-        membership.linked_person = None
-        membership.save(update_fields=["linked_person"])
-
-        if expects_json or "application/json" in content_type:
-            return JsonResponse({"success": True, "message": "Unlinked from tree"})
-
-        messages.success(request, "Removed your current tree link.")
-        return redirect(next_url)
+    if request.method == "POST":
+        return _handle_link_to_tree_post(request, family, membership, next_url)
 
     return JsonResponse({"error": "Method not allowed"}, status=405)
 
@@ -4354,7 +4349,7 @@ def memory_detail(request, family_id, memory_id):
     if not membership:
         return render(request, TEMPLATE_NO_ACCESS, {"family": None})
     
-    from .models import MemoryStory, MemoryComment, MemoryReaction
+    from .models import MemoryReaction
     
     memory = get_object_or_404(
         MemoryStory.objects.select_related('person', 'author').prefetch_related('media', 'comments__author', 'reactions'),
@@ -5334,6 +5329,53 @@ def event_conversation_start(request, family_id, event_id):
     return redirect(URL_CONVERSATION_ROOM, family_id=family.id, conversation_id=conversation.id)
 
 
+def _handle_conversation_post(request, conversation, membership, conversation_url, conversation_base_url):
+    """Handle POST request for sending a message in a conversation."""
+    if membership.role == Membership.Role.VIEWER:
+        messages.error(request, "Viewers can read messages but cannot send them.")
+        return redirect(conversation_url)
+
+    form = ConversationMessageForm(request.POST)
+    if not form.is_valid():
+        return None  # Return None to indicate form was invalid
+    
+    message = ChatConversationMessage.objects.create(
+        conversation=conversation,
+        author=request.user,
+        content=form.cleaned_data["content"],
+    )
+    conversation.save(update_fields=["updated_at"])
+
+    _notify_conversation_participants(conversation, message, request.user, conversation_base_url)
+    _broadcast_conversation_message(conversation, message)
+    _mark_conversation_read(conversation, request.user)
+    
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse(
+            {"message": _conversation_message_json_payload(
+                _serialize_conversation_message(message, request.user)
+            )}
+        )
+    return redirect(conversation_url)
+
+
+def _notify_conversation_participants(conversation, message, sender, base_url):
+    """Notify other participants about a new message."""
+    other_participants = ChatConversationParticipant.objects.filter(
+        conversation=conversation,
+    ).exclude(user=sender).select_related("user")
+    
+    for other_participant in other_participants:
+        create_notification(
+            recipient=other_participant.user,
+            notification_type=Notification.NotificationType.CHAT,
+            title=f"New message in {conversation.title or conversation.get_conversation_type_display()}",
+            message=f"{_display_name_for_user(sender)}: {message.content[:50]}...",
+            link=base_url,
+            family=conversation.family,
+        )
+
+
 @login_required
 @xframe_options_sameorigin
 def conversation_room(request, family_id, conversation_id):
@@ -5360,48 +5402,13 @@ def conversation_room(request, family_id, conversation_id):
         URL_CONVERSATION_ROOM,
         kwargs={"family_id": family.id, "conversation_id": conversation.id},
     )
-    conversation_url = conversation_base_url
-    if embed_mode:
-        conversation_url = f"{conversation_url}?{urlencode({'embed': '1'})}"
+    conversation_url = f"{conversation_base_url}?{urlencode({'embed': '1'})}" if embed_mode else conversation_base_url
 
     if request.method == "POST":
-        if membership.role == Membership.Role.VIEWER:
-            messages.error(request, "Viewers can read messages but cannot send them.")
-            return redirect(conversation_url)
-
+        result = _handle_conversation_post(request, conversation, membership, conversation_url, conversation_base_url)
+        if result is not None:
+            return result
         form = ConversationMessageForm(request.POST)
-        if form.is_valid():
-            message = ChatConversationMessage.objects.create(
-                conversation=conversation,
-                author=request.user,
-                content=form.cleaned_data["content"],
-            )
-            conversation.save(update_fields=["updated_at"])
-
-            other_participants = ChatConversationParticipant.objects.filter(
-                conversation=conversation,
-            ).exclude(user=request.user).select_related("user")
-            for other_participant in other_participants:
-                create_notification(
-                    recipient=other_participant.user,
-                    notification_type=Notification.NotificationType.CHAT,
-                    title=f"New message in {conversation.title or conversation.get_conversation_type_display()}",
-                    message=f"{_display_name_for_user(request.user)}: {message.content[:50]}...",
-                    link=conversation_base_url,
-                    family=conversation.family,
-                )
-
-            _broadcast_conversation_message(conversation, message)
-            _mark_conversation_read(conversation, request.user)
-            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-                return JsonResponse(
-                    {
-                        "message": _conversation_message_json_payload(
-                            _serialize_conversation_message(message, request.user)
-                        )
-                    }
-                )
-            return redirect(conversation_url)
     else:
         form = ConversationMessageForm()
 
@@ -5506,7 +5513,7 @@ def birthday_list(request, family_id):
         request,
         family,
         membership,
-        "families/occasion_list.html",
+        TEMPLATE_OCCASION_LIST,
         "Birthdays",
         f"Birthdays happening today or in the next {FAMILY_DATES_WINDOW_DAYS} days.",
         "bi-cake2",
@@ -5526,7 +5533,7 @@ def wedding_anniversary_list(request, family_id):
         request,
         family,
         membership,
-        "families/occasion_list.html",
+        TEMPLATE_OCCASION_LIST,
         "Wedding Anniversaries",
         f"Wedding anniversaries happening today or in the next {FAMILY_DATES_WINDOW_DAYS} days.",
         "bi-heart",
@@ -5546,7 +5553,7 @@ def in_memoriam_list(request, family_id):
         request,
         family,
         membership,
-        "families/occasion_list.html",
+        TEMPLATE_OCCASION_LIST,
         "In Memoriam",
         f"Memorial dates happening today or in the next {FAMILY_DATES_WINDOW_DAYS} days.",
         "bi-flower1",
@@ -5869,7 +5876,7 @@ def chat_messages_json(request, family_id):
         "messages": [
             {
                 "id": m.id,
-                "author": m.author.email if m.author else "Deleted User",
+                "author": m.author.email if m.author else LABEL_DELETED_USER,
                 "content": m.content,
                 "created_at": m.created_at.isoformat(),
                 "is_own": m.author == request.user if m.author else False,
@@ -5923,7 +5930,6 @@ def gedcom_import_report(request, family_id, import_id):
     Display import report with statistics and duplicate review queue.
     """
     from .models import GedcomImport, PotentialDuplicate
-    import json
     
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
@@ -6090,9 +6096,8 @@ def duplicate_review(request, family_id, duplicate_id):
     """
     Review a potential duplicate and choose action.
     """
-    from .models import GedcomImport, PotentialDuplicate
+    from .models import PotentialDuplicate
     from .gedcom import merge_persons
-    import json
     
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
@@ -6308,7 +6313,6 @@ def dna_kit_list(request):
 def dna_kit_create(request):
     """Register a new DNA kit. Supports ?link_to=<person_id>&family=<family_id> for pre-linking."""
     from .forms import DNAKitForm
-    from .models import DNAKit, Person
     
     link_to_person, link_to_family = _parse_link_to_params(request)
     
@@ -6491,7 +6495,7 @@ def _create_relationship_suggestion(match, for_kit):
     """
     Helper to create relationship suggestions from a DNA match.
     """
-    from .models import RelationshipSuggestion, FamilySpace, Membership
+    from .models import RelationshipSuggestion
     
     # Find families where the kit owner is a member
     memberships = Membership.objects.filter(user=for_kit.user)
@@ -6549,7 +6553,7 @@ def dna_match_confirm(request, match_id):
     """
     Confirm a DNA match from the user's side.
     """
-    from .models import DNAKit, DNAMatch
+    from .models import DNAMatch
     
     match = get_object_or_404(DNAMatch, id=match_id)
     
@@ -6595,7 +6599,6 @@ def relationship_suggestion_list(request):
 
 def _update_suggestion_status(suggestion, status, user, notes=''):
     """Update suggestion status with review metadata."""
-    from .models import RelationshipSuggestion
     suggestion.status = status
     suggestion.reviewed_by = user
     suggestion.reviewed_at = timezone.now()
@@ -6675,7 +6678,7 @@ def relationship_suggestion_review(request, suggestion_id):
     This is the attach-to-tree confirmation workflow.
     """
     from .forms import LinkToTreeForm
-    from .models import DNAKit, RelationshipSuggestion, Person
+    from .models import RelationshipSuggestion
     
     suggestion = get_object_or_404(
         RelationshipSuggestion.objects.select_related(
@@ -6829,7 +6832,6 @@ def _build_dna_connection_data(user_kits, user_kit_ids):
 def dna_connections(request):
     """Interactive network visualization of DNA connections."""
     from .models import DNAKit
-    import json
     
     user_kits = DNAKit.objects.filter(user=request.user)
     user_kit_ids = set(user_kits.values_list('id', flat=True))
@@ -7300,10 +7302,6 @@ def empty_trash(request, family_id):
 # Tree Linking / Merging
 # =============================================================================
 
-from .models import CrossSpacePersonLink, TreeMergeRequest
-from .tree_matching import find_potential_matches, find_all_potential_matches, calculate_match_score, create_person_link
-import json
-
 PERSON_SYNC_FIELDS = (
     ("first_name", "First name"),
     ("last_name", "Last name"),
@@ -7466,7 +7464,7 @@ def tree_link_propose(request, family_id):
         return JsonResponse({"error": "Permission denied"}, status=403)
     
     if request.method != "POST":
-        return JsonResponse({"error": "POST required"}, status=405)
+        return JsonResponse({"error": ERROR_POST_REQUIRED}, status=405)
     
     source_person_id = request.POST.get('source_person_id')
     target_person_id = request.POST.get('target_person_id')
@@ -7981,7 +7979,7 @@ def prayer_detail(request, prayer_id, family_id=None):
     
     Users can add replies and mark they are praying.
     """
-    from .models import PrayerRequest, PrayerReply
+    from .models import PrayerRequest
     
     family = None
     membership = None
@@ -8820,6 +8818,46 @@ def thread_create(request, family_id):
     })
 
 
+def _get_user_vote_on_post(user, post):
+    """Get user's vote on a thread post."""
+    if not user.is_authenticated:
+        return None
+    vote = ThreadVote.objects.filter(user=user, post=post).first()
+    return vote.vote_type if vote else None
+
+
+def _get_sorted_replies(post, sort):
+    """Get top-level replies sorted by the specified method."""
+    replies = ThreadReply.objects.filter(
+        post=post,
+        parent__isnull=True,
+        is_hidden=False
+    ).select_related('author').prefetch_related('votes', 'children')
+    
+    if sort == 'new':
+        return replies.order_by('-created_at')
+    if sort == 'old':
+        return replies.order_by('created_at')
+    # best (by vote score)
+    replies = list(replies)
+    replies.sort(key=lambda r: r.vote_score, reverse=True)
+    return replies
+
+
+def _get_user_reply_votes(user, replies):
+    """Get user's votes on replies and their children."""
+    if not user.is_authenticated:
+        return {}
+    
+    reply_ids = [r.id for r in replies]
+    for reply in replies:
+        for child in reply.children.filter(is_hidden=False):
+            reply_ids.append(child.id)
+    
+    votes = ThreadVote.objects.filter(user=user, reply_id__in=reply_ids)
+    return {vote.reply_id: vote.vote_type for vote in votes}
+
+
 @login_required
 def thread_detail(request, family_id, post_id):
     """View a thread post and its replies."""
@@ -8836,50 +8874,15 @@ def thread_detail(request, family_id, post_id):
     # Increment view count
     ThreadPost.objects.filter(id=post_id).update(view_count=models.F('view_count') + 1)
     
-    # Get user's vote on this post
-    user_vote = None
-    if request.user.is_authenticated:
-        vote = ThreadVote.objects.filter(user=request.user, post=post).first()
-        if vote:
-            user_vote = vote.vote_type
-    
-    # Get bookmarked status
+    user_vote = _get_user_vote_on_post(request.user, post)
     is_bookmarked = ThreadBookmark.objects.filter(user=request.user, post=post).exists()
     
-    # Get replies sorted by vote score (best first) or by time
     sort = request.GET.get('sort', 'best')
-    
-    # Get top-level replies only
-    replies = ThreadReply.objects.filter(
-        post=post,
-        parent__isnull=True,
-        is_hidden=False
-    ).select_related('author').prefetch_related('votes', 'children')
-    
-    if sort == 'new':
-        replies = replies.order_by('-created_at')
-    elif sort == 'old':
-        replies = replies.order_by('created_at')
-    else:  # best (by vote score)
-        replies = list(replies)
-        replies.sort(key=lambda r: r.vote_score, reverse=True)
-    
-    # Get user's votes on replies
-    user_reply_votes = {}
-    if request.user.is_authenticated:
-        reply_ids = [r.id for r in replies]
-        # Include nested reply IDs
-        for reply in replies:
-            for child in reply.children.filter(is_hidden=False):
-                reply_ids.append(child.id)
-        
-        votes = ThreadVote.objects.filter(user=request.user, reply_id__in=reply_ids)
-        for vote in votes:
-            user_reply_votes[vote.reply_id] = vote.vote_type
+    replies = _get_sorted_replies(post, sort)
+    user_reply_votes = _get_user_reply_votes(request.user, replies)
     
     # Check permissions
     can_edit = post.author == request.user or membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN]
-    can_delete = can_edit
     can_moderate = membership.role in [Membership.Role.OWNER, Membership.Role.ADMIN]
     
     return render(request, TEMPLATE_THREAD_DETAIL, {
@@ -8891,7 +8894,7 @@ def thread_detail(request, family_id, post_id):
         "user_reply_votes": user_reply_votes,
         "is_bookmarked": is_bookmarked,
         "can_edit": can_edit,
-        "can_delete": can_delete,
+        "can_delete": can_edit,
         "can_moderate": can_moderate,
         "current_sort": sort,
     })
@@ -8983,11 +8986,11 @@ def thread_delete(request, family_id, post_id):
 def thread_vote(request, family_id, post_id):
     """Vote on a thread post (AJAX endpoint)."""
     if request.method != "POST":
-        return JsonResponse({"error": "POST required"}, status=405)
+        return JsonResponse({"error": ERROR_POST_REQUIRED}, status=405)
     
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     post = get_object_or_404(ThreadPost, id=post_id, family=family)
     vote_type = request.POST.get('vote_type', 'UPVOTE')
@@ -9073,11 +9076,11 @@ def thread_reply_create(request, family_id, post_id):
 def thread_reply_vote(request, family_id, reply_id):
     """Vote on a thread reply (AJAX endpoint)."""
     if request.method != "POST":
-        return JsonResponse({"error": "POST required"}, status=405)
+        return JsonResponse({"error": ERROR_POST_REQUIRED}, status=405)
     
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     reply = get_object_or_404(ThreadReply, id=reply_id, post__family=family)
     vote_type = request.POST.get('vote_type', 'UPVOTE')
@@ -9136,11 +9139,11 @@ def thread_reply_delete(request, family_id, reply_id):
 def thread_bookmark_toggle(request, family_id, post_id):
     """Toggle bookmark on a thread post."""
     if request.method != "POST":
-        return JsonResponse({"error": "POST required"}, status=405)
+        return JsonResponse({"error": ERROR_POST_REQUIRED}, status=405)
     
     family, membership = _get_membership_or_deny(request, family_id)
     if not membership:
-        return JsonResponse({"error": "Access denied"}, status=403)
+        return JsonResponse({"error": ERROR_ACCESS_DENIED}, status=403)
     
     post = get_object_or_404(ThreadPost, id=post_id, family=family)
     
@@ -9195,32 +9198,30 @@ def thread_moderate(request, family_id, post_id):
     
     if request.method == "POST":
         action = request.POST.get('action')
-        
-        if action == 'toggle_hide':
-            post.is_hidden = not post.is_hidden
-            post.save()
-            status = "hidden" if post.is_hidden else "visible"
-            messages.success(request, f"Post is now {status}.")
-        
-        elif action == 'toggle_lock':
-            post.is_locked = not post.is_locked
-            post.save()
-            status = "locked" if post.is_locked else "unlocked"
-            messages.success(request, f"Post is now {status}.")
-        
-        elif action == 'toggle_pin':
-            post.is_pinned = not post.is_pinned
-            post.save()
-            status = "pinned" if post.is_pinned else "unpinned"
-            messages.success(request, f"Post is now {status}.")
-        
-        elif action == 'mark_answered':
-            post.is_answered = not post.is_answered
-            post.save()
-            status = "marked as answered" if post.is_answered else "marked as unanswered"
-            messages.success(request, f"Post {status}.")
+        _handle_thread_moderation_action(request, post, action)
     
     return redirect(URL_THREAD_DETAIL, family_id=family.id, post_id=post_id)
+
+
+def _handle_thread_moderation_action(request, post, action):
+    """Handle moderation actions on a thread post."""
+    action_handlers = {
+        'toggle_hide': ('is_hidden', 'hidden', 'visible'),
+        'toggle_lock': ('is_locked', 'locked', 'unlocked'),
+        'toggle_pin': ('is_pinned', 'pinned', 'unpinned'),
+        'mark_answered': ('is_answered', 'marked as answered', 'marked as unanswered'),
+    }
+    
+    if action not in action_handlers:
+        return
+    
+    attr, true_status, false_status = action_handlers[action]
+    current_value = getattr(post, attr)
+    setattr(post, attr, not current_value)
+    post.save()
+    new_value = getattr(post, attr)
+    status = true_status if new_value else false_status
+    messages.success(request, f"Post {status}.")
 
 
 @login_required
@@ -9238,41 +9239,7 @@ def thread_categories(request, family_id):
     
     if request.method == "POST":
         action = request.POST.get('action')
-        
-        if action == 'create':
-            name = request.POST.get('name', '').strip()
-            color = request.POST.get('color', '#6366f1')
-            icon = request.POST.get('icon', '').strip()
-            description = request.POST.get('description', '').strip()
-            
-            if name:
-                max_order = categories.aggregate(models.Max('display_order'))['display_order__max'] or 0
-                ThreadCategory.objects.create(
-                    family=family,
-                    name=name,
-                    color=color,
-                    icon=icon,
-                    description=description,
-                    display_order=max_order + 1
-                )
-                messages.success(request, f"Category '{name}' created.")
-        
-        elif action == 'delete':
-            cat_id = request.POST.get('category_id')
-            if cat_id:
-                ThreadCategory.objects.filter(id=cat_id, family=family).delete()
-                messages.success(request, "Category deleted.")
-        
-        elif action == 'toggle_active':
-            cat_id = request.POST.get('category_id')
-            if cat_id:
-                cat = ThreadCategory.objects.filter(id=cat_id, family=family).first()
-                if cat:
-                    cat.is_active = not cat.is_active
-                    cat.save()
-                    status = "activated" if cat.is_active else "deactivated"
-                    messages.success(request, f"Category {status}.")
-        
+        _handle_category_action(request, action, categories, family)
         return redirect("families:thread_categories", family_id=family.id)
     
     return render(request, "families/thread/thread_categories.html", {
@@ -9280,3 +9247,57 @@ def thread_categories(request, family_id):
         "membership": membership,
         "categories": categories,
     })
+
+
+def _handle_category_action(request, action, categories, family):
+    """Handle category management actions."""
+    if action == 'create':
+        _create_category(request, categories, family)
+    elif action == 'delete':
+        _delete_category(request, family)
+    elif action == 'toggle_active':
+        _toggle_category_active(request, family)
+
+
+def _create_category(request, categories, family):
+    """Create a new thread category."""
+    name = request.POST.get('name', '').strip()
+    if not name:
+        return
+    
+    color = request.POST.get('color', '#6366f1')
+    icon = request.POST.get('icon', '').strip()
+    description = request.POST.get('description', '').strip()
+    max_order = categories.aggregate(models.Max('display_order'))['display_order__max'] or 0
+    
+    ThreadCategory.objects.create(
+        family=family,
+        name=name,
+        color=color,
+        icon=icon,
+        description=description,
+        display_order=max_order + 1
+    )
+    messages.success(request, f"Category '{name}' created.")
+
+
+def _delete_category(request, family):
+    """Delete a thread category."""
+    cat_id = request.POST.get('category_id')
+    if cat_id:
+        ThreadCategory.objects.filter(id=cat_id, family=family).delete()
+        messages.success(request, "Category deleted.")
+
+
+def _toggle_category_active(request, family):
+    """Toggle active status of a category."""
+    cat_id = request.POST.get('category_id')
+    if not cat_id:
+        return
+    
+    cat = ThreadCategory.objects.filter(id=cat_id, family=family).first()
+    if cat:
+        cat.is_active = not cat.is_active
+        cat.save()
+        status = "activated" if cat.is_active else "deactivated"
+        messages.success(request, f"Category {status}.")

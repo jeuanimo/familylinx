@@ -270,6 +270,12 @@
                         <a href="{% url 'accounts:admin_user_directory' %}" class="dropdown-item">
                             <i class="bi bi-person-lines-fill"></i> Admin People
                         </a>
+                        <a href="{% url 'accounts:admin_security_log' %}" class="dropdown-item">
+                            <i class="bi bi-shield-lock"></i> Admin Security
+                        </a>
+                        <a href="{% url 'accounts:site_access_log' %}" class="dropdown-item">
+                            <i class="bi bi-person-check"></i> Site Access Log
+                        </a>
                         {% endif %}
                         <a href="{% url 'families:notification_list' %}" class="dropdown-item">
                             <i class="bi bi-bell"></i> Notifications
@@ -324,10 +330,14 @@
                     <span class="muted">· Connect with your family, preserve your heritage.</span>
                 </div>
                 <div class="footer-links">
+                    {% if user.is_authenticated %}
+                    <a href="{% url 'contact' %}">About</a>
+                    {% else %}
+                    <a href="{% url 'home' %}#about">About</a>
+                    {% endif %}
                     <a href="{% url 'contact' %}">Contact</a>
                     <a href="#">Privacy</a>
                     <a href="#">Terms</a>
-                    <a href="#">Help</a>
                 </div>
             </div>
         </div>

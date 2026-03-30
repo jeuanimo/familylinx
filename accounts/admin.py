@@ -5,7 +5,7 @@ Register profile models for Django admin.
 """
 
 from django.contrib import admin
-from .models import UserProfile, ProfilePost, ProfilePostComment, ProfileMessage
+from .models import AdminAccessLog, SiteAccessLog, UserProfile, ProfilePost, ProfilePostComment, ProfileMessage
 
 
 @admin.register(UserProfile)
@@ -84,3 +84,59 @@ class ProfileMessageAdmin(admin.ModelAdmin):
     search_fields = ('subject', 'content', 'sender__email', 'recipient__email')
     readonly_fields = ('created_at', 'read_at')
     raw_id_fields = ('sender', 'recipient')
+
+
+@admin.register(AdminAccessLog)
+class AdminAccessLogAdmin(admin.ModelAdmin):
+    """Read-only admin audit trail for staff login activity."""
+    list_display = ("created_at", "event_type", "username", "ip_address", "was_successful", "path")
+    list_filter = ("event_type", "was_successful", "created_at")
+    search_fields = ("username", "email", "ip_address", "forwarded_for", "user_agent", "detail", "path")
+    readonly_fields = (
+        "user",
+        "username",
+        "email",
+        "ip_address",
+        "forwarded_for",
+        "user_agent",
+        "path",
+        "event_type",
+        "was_successful",
+        "detail",
+        "created_at",
+    )
+    raw_id_fields = ("user",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(SiteAccessLog)
+class SiteAccessLogAdmin(admin.ModelAdmin):
+    """Read-only admin audit trail for site authentication activity."""
+    list_display = ("created_at", "event_type", "username", "ip_address", "was_successful", "path")
+    list_filter = ("event_type", "was_successful", "created_at")
+    search_fields = ("username", "email", "ip_address", "forwarded_for", "user_agent", "detail", "path")
+    readonly_fields = (
+        "user",
+        "username",
+        "email",
+        "ip_address",
+        "forwarded_for",
+        "user_agent",
+        "path",
+        "event_type",
+        "was_successful",
+        "detail",
+        "created_at",
+    )
+    raw_id_fields = ("user",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

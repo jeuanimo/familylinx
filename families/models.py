@@ -3087,8 +3087,6 @@ class PersonClaim(models.Model):
     
     def verify_parents(self):
         """Check if provided parent names match person's parents."""
-        from django.db.models import Q
-        
         # Get person's parents
         parent_rels = Relationship.objects.filter(
             person2=self.person,
@@ -3155,7 +3153,7 @@ class PersonClaim(models.Model):
         
         # Weighted average
         total_weight = sum(weights)
-        return sum(s * w for s, w in zip(scores, weights)) / total_weight
+        return sum(s * w for s, w in zip(scores, weights, strict=True)) / total_weight
     
     def auto_verify_if_strong_match(self):
         """
@@ -3244,48 +3242,63 @@ def _get_user_name(user):
     return user_first, user_last, user_maiden
 
 
+def _given_name_score(name1, name2):
+    """Calculate similarity score between two given names."""
+    from difflib import SequenceMatcher
+    
+    if not (name1 and name2):
+        return 0
+
+    normalized_1 = name1.strip().lower()
+    normalized_2 = name2.strip().lower()
+    
+    if normalized_1 == normalized_2:
+        return 1.0
+    
+    score = SequenceMatcher(None, normalized_1, normalized_2).ratio()
+
+    if normalized_1.startswith(normalized_2 + " ") or normalized_2.startswith(normalized_1 + " "):
+        return max(score, 0.95)
+
+    parts_1 = normalized_1.split()
+    parts_2 = normalized_2.split()
+    if parts_1 and parts_2 and parts_1[0] == parts_2[0]:
+        return max(score, 0.9)
+
+    return score
+
+
+def _calculate_last_name_score(user_last_candidates, person_last_candidates):
+    """Calculate best match score between last name candidates."""
+    from difflib import SequenceMatcher
+    
+    if not user_last_candidates or not person_last_candidates:
+        return 0
+    
+    best_score = 0
+    for user_last_candidate in user_last_candidates:
+        for person_last_candidate in person_last_candidates:
+            score = SequenceMatcher(None, user_last_candidate, person_last_candidate).ratio()
+            best_score = max(best_score, score)
+    return best_score
+
+
 def _calculate_name_match_score(user_first, user_last, user_maiden, person_first, person_last, person_maiden):
     """Calculate a weighted name similarity score."""
-    from difflib import SequenceMatcher
-
-    def _given_name_score(name1, name2):
-        if not (name1 and name2):
-            return 0
-
-        normalized_1 = name1.strip().lower()
-        normalized_2 = name2.strip().lower()
-        score = SequenceMatcher(None, normalized_1, normalized_2).ratio()
-
-        if normalized_1 == normalized_2:
-            return 1.0
-
-        if normalized_1.startswith(normalized_2 + " ") or normalized_2.startswith(normalized_1 + " "):
-            score = max(score, 0.95)
-
-        parts_1 = normalized_1.split()
-        parts_2 = normalized_2.split()
-        if parts_1 and parts_2 and parts_1[0] == parts_2[0]:
-            score = max(score, 0.9)
-
-        return score
-
     first_score = _given_name_score(user_first, person_first)
     user_last_candidates = [value for value in [user_last, user_maiden] if value]
     person_last_candidates = [value for value in [person_last, person_maiden] if value]
 
-    last_score = 0
-    for user_last_candidate in user_last_candidates:
-        for person_last_candidate in person_last_candidates:
-            last_score = max(
-                last_score,
-                SequenceMatcher(None, user_last_candidate, person_last_candidate).ratio(),
-            )
+    last_score = _calculate_last_name_score(user_last_candidates, person_last_candidates)
     
-    if user_first and user_last_candidates:
+    has_first = bool(user_first)
+    has_last = bool(user_last_candidates)
+    
+    if has_first and has_last:
         return first_score * 0.4 + last_score * 0.6
-    if user_last_candidates:
+    if has_last:
         return last_score * 0.8
-    if user_first:
+    if has_first:
         return first_score * 0.6
     return 0
 
@@ -4516,7 +4529,14 @@ class ThreadPost(models.Model):
         
         score = self.vote_score
         order = math.log10(max(abs(score), 1))
-        sign = 1 if score > 0 else -1 if score < 0 else 0
+        
+        # Determine sign of score
+        if score > 0:
+            sign = 1
+        elif score < 0:
+            sign = -1
+        else:
+            sign = 0
         
         # Epoch for the algorithm (adjust as needed)
         epoch = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)

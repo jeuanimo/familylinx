@@ -174,6 +174,148 @@ class UserProfile(models.Model):
         return self.last_activity >= threshold
 
 
+class AdminAccessLog(models.Model):
+    """Audit trail for Django admin login attempts and access blocks."""
+
+    class EventType(models.TextChoices):
+        LOGIN_SUCCESS = "LOGIN_SUCCESS", "Admin Login Success"
+        LOGIN_FAILED = "LOGIN_FAILED", "Admin Login Failed"
+        IP_BLOCKED = "IP_BLOCKED", "Admin IP Blocked"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="admin_access_logs",
+        help_text="Authenticated user when the admin event succeeded.",
+    )
+    username = models.CharField(
+        max_length=150,
+        blank=True,
+        help_text="Username or identifier used for the admin attempt.",
+    )
+    email = models.EmailField(
+        blank=True,
+        help_text="Email address associated with the admin attempt when known.",
+    )
+    ip_address = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Best-effort client IP address for the admin request.",
+    )
+    forwarded_for = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Raw X-Forwarded-For header for the admin request.",
+    )
+    user_agent = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Browser or client user agent string.",
+    )
+    path = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Request path that triggered the admin event.",
+    )
+    event_type = models.CharField(
+        max_length=20,
+        choices=EventType.choices,
+        db_index=True,
+    )
+    was_successful = models.BooleanField(
+        default=False,
+        help_text="Whether the admin access attempt succeeded.",
+    )
+    detail = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Extra diagnostic detail about the admin event.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Admin Access Log"
+        verbose_name_plural = "Admin Access Logs"
+
+    def __str__(self):
+        label = self.username or self.email or "unknown"
+        return f"{self.get_event_type_display()} - {label} - {self.created_at:%Y-%m-%d %H:%M:%S}"
+
+
+class SiteAccessLog(models.Model):
+    """Audit trail for site-wide sign-ins, failed auth, and signups."""
+
+    class EventType(models.TextChoices):
+        LOGIN_SUCCESS = "LOGIN_SUCCESS", "Login Success"
+        LOGIN_FAILED = "LOGIN_FAILED", "Login Failed"
+        SIGNUP_CREATED = "SIGNUP_CREATED", "Signup Created"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="site_access_logs",
+        help_text="Authenticated user associated with the event when known.",
+    )
+    username = models.CharField(
+        max_length=150,
+        blank=True,
+        help_text="Username or identifier used for the site auth event.",
+    )
+    email = models.EmailField(
+        blank=True,
+        help_text="Email address associated with the auth event when known.",
+    )
+    ip_address = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Best-effort client IP address for the auth event.",
+    )
+    forwarded_for = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Raw X-Forwarded-For header for the auth event.",
+    )
+    user_agent = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Browser or client user agent string.",
+    )
+    path = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Request path that triggered the auth event.",
+    )
+    event_type = models.CharField(
+        max_length=20,
+        choices=EventType.choices,
+        db_index=True,
+    )
+    was_successful = models.BooleanField(
+        default=False,
+        help_text="Whether the auth event succeeded.",
+    )
+    detail = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Extra diagnostic detail about the auth event.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Site Access Log"
+        verbose_name_plural = "Site Access Logs"
+
+    def __str__(self):
+        label = self.username or self.email or "unknown"
+        return f"{self.get_event_type_display()} - {label} - {self.created_at:%Y-%m-%d %H:%M:%S}"
+
+
 class ProfilePost(models.Model):
     """
     Posts on a user's profile wall (Facebook-style).

@@ -7,6 +7,8 @@ All URLs are namespaced under 'accounts' for reverse URL lookup.
 URL Structure:
     /u/directory/                   - Logged-in user directory
     /u/admin/people/                - Staff-only account/profile directory
+    /u/admin/security/              - Staff-only admin login security log
+    /u/admin/access/                - Staff-only site access log
     /u/profile/                     - Redirect to own profile
     /u/profile/<user_id>/           - View a user's profile
     /u/profile/edit/                - Edit own profile settings
@@ -50,6 +52,8 @@ urlpatterns = [
     # Directory of users who have logged in
     path('directory/', views.user_directory, name='user_directory'),
     path('admin/people/', views.admin_user_directory, name='admin_user_directory'),
+    path('admin/security/', views.admin_security_log, name='admin_security_log'),
+    path('admin/access/', views.site_access_log, name='site_access_log'),
     
     # Redirect to current user's profile
     path('profile/', views.my_profile, name='my_profile'),

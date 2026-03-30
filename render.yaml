@@ -16,6 +16,12 @@ services:
         value: config.settings
       - key: SECRET_KEY
         generateValue: true
+      - key: ADMIN_URL_PATH
+        value: "admin/"
+      - key: ADMIN_ALLOWED_IPS
+        value: ""
+      - key: INVITE_ONLY_SIGNUP
+        value: "true"
       - key: DEBUG
         value: "false"
       - key: ALLOWED_HOSTS

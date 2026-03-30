@@ -49,6 +49,7 @@ import base64
 import uuid
 from io import BytesIO
 
+from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
@@ -67,7 +68,8 @@ from allauth.account.forms import LoginForm, SignupForm
 from allauth.account.internal import flows as account_flows
 from allauth.core.exceptions import ImmediateHttpResponse
 
-from .models import UserProfile, ProfilePost, ProfilePostComment, ProfileMessage
+from .models import AdminAccessLog, SiteAccessLog, UserProfile, ProfilePost, ProfilePostComment, ProfileMessage
+from .security import record_site_access_event
 from .forms import (
     UserProfileForm, ProfilePictureForm, CoverPhotoForm,
     ProfilePostForm, ProfilePostCommentForm, ProfileMessageForm
@@ -123,6 +125,20 @@ def _ensure_site_admin(request):
         raise PermissionDenied("You do not have access to this page.")
 
 
+def _has_valid_signup_invite(email):
+    """Return True when the email has a currently valid family invite."""
+    if not email:
+        return False
+
+    from families.models import Invite
+
+    return Invite.objects.filter(
+        email__iexact=email,
+        accepted_at__isnull=True,
+        expires_at__gt=timezone.now(),
+    ).exists()
+
+
 @never_cache
 @sensitive_post_parameters("password", "password1", "password2")
 def auth_portal(request):
@@ -141,9 +157,39 @@ def auth_portal(request):
             active_mode = "signup"
             signup_form = SignupForm(request.POST)
             if signup_form.is_valid():
+                signup_email = (signup_form.cleaned_data.get("email") or "").strip().lower()
+                if getattr(settings, "INVITE_ONLY_SIGNUP", False):
+                    if not signup_email:
+                        signup_form.add_error("email", "An email address is required for invite-only signup.")
+                    elif not _has_valid_signup_invite(signup_email):
+                        signup_form.add_error(
+                            "email",
+                            "Signups are invite-only. Use the email address that received your family invitation.",
+                        )
+                if signup_form.errors:
+                    login_form = LoginForm(request=request)
+                    return render(
+                        request,
+                        "accounts/auth_portal.html",
+                        {
+                            "login_form": login_form,
+                            "signup_form": signup_form,
+                            "active_mode": active_mode,
+                            "next_url": redirect_url,
+                            "invite_only_signup": getattr(settings, "INVITE_ONLY_SIGNUP", False),
+                        },
+                    )
                 user, response = signup_form.try_save(request)
                 if response:
                     return response
+                record_site_access_event(
+                    event_type=SiteAccessLog.EventType.SIGNUP_CREATED,
+                    request=request,
+                    user=user,
+                    email=signup_email or getattr(user, "email", ""),
+                    was_successful=True,
+                    detail="site_signup_created",
+                )
                 try:
                     return account_flows.signup.complete_signup(
                         request,
@@ -172,6 +218,7 @@ def auth_portal(request):
             "signup_form": signup_form,
             "active_mode": active_mode,
             "next_url": redirect_url,
+            "invite_only_signup": getattr(settings, "INVITE_ONLY_SIGNUP", False),
         },
     )
 
@@ -346,6 +393,99 @@ def admin_user_directory(request):
         "profiles": profiles,
         "query": query,
         "profile_summary": profile_summary,
+    })
+
+
+@login_required
+def admin_security_log(request):
+    """
+    Staff-only view of Django admin login successes, failures, and IP blocks.
+    """
+    _ensure_site_admin(request)
+
+    query = request.GET.get("q", "").strip()
+    event_filter = request.GET.get("event", "").strip()
+
+    logs = AdminAccessLog.objects.select_related("user")
+
+    if query:
+        logs = logs.filter(
+            Q(username__icontains=query)
+            | Q(email__icontains=query)
+            | Q(ip_address__icontains=query)
+            | Q(forwarded_for__icontains=query)
+            | Q(user_agent__icontains=query)
+            | Q(detail__icontains=query)
+        )
+
+    valid_events = {choice[0] for choice in AdminAccessLog.EventType.choices}
+    if event_filter in valid_events:
+        logs = logs.filter(event_type=event_filter)
+
+    logs = list(logs[:150])
+
+    security_summary = {
+        "total_events": len(logs),
+        "success_events": sum(1 for log in logs if log.event_type == AdminAccessLog.EventType.LOGIN_SUCCESS),
+        "failed_events": sum(1 for log in logs if log.event_type == AdminAccessLog.EventType.LOGIN_FAILED),
+        "blocked_events": sum(1 for log in logs if log.event_type == AdminAccessLog.EventType.IP_BLOCKED),
+        "unique_ips": len({log.ip_address for log in logs if log.ip_address}),
+    }
+
+    return render(request, "accounts/admin_security_log.html", {
+        "logs": logs,
+        "query": query,
+        "event_filter": event_filter,
+        "event_choices": AdminAccessLog.EventType.choices,
+        "security_summary": security_summary,
+        "admin_path": f"/{settings.ADMIN_URL_PATH}",
+        "admin_allowed_ips": getattr(settings, "ADMIN_ALLOWED_IPS", []),
+    })
+
+
+@login_required
+def site_access_log(request):
+    """
+    Staff-only view of sign-ins, failed auth attempts, and new account creation.
+    """
+    _ensure_site_admin(request)
+
+    query = request.GET.get("q", "").strip()
+    event_filter = request.GET.get("event", "").strip()
+
+    logs = SiteAccessLog.objects.select_related("user")
+
+    if query:
+        logs = logs.filter(
+            Q(username__icontains=query)
+            | Q(email__icontains=query)
+            | Q(ip_address__icontains=query)
+            | Q(forwarded_for__icontains=query)
+            | Q(user_agent__icontains=query)
+            | Q(detail__icontains=query)
+        )
+
+    valid_events = {choice[0] for choice in SiteAccessLog.EventType.choices}
+    if event_filter in valid_events:
+        logs = logs.filter(event_type=event_filter)
+
+    logs = list(logs[:200])
+
+    access_summary = {
+        "total_events": len(logs),
+        "success_events": sum(1 for log in logs if log.event_type == SiteAccessLog.EventType.LOGIN_SUCCESS),
+        "failed_events": sum(1 for log in logs if log.event_type == SiteAccessLog.EventType.LOGIN_FAILED),
+        "signup_events": sum(1 for log in logs if log.event_type == SiteAccessLog.EventType.SIGNUP_CREATED),
+        "unique_ips": len({log.ip_address for log in logs if log.ip_address}),
+    }
+
+    return render(request, "accounts/site_access_log.html", {
+        "logs": logs,
+        "query": query,
+        "event_filter": event_filter,
+        "event_choices": SiteAccessLog.EventType.choices,
+        "access_summary": access_summary,
+        "invite_only_signup": getattr(settings, "INVITE_ONLY_SIGNUP", False),
     })
 
 

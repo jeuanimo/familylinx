@@ -5,7 +5,7 @@ Root URL routing for the FamilyLinx application. Routes are organized by functio
 
 URL Structure:
     /                   - Home dashboard (redirects based on auth state)
-    /admin/             - Django admin interface
+    /<admin-path>/      - Django admin interface
     /api/               - REST API endpoints (see families/api/urls.py)
     /api/auth/token/    - JWT token authentication for API clients
     /families/          - Family space management (see families/urls.py)
@@ -28,7 +28,6 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-import sys
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.http import HttpResponse
 
@@ -41,7 +40,7 @@ urlpatterns = [
     path("contact/", views.contact, name="contact"),
     
     # Django Admin - staff/superuser only
-    path("admin/", admin.site.urls),
+    path(settings.ADMIN_URL_PATH, admin.site.urls),
     
     # REST API - family tree CRUD, relationships, persons
     path("api/", include("families.api.urls")),

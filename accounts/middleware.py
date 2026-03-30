@@ -12,6 +12,8 @@ from django.core.cache import cache
 from django.http import HttpResponse, HttpResponseForbidden
 from django.utils import timezone
 
+from .security import get_client_ip, is_admin_request_path, record_admin_access_event
+
 
 class UserActivityMiddleware:
     """
@@ -131,6 +133,10 @@ class SecurityBlockerMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        admin_allowlist_response = self._check_admin_ip_allowlist(request)
+        if admin_allowlist_response is not None:
+            return admin_allowlist_response
+
         if not getattr(settings, "SECURITY_BLOCKER_ENABLED", True):
             return self.get_response(request)
 
@@ -176,6 +182,37 @@ class SecurityBlockerMiddleware:
 
         return self.get_response(request)
 
+    def _check_admin_ip_allowlist(self, request):
+        allowed_ips = {
+            ip.strip()
+            for ip in getattr(settings, "ADMIN_ALLOWED_IPS", [])
+            if ip and ip.strip()
+        }
+        if not allowed_ips or not is_admin_request_path(request.path):
+            return None
+
+        client_ip = get_client_ip(request)
+        if client_ip in allowed_ips:
+            return None
+
+        try:
+            record_admin_access_event(
+                event_type="IP_BLOCKED",
+                request=request,
+                user=getattr(request, "user", None),
+                was_successful=False,
+                detail=f"ip_not_allowed:{client_ip}",
+            )
+        except Exception:
+            self.logger.exception("Failed to record blocked admin IP attempt")
+
+        return self._deny_request(
+            request,
+            reason="admin_ip_not_allowed",
+            detail=client_ip,
+            status=403,
+        )
+
     def _check_rate_limit(self, request):
         if not getattr(settings, "SECURITY_BLOCKER_RATE_LIMIT_ENABLED", True):
             return None
@@ -196,7 +233,7 @@ class SecurityBlockerMiddleware:
             int(getattr(settings, "SECURITY_BLOCKER_MAX_REQUESTS_PER_WINDOW", 240)),
         )
 
-        client_ip = self._get_client_ip(request)
+        client_ip = get_client_ip(request)
         bucket = int(time.time() // window_seconds)
         cache_key = f"security_blocker:ip:{client_ip}:{bucket}"
         request_count = cache.get(cache_key)
@@ -236,15 +273,9 @@ class SecurityBlockerMiddleware:
             status,
             reason,
             detail,
-            self._get_client_ip(request),
+            get_client_ip(request),
             request.method,
             request.path,
             query[:200] or "-",
             user_agent,
         )
-
-    def _get_client_ip(self, request):
-        forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
-        return request.META.get("REMOTE_ADDR", "unknown")

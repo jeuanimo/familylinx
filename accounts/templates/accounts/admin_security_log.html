@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Security | FamilyLinx{% endblock %}
+
+{% block content %}
+<div style="max-width: 1200px; margin: 0 auto;">
+    <nav class="breadcrumb">
+        <a href="{% url 'home' %}">Home</a>
+        <span class="separator">/</span>
+        <span class="current">Admin Security</span>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-header admin-directory-header">
+            <div>
+                <span class="card-title"><i class="bi bi-shield-lock"></i> Admin Security Log</span>
+                <p class="muted mb-0">
+                    Review successful admin logins, failed admin login attempts, and IP blocks for the Django admin at <strong>{{ admin_path }}</strong>.
+                    {% if admin_allowed_ips %}
+                    IP allow-listing is active.
+                    {% else %}
+                    IP allow-listing is not active yet.
+                    {% endif %}
+                </p>
+            </div>
+            <form method="get" class="admin-directory-search">
+                <input
+                    type="search"
+                    name="q"
+                    value="{{ query }}"
+                    class="form-control"
+                    placeholder="Search username, email, IP, or browser"
+                >
+                <select name="event" class="form-control">
+                    <option value="">All events</option>
+                    {% for value, label in event_choices %}
+                    <option value="{{ value }}" {% if event_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-search"></i> Filter
+                </button>
+            </form>
+        </div>
+        <div class="card-body">
+            <div class="admin-summary-grid">
+                <div class="summary-chip">
+                    <strong>{{ security_summary.total_events }}</strong>
+                    <span>Recent events</span>
+                </div>
+                <div class="summary-chip">
+                    <strong>{{ security_summary.success_events }}</strong>
+                    <span>Successful admin logins</span>
+                </div>
+                <div class="summary-chip">
+                    <strong>{{ security_summary.failed_events }}</strong>
+                    <span>Failed admin logins</span>
+                </div>
+                <div class="summary-chip">
+                    <strong>{{ security_summary.blocked_events }}</strong>
+                    <span>Blocked by IP rules</span>
+                </div>
+                <div class="summary-chip">
+                    <strong>{{ security_summary.unique_ips }}</strong>
+                    <span>Unique IPs</span>
+                </div>
+            </div>
+
+            {% if admin_allowed_ips %}
+            <div class="stack-xs mt-4">
+                <strong>Allowed admin IPs</strong>
+                <div>
+                    {% for ip in admin_allowed_ips %}
+                    <span class="badge badge-blue">{{ ip }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body" style="padding: 0;">
+            {% if logs %}
+            <div class="admin-directory-table-wrap">
+                <table class="admin-directory-table">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Event</th>
+                            <th>Account</th>
+                            <th>IP / Request</th>
+                            <th>Browser</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td>
+                                <div class="stack-xs">
+                                    <strong>{{ log.created_at|date:"M j, Y g:i A" }}</strong>
+                                    <span class="muted">{{ log.created_at|timesince }} ago</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="stack-xs">
+                                    {% if log.event_type == "LOGIN_SUCCESS" %}
+                                    <span class="badge badge-green">Admin Login Success</span>
+                                    {% elif log.event_type == "LOGIN_FAILED" %}
+                                    <span class="badge badge-gold">Admin Login Failed</span>
+                                    {% else %}
+                                    <span class="badge badge-red">Admin IP Blocked</span>
+                                    {% endif %}
+                                    {% if log.detail %}
+                                    <span class="muted">{{ log.detail }}</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="stack-xs">
+                                    <strong>{{ log.username|default:"Unknown" }}</strong>
+                                    {% if log.email %}
+                                    <span class="muted">{{ log.email }}</span>
+                                    {% endif %}
+                                    {% if log.user %}
+                                    <span class="badge badge-blue">User ID {{ log.user_id }}</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="stack-xs">
+                                    <strong>{{ log.ip_address|default:"Unknown IP" }}</strong>
+                                    <span class="muted">{{ log.path|default:"-" }}</span>
+                                    {% if log.forwarded_for %}
+                                    <span class="muted">Forwarded: {{ log.forwarded_for }}</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="stack-xs">
+                                    <span>{{ log.user_agent|default:"-" }}</span>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 3rem;">
+                <i class="bi bi-shield-check" style="font-size: 3rem; color: var(--fl-muted);"></i>
+                <h3 style="margin: 1rem 0 0.5rem;">No admin security events yet</h3>
+                {% if query or event_filter %}
+                <p class="muted">No admin events matched your current filters.</p>
+                <a href="{% url 'accounts:admin_security_log' %}" class="btn btn-outline btn-sm">Clear Filters</a>
+                {% else %}
+                <p class="muted">Admin login activity will appear here once someone reaches the Django admin.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.admin-directory-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.admin-directory-search {
+    display: flex;
+    gap: 0.75rem;
+    width: min(100%, 540px);
+    flex-wrap: wrap;
+}
+
+.admin-directory-search .form-control {
+    flex: 1 1 180px;
+}
+
+.admin-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+}
+
+.summary-chip {
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--fl-border);
+    border-radius: var(--fl-radius);
+    background: var(--fl-surface);
+    display: grid;
+    gap: 0.15rem;
+}
+
+.summary-chip strong {
+    font-size: 1.35rem;
+}
+
+.summary-chip span {
+    color: var(--fl-muted);
+    font-size: 0.92rem;
+}
+
+.admin-directory-table-wrap {
+    overflow-x: auto;
+}
+
+.admin-directory-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.admin-directory-table th,
+.admin-directory-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--fl-border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.admin-directory-table th {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--fl-muted);
+    background: var(--fl-surface);
+}
+</style>
+{% endblock %}

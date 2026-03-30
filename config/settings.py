@@ -59,6 +59,18 @@ def _env_bool(name, default=False):
     return os.environ.get(name, str(default)).lower() in ('true', '1', 'yes', 'on')
 
 
+def _env_csv(name):
+    """Parse a comma-separated environment variable into a clean list."""
+    raw_value = os.environ.get(name, '')
+    return [item.strip() for item in raw_value.split(',') if item.strip()]
+
+
+def _get_admin_url_path():
+    """Return the Django admin path segment with a trailing slash."""
+    raw_value = (os.environ.get('ADMIN_URL_PATH') or 'admin').strip().strip('/')
+    return f'{raw_value}/'
+
+
 # =============================================================================
 # REQUEST BLOCKING / BOT PROTECTION
 # =============================================================================
@@ -76,6 +88,9 @@ SECURITY_BLOCKER_MAX_REQUESTS_PER_WINDOW = int(
 )
 SECURITY_BLOCKER_LOG_LEVEL = os.environ.get('SECURITY_BLOCKER_LOG_LEVEL', 'WARNING')
 CHAT_ENABLE_WEBSOCKETS = _env_bool('CHAT_ENABLE_WEBSOCKETS', False)
+ADMIN_URL_PATH = _get_admin_url_path()
+ADMIN_ALLOWED_IPS = _env_csv('ADMIN_ALLOWED_IPS')
+INVITE_ONLY_SIGNUP = _env_bool('INVITE_ONLY_SIGNUP', False)
 
 
 # =============================================================================
