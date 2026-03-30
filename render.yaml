@@ -2,7 +2,7 @@ services:
   - type: web
     name: familylinx-web
     env: python
-    plan: standard
+    plan: Standard
     region: oregon
     buildCommand: |
       pip install -r requirements.txt
@@ -70,7 +70,15 @@ services:
         value: "true"
     healthCheckPath: /
 
+  - type: cron
+    name: familylinx-keepalive
+    env: python
+    region: oregon
+    schedule: "*/10 * * * *"
+    buildCommand: echo "keepalive"
+    startCommand: python -c "import urllib.request; urllib.request.urlopen('https://fam-linx.org/'); print('ping ok')"
+
 databases:
   - name: familylinx-db
-    plan: standard
+    plan: Standard
     region: oregon
