@@ -48,6 +48,7 @@ Security:
 import base64
 import uuid
 from io import BytesIO
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
@@ -63,6 +64,7 @@ from django.db.models.functions import Coalesce
 from django.core.files.base import ContentFile
 from django.views.decorators.cache import never_cache
 from django.views.decorators.debug import sensitive_post_parameters
+from django.urls import reverse
 
 from allauth.account.forms import LoginForm, SignupForm
 from allauth.account.internal import flows as account_flows
@@ -139,21 +141,72 @@ def _has_valid_signup_invite(email):
     ).exists()
 
 
+def _is_invite_signup_context(next_url):
+    """Allow self-service signup only when the user is completing an invite link."""
+    if not next_url:
+        return False
+
+    path = urlsplit(next_url).path
+    return path.startswith("/families/invite/") and path.endswith("/accept/")
+
+
+def _extract_invite_accept_path(invite_value):
+    """Return a valid invite accept path from a pasted URL or raw token."""
+    if not invite_value:
+        return None
+
+    invite_value = invite_value.strip()
+    if not invite_value:
+        return None
+
+    parsed = urlsplit(invite_value)
+    candidate = parsed.path or invite_value
+    candidate = candidate.strip()
+
+    if candidate.startswith("/families/invite/") and candidate.endswith("/accept/"):
+        return candidate
+
+    raw_token = candidate.strip("/")
+    if "/" not in raw_token:
+        return reverse("families:invite_accept", kwargs={"token": raw_token})
+
+    return None
+
+
 @never_cache
 @sensitive_post_parameters("password", "password1", "password2")
 def auth_portal(request):
-    """Combined sign-in and sign-up page for FamilyLinx."""
+    """Sign-in page with invite-only account creation when needed."""
     redirect_url = _get_safe_next_url(request, default="/")
     if request.user.is_authenticated:
         return redirect(redirect_url)
 
-    active_mode = request.GET.get("mode", "login")
+    public_signup_enabled = getattr(settings, "PUBLIC_SIGNUP_ENABLED", False)
+    invite_signup_available = _is_invite_signup_context(redirect_url)
+    signup_available = public_signup_enabled or invite_signup_available
+    active_mode = request.GET.get("mode", "login") if signup_available else "login"
     login_form = LoginForm(request=request)
-    signup_form = SignupForm()
+    signup_form = SignupForm() if signup_available else None
 
     if request.method == "POST":
         action = request.POST.get("auth_action")
-        if action == "signup":
+        if action == "invite_link":
+            invite_access_value = request.POST.get("invite_access", "")
+            invite_accept_path = _extract_invite_accept_path(invite_access_value)
+            if invite_accept_path:
+                return redirect(invite_accept_path)
+
+            messages.error(
+                request,
+                "That invite link could not be recognized. Paste the full family invite link from your email or the invite token.",
+            )
+        elif action == "signup":
+            if not signup_available:
+                messages.info(
+                    request,
+                    "New accounts are created through family invitation links. Please contact us first for access.",
+                )
+                return redirect("contact")
             active_mode = "signup"
             signup_form = SignupForm(request.POST)
             if signup_form.is_valid():
@@ -208,7 +261,7 @@ def auth_portal(request):
                     return login_form.login(request, redirect_url=redirect_url)
                 except ImmediateHttpResponse as exc:
                     return exc.response
-            signup_form = SignupForm()
+            signup_form = SignupForm() if signup_available else None
 
     return render(
         request,
@@ -219,6 +272,9 @@ def auth_portal(request):
             "active_mode": active_mode,
             "next_url": redirect_url,
             "invite_only_signup": getattr(settings, "INVITE_ONLY_SIGNUP", False),
+            "public_signup_enabled": public_signup_enabled,
+            "invite_signup_available": invite_signup_available,
+            "signup_available": signup_available,
         },
     )
 

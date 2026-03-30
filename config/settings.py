@@ -91,6 +91,7 @@ CHAT_ENABLE_WEBSOCKETS = _env_bool('CHAT_ENABLE_WEBSOCKETS', False)
 ADMIN_URL_PATH = _get_admin_url_path()
 ADMIN_ALLOWED_IPS = _env_csv('ADMIN_ALLOWED_IPS')
 INVITE_ONLY_SIGNUP = _env_bool('INVITE_ONLY_SIGNUP', False)
+PUBLIC_SIGNUP_ENABLED = _env_bool('PUBLIC_SIGNUP_ENABLED', False)
 
 
 # =============================================================================

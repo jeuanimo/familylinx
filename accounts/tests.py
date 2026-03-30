@@ -59,13 +59,23 @@ class AuthPortalTests(TestCase):
             password="StrongPass123!",
         )
 
-    def test_auth_portal_renders_both_forms(self):
+    def test_auth_portal_renders_sign_in_only_for_public_access(self):
+        response = self.client.get(reverse("accounts:auth_portal"), secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sign In to FamilyLinx")
+        self.assertContains(response, "Sign In")
+        self.assertContains(response, "Request Access")
+        self.assertNotContains(response, "Create Invited Account")
+
+    @override_settings(PUBLIC_SIGNUP_ENABLED=True, INVITE_ONLY_SIGNUP=False)
+    def test_auth_portal_can_show_public_signup_when_enabled(self):
         response = self.client.get(reverse("accounts:auth_portal"), secure=True)
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Access FamilyLinx")
-        self.assertContains(response, "Sign In")
         self.assertContains(response, "Create Account")
+        self.assertNotContains(response, "Create Invited Account")
 
     def test_auth_portal_logs_user_in_and_redirects_to_next(self):
         target = reverse("home")
@@ -84,7 +94,7 @@ class AuthPortalTests(TestCase):
         self.assertEqual(response.url, target)
 
     @override_settings(INVITE_ONLY_SIGNUP=True)
-    def test_auth_portal_blocks_signup_without_valid_invite(self):
+    def test_auth_portal_redirects_public_signup_attempts_to_contact(self):
         response = self.client.post(
             reverse("accounts:auth_portal"),
             {
@@ -97,15 +107,69 @@ class AuthPortalTests(TestCase):
             secure=True,
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "invite-only")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("contact"))
         self.assertFalse(get_user_model().objects.filter(username="newperson").exists())
+
+    def test_auth_portal_accepts_pasted_invite_link(self):
+        response = self.client.post(
+            reverse("accounts:auth_portal"),
+            {
+                "auth_action": "invite_link",
+                "invite_access": "https://fam-linx.org/families/invite/testtoken/accept/",
+            },
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("families:invite_accept", kwargs={"token": "testtoken"}))
+
+    def test_auth_portal_accepts_raw_invite_token(self):
+        response = self.client.post(
+            reverse("accounts:auth_portal"),
+            {
+                "auth_action": "invite_link",
+                "invite_access": "testtoken",
+            },
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("families:invite_accept", kwargs={"token": "testtoken"}))
+
+    def test_auth_portal_rejects_unrecognized_invite_value(self):
+        response = self.client.post(
+            reverse("accounts:auth_portal"),
+            {
+                "auth_action": "invite_link",
+                "invite_access": "not a valid invite path/value",
+            },
+            secure=True,
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "That invite link could not be recognized.")
+
+    @override_settings(INVITE_ONLY_SIGNUP=True)
+    def test_auth_portal_shows_invited_signup_when_next_is_invite_accept(self):
+        response = self.client.get(
+            reverse("accounts:auth_portal"),
+            {"next": "/families/invite/testtoken/accept/"},
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Family Invitation Access")
+        self.assertContains(response, "Finish Invite Setup")
+        self.assertContains(response, "Already established your invited account?")
+        self.assertContains(response, "Account creation is only available from a valid family invitation.")
 
     @override_settings(INVITE_ONLY_SIGNUP=True)
     def test_auth_portal_allows_signup_with_valid_invite_and_logs_event(self):
         family = FamilySpace.objects.create(name="Invite Only Family", created_by=self.user)
         Membership.objects.create(family=family, user=self.user, role=Membership.Role.OWNER)
-        Invite.objects.create(
+        invite = Invite.objects.create(
             family=family,
             created_by=self.user,
             email="invited@example.com",
@@ -121,6 +185,7 @@ class AuthPortalTests(TestCase):
                 "email": "invited@example.com",
                 "password1": "StrongPass123!",
                 "password2": "StrongPass123!",
+                "next": reverse("families:invite_accept", kwargs={"token": invite.token}),
             },
             secure=True,
         )
@@ -131,6 +196,26 @@ class AuthPortalTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(signup_log.user, user)
         self.assertEqual(signup_log.email, "invited@example.com")
+
+    def test_standalone_signup_page_hides_form_without_invite_context(self):
+        response = self.client.get(reverse("account_signup"), secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Invite-Only Access")
+        self.assertContains(response, "Request Invite")
+        self.assertNotContains(response, "Create a strong password")
+
+    def test_standalone_signup_page_clarifies_invite_setup_flow(self):
+        response = self.client.get(
+            reverse("account_signup"),
+            {"next": "/families/invite/testtoken/accept/"},
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Finish Invite Setup")
+        self.assertContains(response, "After that, you will use the regular sign-in page.")
+        self.assertContains(response, "Finish Invite Setup")
 
 
 class SecurityBlockerMiddlewareTests(TestCase):

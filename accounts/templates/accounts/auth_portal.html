@@ -5,20 +5,42 @@
 
 {% block content %}
 <div class="auth-page">
-    <div class="auth-shell">
+    <div class="auth-shell {% if not signup_available %}auth-shell-compact{% endif %}">
         <div class="auth-shell-header">
             <div class="auth-logo">
                 <span class="brand-badge brand-badge-lg">FL</span>
             </div>
-            <h1>Access FamilyLinx</h1>
-            <p class="muted">Use one page to sign in or create your account.</p>
+            <h1>
+                {% if public_signup_enabled %}
+                Access FamilyLinx
+                {% elif invite_signup_available %}
+                Family Invitation Access
+                {% else %}
+                Sign In to FamilyLinx
+                {% endif %}
+            </h1>
+            <p class="muted">
+                {% if public_signup_enabled %}
+                Sign in below or create your account to get started with FamilyLinx.
+                {% elif invite_signup_available %}
+                If you already created your account, sign in below. If this is your first time using the invite, finish your invited account setup with the same email address that received the family link.
+                {% else %}
+                FamilyLinx is invite-only. Sign in if you already have access, or contact us to request an invitation.
+                {% endif %}
+            </p>
         </div>
 
-        <div class="auth-portal-grid">
+        <div class="auth-portal-grid {% if not signup_available %}auth-portal-single{% endif %}">
             <section class="auth-panel {% if active_mode == 'login' %}auth-panel-active{% endif %}">
                 <div class="auth-panel-header">
                     <h2>Sign In</h2>
-                    <p class="muted">Already have an account? Pick up where you left off.</p>
+                    <p class="muted">
+                        {% if invite_signup_available and not public_signup_enabled %}
+                        Already established your invited account? Sign in to continue into your family space.
+                        {% else %}
+                        Already have an account? Pick up where you left off.
+                        {% endif %}
+                    </p>
                 </div>
 
                 <form method="post" action="{% url 'accounts:auth_portal' %}" class="auth-form">
@@ -75,23 +97,61 @@
                         <i class="bi bi-box-arrow-in-right"></i> Sign In
                     </button>
                 </form>
+
+                {% if not signup_available %}
+                <div class="auth-access-note">
+                    <div class="alert alert-info">
+                        <i class="bi bi-envelope-check"></i> New access is issued through family invitation links.
+                    </div>
+                    <p class="muted">Need a link to join your family space? Contact us first and we can help route your request.</p>
+                    <div class="auth-note-actions">
+                        <a href="{% url 'contact' %}" class="btn btn-secondary">
+                            <i class="bi bi-envelope-heart"></i> Request Access
+                        </a>
+                    </div>
+                </div>
+
+                <div class="auth-access-note auth-invite-note">
+                    <div class="alert alert-success">
+                        <i class="bi bi-link-45deg"></i> Already have a family invite link? Use it here to enter the site.
+                    </div>
+                    <form method="post" action="{% url 'accounts:auth_portal' %}" class="auth-form auth-invite-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="auth_action" value="invite_link">
+                        <div class="form-group">
+                            <label for="id_invite_access" class="form-label">Invite Link or Token</label>
+                            <input type="text"
+                                   name="invite_access"
+                                   id="id_invite_access"
+                                   class="form-control"
+                                   placeholder="Paste the invite link from your email"
+                                   autocomplete="off">
+                            <div class="form-hint">Paste the full invite URL or just the invite token.</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg w-full">
+                            <i class="bi bi-box-arrow-in-right"></i> Use Invite Link
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
             </section>
 
+            {% if signup_available %}
             <section class="auth-panel {% if active_mode == 'signup' %}auth-panel-active{% endif %}">
                 <div class="auth-panel-header">
-                    <h2>Create Account</h2>
+                    <h2>{% if public_signup_enabled %}Create Account{% else %}Finish Invite Setup{% endif %}</h2>
                     <p class="muted">
-                        {% if invite_only_signup %}
-                        Account creation is invite-only. Use the same email address that received your family invitation.
+                        {% if public_signup_enabled %}
+                        New here? Create your account and continue in one step.
                         {% else %}
-                        New here? Make your account and continue in one step.
+                        First time here? Use the same email address that received your family invitation to set up your account.
                         {% endif %}
                     </p>
                 </div>
 
-                {% if invite_only_signup %}
+                {% if not public_signup_enabled %}
                 <div class="alert alert-info mb-3">
-                    <i class="bi bi-envelope-check"></i> New accounts must match a valid family invitation.
+                    <i class="bi bi-envelope-check"></i> Account creation is only available from a valid family invitation.
                 </div>
                 {% endif %}
 
@@ -175,10 +235,11 @@
                     </div>
 
                     <button type="submit" class="btn btn-primary btn-lg w-full">
-                        <i class="bi bi-person-plus"></i> Create Account
+                        <i class="bi bi-person-plus"></i> {% if public_signup_enabled %}Create Account{% else %}Finish Invite Setup{% endif %}
                     </button>
                 </form>
             </section>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -197,6 +258,10 @@
 .auth-shell {
     width: 100%;
     max-width: 1100px;
+}
+
+.auth-shell-compact {
+    max-width: 560px;
 }
 
 .auth-shell-header {
@@ -222,6 +287,10 @@
     gap: 1.5rem;
 }
 
+.auth-portal-single {
+    grid-template-columns: 1fr;
+}
+
 .auth-panel {
     background: var(--fl-surface);
     border: 1px solid var(--fl-border);
@@ -242,6 +311,28 @@
 .auth-panel-header h2 {
     margin-bottom: 0.35rem;
     color: var(--fl-blue);
+}
+
+.auth-access-note {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--fl-border);
+    display: grid;
+    gap: 1rem;
+}
+
+.auth-note-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.auth-invite-note {
+    margin-top: 1.25rem;
+}
+
+.auth-invite-form {
+    margin-top: 0;
 }
 
 .auth-form .form-group {

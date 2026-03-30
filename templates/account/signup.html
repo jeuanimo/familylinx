@@ -10,10 +10,17 @@
             <div class="auth-logo">
                 <span class="brand-badge" style="width: 56px; height: 56px; font-size: 1.5rem;">FL</span>
             </div>
-            <h1>Create Your Account</h1>
-            <p class="muted">Join FamilyLinx and connect with your family</p>
+            <h1>{% if redirect_field_value and '/families/invite/' in redirect_field_value and '/accept/' in redirect_field_value %}Finish Invite Setup{% else %}Invite-Only Access{% endif %}</h1>
+            <p class="muted">
+                {% if redirect_field_value and '/families/invite/' in redirect_field_value and '/accept/' in redirect_field_value %}
+                First time using your family invite? Finish setting up your FamilyLinx account here. After that, you will use the regular sign-in page.
+                {% else %}
+                FamilyLinx accounts are created through family invitation links.
+                {% endif %}
+            </p>
         </div>
-        
+
+        {% if redirect_field_value and '/families/invite/' in redirect_field_value and '/accept/' in redirect_field_value %}
         <form method="post" action="{% url 'account_signup' %}" class="auth-form">
             {% csrf_token %}
             
@@ -97,7 +104,7 @@
             {% endif %}
             
             <button type="submit" class="btn btn-primary btn-lg w-full">
-                <i class="bi bi-person-plus"></i> Create Account
+                <i class="bi bi-person-plus"></i> Finish Invite Setup
             </button>
             
             <p class="auth-terms">
@@ -108,10 +115,24 @@
         
         <div class="auth-footer">
             <p>
-                Need the combined access page?
-                <a href="{% url 'accounts:auth_portal' %}{% if redirect_field_value %}?{{ redirect_field_name }}={{ redirect_field_value|urlencode }}{% endif %}">Open it here</a>
+                Already created your account?
+                <a href="{% url 'accounts:auth_portal' %}{% if redirect_field_value %}?{{ redirect_field_name }}={{ redirect_field_value|urlencode }}{% endif %}">Sign in here</a>
             </p>
         </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-envelope-check"></i> Request an invite first, then use the family link you receive to create your account.
+        </div>
+
+        <div class="auth-guest-actions">
+            <a href="{% url 'contact' %}" class="btn btn-primary btn-lg w-full">
+                <i class="bi bi-envelope-heart"></i> Request Invite
+            </a>
+            <a href="{% url 'accounts:auth_portal' %}" class="btn btn-secondary btn-lg w-full">
+                <i class="bi bi-box-arrow-in-right"></i> Sign In Instead
+            </a>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
@@ -187,6 +208,11 @@
 .auth-footer a {
     color: var(--fl-blue);
     font-weight: 600;
+}
+
+.auth-guest-actions {
+    display: grid;
+    gap: 0.85rem;
 }
 </style>
 {% endblock %}

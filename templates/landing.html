@@ -150,6 +150,18 @@
     align-items: center;
   }
 
+  .hero-meta {
+    margin: -0.35rem 0 0;
+    color: var(--landing-ink-soft);
+    font-size: 0.95rem;
+    line-height: 1.7;
+  }
+
+  .hero-meta a {
+    color: var(--landing-accent);
+    font-weight: 700;
+  }
+
   .landing-btn {
     display: inline-flex;
     align-items: center;
@@ -1039,15 +1051,18 @@
           A private space to connect, share memories, and preserve your family story for generations.
         </p>
         <div class="hero-actions">
-          <a href="{% url 'accounts:auth_portal' %}" class="landing-btn landing-btn-primary">
-            <i class="bi bi-people-fill" aria-hidden="true"></i>
-            Start Your Family Network
+          <a href="{% url 'contact' %}" class="landing-btn landing-btn-primary">
+            <i class="bi bi-envelope-heart" aria-hidden="true"></i>
+            Request an Invite
           </a>
           <a href="#showcase" class="landing-btn landing-btn-secondary">
             <i class="bi bi-play-circle" aria-hidden="true"></i>
             View Demo
           </a>
         </div>
+        <p class="hero-meta">
+          Already invited? <a href="{% url 'accounts:auth_portal' %}">Sign in to your account</a>.
+        </p>
         <ul class="hero-proof-pills" aria-label="FamilyLinx trust points">
           <li><i class="bi bi-shield-lock-fill" aria-hidden="true"></i>Invite-only family spaces</li>
           <li><i class="bi bi-diagram-3-fill" aria-hidden="true"></i>Interactive family tree</li>
@@ -1257,9 +1272,6 @@
           Product Preview
         </span>
         <h2>See the experience before your family ever signs in.</h2>
-        <p>
-          These built-in mockups stand in for product screenshots and can be swapped later for live captures from your app.
-        </p>
       </div>
 
       <div class="showcase-grid">
@@ -1396,13 +1408,13 @@
           <blockquote>
             “This brought our family closer than ever. We finally had one place for updates, pictures, and the stories we always said we would write down.”
           </blockquote>
-          <footer>Placeholder testimonial • Family organizer</footer>
+          <footer>Family organizer</footer>
         </article>
         <article class="quote-card" data-reveal>
           <blockquote>
             “It feels private, intentional, and easy for every generation to understand. It gave our family history a future.”
           </blockquote>
-          <footer>Placeholder testimonial • Multi-generational family</footer>
+          <footer>Multi-generational family</footer>
         </article>
         <aside class="proof-badge-card" data-reveal>
           <i class="bi bi-house-heart" aria-hidden="true"></i>
@@ -1428,13 +1440,13 @@
           </p>
         </div>
         <div class="cta-actions">
-          <a href="{% url 'accounts:auth_portal' %}" class="landing-btn landing-btn-primary">
-            <i class="bi bi-people-fill" aria-hidden="true"></i>
-            Create Your Family Network
-          </a>
-          <a href="{% url 'contact' %}" class="landing-btn landing-btn-ghost">
+          <a href="{% url 'contact' %}" class="landing-btn landing-btn-primary">
             <i class="bi bi-envelope-heart" aria-hidden="true"></i>
-            Contact
+            Request an Invite
+          </a>
+          <a href="{% url 'accounts:auth_portal' %}" class="landing-btn landing-btn-ghost">
+            <i class="bi bi-person-circle" aria-hidden="true"></i>
+            Member Sign In
           </a>
         </div>
       </div>

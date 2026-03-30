@@ -296,8 +296,11 @@
                     <i class="bi bi-moon-fill"></i>
                     <i class="bi bi-sun-fill"></i>
                 </button>
-                <a href="{% url 'accounts:auth_portal' %}" class="btn btn-primary btn-sm">
-                    <i class="bi bi-person-circle"></i> Access Account
+                <a href="{% url 'contact' %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-envelope-heart"></i> Request Invite
+                </a>
+                <a href="{% url 'accounts:auth_portal' %}" class="btn btn-secondary btn-sm">
+                    <i class="bi bi-person-circle"></i> Member Sign In
                 </a>
                 {% endif %}
             </div>
