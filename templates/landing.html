@@ -270,6 +270,27 @@
     background: rgba(31, 58, 95, 0.18);
   }
 
+  .hero-feature-image {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .hero-logo-img {
+    width: 180px;
+    height: 180px;
+    border-radius: 24px;
+    object-fit: cover;
+    box-shadow: 0 20px 50px rgba(31, 58, 95, 0.25);
+    border: 3px solid rgba(255, 255, 255, 0.9);
+  }
+
+  html[data-theme="dark"] .hero-logo-img {
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
   .emotion-chip {
     position: absolute;
     z-index: 2;
@@ -1096,6 +1117,11 @@
       <div class="hero-stage" data-reveal>
         <div class="hero-glow hero-glow-a" aria-hidden="true"></div>
         <div class="hero-glow hero-glow-b" aria-hidden="true"></div>
+
+        <!-- Hero Feature Image -->
+        <div class="hero-feature-image">
+          <img src="{% static 'img/FamilyLinx.jpg' %}" alt="FamilyLinx - Connect your family" class="hero-logo-img">
+        </div>
 
         <div class="emotion-chip emotion-chip-top">
           <span>Sunday dinner, grandparents, cousins</span>
