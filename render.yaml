@@ -75,16 +75,16 @@ services:
     env: python
     region: oregon
     schedule: "*/10 * * * *"
-    buildCommand: echo "keepalive"
-    startCommand: python -c "import urllib.request; urllib.request.urlopen('https://fam-linx.org/'); print('ping ok')"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python manage.py keepalive_ping
 
   - type: cron
     name: familylinx-keepalive-2
     env: python
     region: oregon
     schedule: "5-55/10 * * * *"
-    buildCommand: echo "keepalive"
-    startCommand: python -c "import urllib.request; urllib.request.urlopen('https://fam-linx.org/'); print('ping ok')"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python manage.py keepalive_ping
 
 databases:
   - name: familylinx-db
