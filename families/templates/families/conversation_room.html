@@ -169,16 +169,7 @@
             {% for message in messages_data %}
             <div class="chat-message {% if message.is_own %}chat-message-own{% endif %}" data-message-id="{{ message.id }}">
               <div class="chat-message-header">
-                <div class="chat-message-meta">
-                  <span class="chat-author">{{ message.author_label }}</span>
-                  <span class="badge {% if message.is_own %}badge-blue{% else %}badge-green{% endif %} chat-message-badge">
-                    {% if message.is_own %}
-                    <i class="bi bi-send-check"></i> You
-                    {% else %}
-                    <i class="bi bi-person-badge"></i> Member
-                    {% endif %}
-                  </span>
-                </div>
+                <span class="chat-author">{{ message.author_label }}</span>
                 <span class="chat-time">{{ message.created_at|date:"g:i A" }}</span>
               </div>
               <div class="chat-message-body">{{ message.content|linebreaks }}</div>
@@ -208,23 +199,7 @@
         {% if membership.role != 'VIEWER' %}
         <div class="chat-input-container">
           <div class="chat-composer-meta">
-            <div>
-              <div class="chat-composer-title">Reply in {{ conversation_title }}</div>
-              <p class="chat-composer-help">
-                {% if websocket_enabled %}
-                New messages appear in realtime and still refresh in the background.
-                {% else %}
-                Messages send normally and the room refreshes in the background every few seconds.
-                {% endif %}
-              </p>
-            </div>
-            <span class="badge {% if websocket_enabled %}badge-green{% else %}badge-gold{% endif %}">
-              {% if websocket_enabled %}
-              <i class="bi bi-broadcast-pin"></i> Live
-              {% else %}
-              <i class="bi bi-arrow-repeat"></i> Polling
-              {% endif %}
-            </span>
+            <div class="chat-composer-title">{{ conversation_title }}</div>
           </div>
           <form method="post" class="chat-form" id="chat-form">
             {% csrf_token %}
@@ -308,13 +283,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     messageEl.innerHTML = `
       <div class="chat-message-header">
-        <div class="chat-message-meta">
-          <span class="chat-author">${escapeHtml(message.author_label)}</span>
-          <span class="badge ${message.is_own ? 'badge-blue' : 'badge-green'} chat-message-badge">
-            <i class="bi ${message.is_own ? 'bi-send-check' : 'bi-person-badge'}"></i>
-            ${message.is_own ? 'You' : 'Member'}
-          </span>
-        </div>
+        <span class="chat-author">${escapeHtml(message.author_label)}</span>
         <span class="chat-time">${timeLabel}</span>
       </div>
       <div class="chat-message-body"><p>${escapeHtml(message.content).replace(/\n/g, '<br>')}</p></div>
@@ -388,10 +357,10 @@ document.addEventListener('DOMContentLoaded', function () {
           pollConversation();
         }
         resetComposer();
-        setConnectionStatus('Message sent without realtime connection. Background refresh is keeping the room updated.', 'is-info');
+        setConnectionStatus('', '');
       })
       .catch(function () {
-        setConnectionStatus('Backup send failed. Reloading the room to finish sending your message.', 'is-warning');
+        setConnectionStatus('Send failed — reloading.', 'is-warning');
         form.submit();
       })
       .finally(function () {
@@ -426,7 +395,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
       })
       .catch(function () {
-        setConnectionStatus('Chat refresh failed. We will keep trying in the background.', 'is-warning');
+        // Polling hiccup — stay silent, will retry automatically
       });
   }
 
