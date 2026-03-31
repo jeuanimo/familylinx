@@ -332,140 +332,36 @@
     
     <!-- Sidebar -->
     <div class="stack-lg">
-        <!-- Members Card -->
-        <div class="card">
-            <div class="card-header">
-                <span class="card-title"><i class="bi bi-people"></i> Members ({{ members|length }})</span>
+        <!-- Members link card -->
+        <a href="{% url 'families:member_list' family_id=family.id %}" class="card card-link-block">
+            <div class="card-body p-link flex-between align-center">
+                <div class="flex-center gap-sm">
+                    <i class="bi bi-people fs-lg text-blue"></i>
+                    <div>
+                        <div class="fw-600">Members <span class="badge badge-blue">{{ members|length }}</span></div>
+                        <div class="muted fs-sm">View, message &amp; manage roles</div>
+                    </div>
+                </div>
+                <i class="bi bi-chevron-right muted"></i>
             </div>
-            <ul class="list">
-                {% for m in members %}
-                <li class="flex-between">
-                    <div class="flex-center gap-sm">
-                        {% if m.user.profile.profile_picture %}
-                        <img src="{{ m.user.profile.profile_picture.url }}" alt="" class="member-avatar" width="32" height="32">
-                        {% else %}
-                        <i class="bi bi-person-circle"></i>
-                        {% endif %}
-                        <div class="flex-center gap-xs" style="position:relative;">
-                          <span>{{ m.user.profile.get_display_name|default:m.user.email }}</span>
-                          {% if m.user.profile.is_online %}<span class="online-dot" title="Online now"></span>{% endif %}
-                        </div>
-                        {% if m.user == user %}
-                        <span class="badge badge-green fs-xs">You</span>
-                        {% endif %}
-                    </div>
-                    <div class="flex-center gap-xs">
-                        {% if m.user != user %}
-                        <a href="{% url 'families:direct_conversation_start' family_id=family.id user_id=m.user.id %}" class="btn btn-outline btn-sm" title="Direct message">
-                            <i class="bi bi-chat-dots"></i>
-                        </a>
-                        {% endif %}
-                        <span class="badge badge-blue">{{ m.role }}</span>
-                        {% if membership.role == 'OWNER' or membership.role == 'ADMIN' %}
-                        {% if m.user != user and m.role != 'OWNER' %}
-                        <form method="post" action="{% url 'families:update_member_role' family_id=family.id membership_id=m.id %}" style="display:inline-flex;align-items:center;gap:4px;">
-                            {% csrf_token %}
-                            <select name="role" class="form-control" style="padding:2px 6px;font-size:0.8rem;height:auto;" onchange="this.form.submit()" title="Change role">
-                                <option value="ADMIN" {% if m.role == 'ADMIN' %}selected{% endif %}>Admin</option>
-                                <option value="EDITOR" {% if m.role == 'EDITOR' %}selected{% endif %}>Editor</option>
-                                <option value="MEMBER" {% if m.role == 'MEMBER' %}selected{% endif %}>Member</option>
-                                <option value="VIEWER" {% if m.role == 'VIEWER' %}selected{% endif %}>Viewer</option>
-                            </select>
-                        </form>
-                        {% endif %}
-                        {% endif %}
-                    </div>
-                </li>
-                {% empty %}
-                <li class="muted">No members yet</li>
-                {% endfor %}
-            </ul>
-        </div>
+        </a>
         
-        <!-- Invites Card (Editor and above) -->
+        <!-- Invitations link card (Editor and above) -->
         {% if membership.role == 'OWNER' or membership.role == 'ADMIN' or membership.role == 'EDITOR' %}
-        <div class="card" id="family-invitations">
-            <div class="card-header flex-between">
-                <span class="card-title"><i class="bi bi-envelope"></i> Invitations</span>
-                <a href="{% url 'families:invite_create' family_id=family.id %}" 
-                   class="btn btn-primary btn-sm">
-                    <i class="bi bi-plus"></i> Invite
-                </a>
-            </div>
-            {% if invites %}
-            <ul class="list">
-                {% for invite in invites %}
-                <li>
-                    <div class="flex-between mb-1">
-                        <small class="text-break">{{ invite.email }}</small>
-                        {% if invite.accepted_at %}
-                        <span class="badge badge-green">Accepted</span>
-                        {% elif not invite.is_valid %}
-                        <span class="badge badge-red">Expired</span>
-                        {% elif invite.last_email_error %}
-                        <span class="badge badge-red">Email Failed</span>
-                        {% else %}
-                        <span class="badge badge-gold">Pending</span>
-                        {% endif %}
-                    </div>
-                    {% if invite.accepted_at %}
-                    <div class="stack">
-                        <small class="muted">
-                            Role: {{ invite.role }} ·
-                            Accepted: {{ invite.accepted_at|date:"M j, Y g:i A" }}
-                        </small>
-                        {% if invite.accepted_by %}
-                        <small class="muted">
-                            Accepted by: {{ invite.accepted_by_display }}
-                        </small>
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                    {% if invite.is_valid and not invite.accepted_at %}
-                    <div class="flex-between">
-                        <small class="muted">
-                            Role: {{ invite.role }} · 
-                            Expires: {{ invite.expires_at|date:"M j" }}
-                        </small>
-                        <div class="flex-center gap-sm flex-wrap-yes">
-                            <a href="{% url 'families:invite_accept' token=invite.token %}"
-                               class="btn btn-outline btn-sm"
-                               title="Open invitation link">
-                                <i class="bi bi-link-45deg"></i> Invite Link
-                            </a>
-                            <a href="{% url 'families:invite_resend' family_id=family.id invite_id=invite.id %}" 
-                               class="btn btn-outline btn-sm" title="Resend invitation email">
-                                <i class="bi bi-arrow-repeat"></i> Resend
-                            </a>
-                            <a href="{% url 'families:invite_edit' family_id=family.id invite_id=invite.id %}" 
-                               class="btn btn-outline btn-sm" title="Edit invitation role">
-                                <i class="bi bi-pencil"></i>
-                            </a>
-                            <a href="{% url 'families:invite_delete' family_id=family.id invite_id=invite.id %}" 
-                               class="btn btn-outline btn-sm btn-danger" title="Delete invitation">
-                                <i class="bi bi-trash"></i>
-                            </a>
+        <a href="{% url 'families:invite_list' family_id=family.id %}" class="card card-link-block" id="family-invitations">
+            <div class="card-body p-link flex-between align-center">
+                <div class="flex-center gap-sm">
+                    <i class="bi bi-envelope fs-lg text-blue"></i>
+                    <div>
+                        <div class="fw-600">Invitations</div>
+                        <div class="muted fs-sm">
+                            {{ invites|length }} pending · manage &amp; send invites
                         </div>
                     </div>
-                    {% if invite.last_email_error %}
-                    <div class="alert alert-error mt-2 mb-0">
-                        <strong>Email not sent.</strong> {{ invite.last_email_error }}
-                    </div>
-                    {% endif %}
-                    {% endif %}
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <div class="card-body text-center">
-                <p class="muted mb-2">No invitations sent yet</p>
-                <a href="{% url 'families:invite_create' family_id=family.id %}" 
-                   class="btn btn-outline btn-sm">
-                    <i class="bi bi-envelope-plus"></i> Send First Invite
-                </a>
+                </div>
+                <i class="bi bi-chevron-right muted"></i>
             </div>
-            {% endif %}
-        </div>
+        </a>
         
         <!-- Admin Tools Card -->
         <div class="card">
@@ -708,5 +604,19 @@
     vertical-align: middle;
     flex-shrink: 0;
 }
+
+.card-link-block {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.card-link-block:hover {
+    border-color: var(--fl-blue);
+    text-decoration: none;
+    color: inherit;
+    box-shadow: 0 2px 8px rgba(59,130,246,0.1);
+}
+.text-blue { color: var(--fl-blue); }
 </style>
 {% endblock content %}

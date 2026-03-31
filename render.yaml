@@ -11,13 +11,13 @@ services:
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
-        value: "3.12.3"
+        value: 3.12.3
       - key: DJANGO_SETTINGS_MODULE
         value: config.settings
       - key: SECRET_KEY
         generateValue: true
       - key: ADMIN_URL_PATH
-        value: "admin/"
+        value: admin/
       - key: ADMIN_ALLOWED_IPS
         value: ""
       - key: INVITE_ONLY_SIGNUP
@@ -27,9 +27,9 @@ services:
       - key: DEBUG
         value: "false"
       - key: ALLOWED_HOSTS
-        value: "fam-linx.org,www.fam-linx.org,familylinx-web.onrender.com"
+        value: fam-linx.org,www.fam-linx.org,familylinx-web.onrender.com
       - key: CSRF_TRUSTED_ORIGINS
-        value: "https://fam-linx.org,https://www.fam-linx.org,https://familylinx-web.onrender.com"
+        value: https://fam-linx.org,https://www.fam-linx.org,https://familylinx-web.onrender.com
       - key: DATABASE_URL
         fromDatabase:
           name: familylinx-db
@@ -37,17 +37,17 @@ services:
       - key: CLOUDINARY_URL
         sync: false
       - key: EMAIL_HOST
-        value: "mail.privateemail.com"
+        value: mail.privateemail.com
       - key: EMAIL_PORT
         value: "465"
       - key: EMAIL_HOST_USER
-        value: "contact@fam-linx.org"
+        value: contact@fam-linx.org
       - key: EMAIL_HOST_PASSWORD
         sync: false
       - key: DEFAULT_FROM_EMAIL
-        value: "contact@fam-linx.org"
+        value: contact@fam-linx.org
       - key: INVITE_BCC_EMAIL
-        value: "contact@fam-linx.org"
+        value: contact@fam-linx.org
       - key: EMAIL_TIMEOUT
         value: "20"
       - key: CHAT_ENABLE_WEBSOCKETS
@@ -63,7 +63,7 @@ services:
       - key: SECURITY_BLOCKER_RATE_LIMIT_AUTHENTICATED
         value: "false"
       - key: SECURITY_BLOCKER_LOG_LEVEL
-        value: "WARNING"
+        value: WARNING
       - key: CORS_ALLOWED_ORIGINS
         value: ""
       - key: CORS_ALLOW_CREDENTIALS

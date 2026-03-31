@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Members – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Members</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-people"></i> Members <span class="badge badge-blue">{{ members|length }}</span></h1>
+        <p class="muted mb-0">Everyone in the {{ family.name }} family space.</p>
+      </div>
+      {% if membership.role == 'OWNER' or membership.role == 'ADMIN' or membership.role == 'EDITOR' %}
+      <div class="page-actions">
+        <a href="{% url 'families:invite_create' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-envelope-plus"></i> Invite Someone
+        </a>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} mb-3">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="card">
+      <ul class="list">
+        {% for m in members %}
+        <li class="flex-between" style="padding:0.75rem 1.25rem;">
+          <div class="flex-center gap-sm">
+            {% if m.user.profile.profile_picture %}
+            <img src="{{ m.user.profile.profile_picture.url }}" alt="" class="member-avatar" width="40" height="40" style="border-radius:50%;object-fit:cover;">
+            {% else %}
+            <i class="bi bi-person-circle fs-xl"></i>
+            {% endif %}
+            <div>
+              <div class="flex-center gap-xs">
+                <span style="font-weight:500;">{{ m.user.profile.get_display_name|default:m.user.email }}</span>
+                {% if m.user.profile.is_online %}<span class="online-dot" title="Online now"></span>{% endif %}
+                {% if m.user == request.user %}<span class="badge badge-green fs-xs">You</span>{% endif %}
+              </div>
+              <div class="muted" style="font-size:0.82rem;">{{ m.user.email }} · Joined {{ m.joined_at|date:"M j, Y" }}</div>
+            </div>
+          </div>
+
+          <div class="flex-center gap-xs">
+            {% if m.user != request.user %}
+            <a href="{% url 'families:direct_conversation_start' family_id=family.id user_id=m.user.id %}"
+               class="btn btn-outline btn-sm" title="Direct message">
+              <i class="bi bi-chat-dots"></i>
+            </a>
+            {% endif %}
+
+            {% if membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+            {% if m.user != request.user and m.role != 'OWNER' %}
+            <form method="post" action="{% url 'families:update_member_role' family_id=family.id membership_id=m.id %}"
+                  style="display:inline-flex;align-items:center;gap:4px;">
+              {% csrf_token %}
+              <select name="role" class="form-control"
+                      style="padding:2px 6px;font-size:0.82rem;height:auto;" onchange="this.form.submit()" title="Change role">
+                <option value="ADMIN"  {% if m.role == 'ADMIN'  %}selected{% endif %}>Admin</option>
+                <option value="EDITOR" {% if m.role == 'EDITOR' %}selected{% endif %}>Editor</option>
+                <option value="MEMBER" {% if m.role == 'MEMBER' %}selected{% endif %}>Member</option>
+                <option value="VIEWER" {% if m.role == 'VIEWER' %}selected{% endif %}>Viewer</option>
+              </select>
+            </form>
+            <a href="{% url 'families:member_remove' family_id=family.id membership_id=m.id %}"
+               class="btn btn-outline btn-sm text-danger" title="Remove member">
+              <i class="bi bi-person-x"></i>
+            </a>
+            {% else %}
+            <span class="badge badge-blue">{{ m.role }}</span>
+            {% endif %}
+            {% else %}
+            <span class="badge badge-blue">{{ m.role }}</span>
+            {% endif %}
+          </div>
+        </li>
+        {% empty %}
+        <li class="card-body muted">No members yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.online-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  background: #22c55e;
+  border-radius: 50%;
+  border: 2px solid var(--fl-card);
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+</style>
+{% endblock %}

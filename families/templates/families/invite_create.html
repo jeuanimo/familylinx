@@ -9,6 +9,8 @@
         <span class="separator">/</span>
         <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
         <span class="separator">/</span>
+        <a href="{% url 'families:invite_list' family_id=family.id %}">Invitations</a>
+        <span class="separator">/</span>
         <span class="current">Send Invite</span>
     </nav>
     
@@ -78,7 +80,7 @@
                 </div>
                 
                 <div class="form-actions">
-                    <a href="{% url 'families:family_detail' family_id=family.id %}" 
+                    <a href="{% url 'families:invite_list' family_id=family.id %}"
                        class="btn btn-outline">
                         Cancel
                     </a>

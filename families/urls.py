@@ -45,6 +45,10 @@ urlpatterns = [
     # Invitation Management
     # ---------------------
     
+    # List all invitations for a family space
+    # Access: EDITOR and above
+    path("<int:family_id>/invites/", views.invite_list, name="invite_list"),
+
     # Create a new invitation for a family space
     # Access: OWNER and ADMIN roles only
     path("<int:family_id>/invites/new/", views.invite_create, name="invite_create"),
@@ -61,9 +65,16 @@ urlpatterns = [
     # Access: OWNER and ADMIN roles only
     path("<int:family_id>/invites/<int:invite_id>/delete/", views.invite_delete, name="invite_delete"),
 
+    # List all members of a family
+    path("<int:family_id>/members/", views.member_list, name="member_list"),
+
     # Change a member's role
     # Access: OWNER and ADMIN roles only
     path("<int:family_id>/members/<int:membership_id>/role/", views.update_member_role, name="update_member_role"),
+
+    # Remove a member from the family space
+    # Access: OWNER and ADMIN roles only
+    path("<int:family_id>/members/<int:membership_id>/remove/", views.member_remove, name="member_remove"),
     
     # Accept an invitation via secure token
     # Access: Any authenticated user with valid token

@@ -1,13 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Edit Invitation - {{ family.name }}{% endblock %}
+{% block title %}Edit Invitation - {{ family.name }}{% endblock title %}
 
 {% block content %}
 <div class="container narrow py-4">
     <nav class="breadcrumb mb-3">
         <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
         <span class="separator">/</span>
-        <span>Edit Invitation</span>
+        <a href="{% url 'families:invite_list' family_id=family.id %}">Invitations</a>
+        <span class="separator">/</span>
+        <span>Edit</span>
     </nav>
 
     <div class="card">
@@ -35,7 +37,7 @@
                 </div>
                 
                 <div class="flex-between mt-4">
-                    <a href="{% url 'families:family_detail' family_id=family.id %}" class="btn btn-outline">
+                    <a href="{% url 'families:invite_list' family_id=family.id %}" class="btn btn-outline">
                         Cancel
                     </a>
                     <button type="submit" class="btn btn-primary">

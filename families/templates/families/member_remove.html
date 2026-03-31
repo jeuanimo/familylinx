@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Remove Member – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container" style="max-width:520px;">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:member_list' family_id=family.id %}">Members</a>
+      <span class="separator">/</span>
+      <span class="current">Remove Member</span>
+    </nav>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-person-x"></i> Remove Member</span>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-warning mb-3">
+          <i class="bi bi-exclamation-triangle"></i>
+          <strong>Are you sure?</strong> This will remove their access immediately.
+        </div>
+
+        <div class="flex-center gap-sm mb-3" style="padding:0.75rem;background:var(--fl-surface);border-radius:var(--fl-radius);">
+          {% if target.user.profile.profile_picture %}
+          <img src="{{ target.user.profile.profile_picture.url }}" alt="" width="40" height="40"
+               style="border-radius:50%;object-fit:cover;">
+          {% else %}
+          <i class="bi bi-person-circle fs-xl"></i>
+          {% endif %}
+          <div>
+            <div style="font-weight:600;">{{ target.user.profile.get_display_name|default:target.user.email }}</div>
+            <div class="muted" style="font-size:0.85rem;">{{ target.user.email }} · {{ target.role }}</div>
+          </div>
+        </div>
+
+        <p class="muted mb-3">
+          They will lose access to {{ family.name }} and all its content. You can re-invite them later if needed.
+        </p>
+
+        <form method="post">
+          {% csrf_token %}
+          <div class="flex-between">
+            <a href="{% url 'families:member_list' family_id=family.id %}" class="btn btn-outline">Cancel</a>
+            <button type="submit" class="btn btn-danger">
+              <i class="bi bi-person-x"></i> Remove Member
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

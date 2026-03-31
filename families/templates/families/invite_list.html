@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Invitations – {{ family.name }} | FamilyLinx{% endblock %}
+
+{% block content %}
+<main>
+  <div class="container">
+    <nav class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="separator">/</span>
+      <a href="{% url 'families:family_detail' family_id=family.id %}">{{ family.name }}</a>
+      <span class="separator">/</span>
+      <span class="current">Invitations</span>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-header-content">
+        <h1><i class="bi bi-envelope"></i> Invitations</h1>
+        <p class="muted mb-0">Manage pending and past invitations to {{ family.name }}.</p>
+      </div>
+      <div class="page-actions">
+        <a href="{% url 'families:invite_create' family_id=family.id %}" class="btn btn-primary">
+          <i class="bi bi-plus-lg"></i> New Invite
+        </a>
+      </div>
+    </div>
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} mb-3">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="card">
+      {% if invites %}
+      <ul class="list invite-list">
+        {% for invite in invites %}
+        <li>
+          <div class="flex-between mb-1">
+            <div>
+              <strong class="text-break">{{ invite.email }}</strong>
+              <span class="badge badge-blue ms-2">{{ invite.role }}</span>
+            </div>
+            <div class="flex-center gap-xs">
+              {% if invite.accepted_at %}
+              <span class="badge badge-green">Accepted</span>
+              {% elif not invite.is_valid %}
+              <span class="badge badge-red">Expired</span>
+              {% elif invite.last_email_error %}
+              <span class="badge badge-red">Email Failed</span>
+              {% else %}
+              <span class="badge badge-gold">Pending</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="flex-between align-center">
+            <div class="muted" style="font-size:0.85rem;">
+              Sent {{ invite.created_at|date:"M j, Y" }} by {{ invite.created_by.profile.get_display_name|default:invite.created_by.email }}
+              {% if invite.accepted_at %}
+              · Accepted {{ invite.accepted_at|date:"M j, Y" }}
+              {% if invite.accepted_by %}by {{ invite.accepted_by.profile.get_display_name|default:invite.accepted_by.email }}{% endif %}
+              {% else %}
+              · Expires {{ invite.expires_at|date:"M j, Y" }}
+              {% endif %}
+            </div>
+            <div class="flex-center gap-xs">
+              {% if not invite.accepted_at and invite.is_valid %}
+              <a href="{% url 'families:invite_accept' token=invite.token %}"
+                 class="btn btn-outline btn-sm" title="Copy invite link">
+                <i class="bi bi-link-45deg"></i>
+              </a>
+              <a href="{% url 'families:invite_resend' family_id=family.id invite_id=invite.id %}"
+                 class="btn btn-outline btn-sm" title="Resend email">
+                <i class="bi bi-arrow-repeat"></i>
+              </a>
+              <a href="{% url 'families:invite_edit' family_id=family.id invite_id=invite.id %}"
+                 class="btn btn-outline btn-sm" title="Edit role">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% endif %}
+              <a href="{% url 'families:invite_delete' family_id=family.id invite_id=invite.id %}"
+                 class="btn btn-outline btn-sm text-danger" title="Delete">
+                <i class="bi bi-trash"></i>
+              </a>
+            </div>
+          </div>
+
+          {% if invite.last_email_error %}
+          <div class="alert alert-error mt-2 mb-0" style="font-size:0.82rem;">
+            <i class="bi bi-exclamation-circle"></i> {{ invite.last_email_error }}
+          </div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body text-center">
+        <div class="empty-state">
+          <div class="empty-state-icon"><i class="bi bi-envelope"></i></div>
+          <h3>No invitations yet</h3>
+          <p class="muted">Send an invite to bring someone into {{ family.name }}.</p>
+          <a href="{% url 'families:invite_create' family_id=family.id %}" class="btn btn-primary">
+            <i class="bi bi-envelope-plus"></i> Send First Invite
+          </a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</main>
+{% endblock %}

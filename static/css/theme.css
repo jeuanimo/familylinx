@@ -933,6 +933,10 @@ main {
 .text-green { color: var(--fl-green); }
 .text-gold { color: var(--fl-gold); }
 .text-center { text-align: center; }
+.bg-surface { background: var(--fl-bg); }
+.fw-600 { font-weight: 600; }
+.fs-sm { font-size: 0.85rem; }
+.p-link { padding: 1rem 1.25rem; }
 
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
 
