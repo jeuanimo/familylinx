@@ -933,9 +933,12 @@
                 {% endfor %}
             </div>
             {% else %}
-            <p class="muted mt-2" style="font-size: 0.9rem;">You haven't added any friends yet. Use the search above to find people.</p>
+            <p class="muted mt-2" style="font-size: 0.9rem;">You haven't added any friends yet. Search by name above or browse all members.</p>
             {% endif %}
             {% endif %}
+            <a href="{% url 'accounts:user_directory' %}" class="btn btn-outline w-full mt-2" style="font-size: 0.88rem;">
+                <i class="bi bi-people"></i> Browse All Members
+            </a>
         </div>
         {% endif %}
     </div>

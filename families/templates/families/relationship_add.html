@@ -25,21 +25,11 @@
           <span class="card-title"><i class="bi bi-diagram-3"></i> {{ mode|default:"add"|title }} Relationship for {{ person.full_name }}</span>
         </div>
         <div class="card-body">
-          {% if mode|default:"add" == "add" %}
-          <div class="alert alert-info" style="margin-bottom: 1.5rem;">
-            <strong>Relationship Direction:</strong>
-            <ul style="margin: 0.5rem 0 0 1.5rem;">
-              <li><strong>Parent-Child:</strong> {{ person.first_name }} will be the <strong>parent</strong> of the selected person</li>
-              <li><strong>Grandparent:</strong> {{ person.first_name }} will be the <strong>grandparent</strong> of the selected person</li>
-              <li><strong>Great-Grandparent (1x-6x):</strong> {{ person.first_name }} will be the <strong>ancestor</strong> of the selected person</li>
-              <li><strong>Spouse:</strong> {{ person.first_name }} will be married to the selected person</li>
-            </ul>
-            <small class="muted">To add {{ person.first_name }} as a child/descendant, go to the ancestor's profile and add the relationship there.</small>
-          </div>
-          {% else %}
-          <div class="alert alert-info" style="margin-bottom: 1.5rem;">
-            Update the relationship details below. This is especially useful for correcting imported marriage dates, notes, or linked people from GEDCOM data.
-          </div>
+          {% if mode|default:"add" != "edit" %}
+          <p class="muted" style="margin-bottom: 1.25rem; font-size: 0.9rem;">
+            <i class="bi bi-info-circle"></i>
+            {{ person.first_name }} will be set as the <strong>parent / ancestor / spouse</strong> of whoever you select below.
+          </p>
           {% endif %}
           
           <form method="post">
@@ -49,7 +39,6 @@
             <div class="form-group">
               <label class="form-label required">{{ form.relationship_type.label }}</label>
               {{ form.relationship_type }}
-              <small class="form-text muted">Choose the type of relationship</small>
             </div>
             
             <div class="form-group">
@@ -64,13 +53,11 @@
               <div class="form-group">
                 <label class="form-label">{{ form.start_date.label }}</label>
                 {{ form.start_date }}
-                <small class="form-text muted">For spouse relationships (wedding date)</small>
               </div>
               
               <div class="form-group">
                 <label class="form-label">{{ form.end_date.label }}</label>
                 {{ form.end_date }}
-                <small class="form-text muted">If the relationship ended (e.g., divorce)</small>
               </div>
             </div>
             

@@ -3547,8 +3547,10 @@ def relationship_add(request, family_id, person_id):
             rel.save()
             return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id)
     else:
-        form = RelationshipForm(family=family, exclude_person=person)
-    
+        initial_type = request.GET.get('type', '')
+        initial = {'relationship_type': initial_type} if initial_type else {}
+        form = RelationshipForm(family=family, exclude_person=person, initial=initial)
+
     return render(request, "families/relationship_add.html", {
         "family": family,
         "membership": membership,

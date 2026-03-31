@@ -170,18 +170,28 @@
         <div class="card">
           <div class="card-header">
             <span class="card-title"><i class="bi bi-diagram-3"></i> Relationships</span>
-            {% if membership.role != 'VIEWER' %}
-            <div class="btn-group">
-              <a href="{% url 'families:add_ancestor' family_id=family.id person_id=person.id %}" class="btn btn-outline btn-sm" title="Add parents, grandparents, etc.">
-                <i class="bi bi-arrow-up-circle"></i> Add Ancestor
-              </a>
-              <a href="{% url 'families:relationship_add' family_id=family.id person_id=person.id %}" class="btn btn-primary btn-sm">
-                <i class="bi bi-plus-lg"></i> Add
-              </a>
-            </div>
-            {% endif %}
           </div>
           <div class="card-body">
+            {% if membership.role != 'VIEWER' %}
+            <div class="rel-add-grid">
+              <a href="{% url 'families:add_ancestor' family_id=family.id person_id=person.id %}" class="rel-add-btn">
+                <i class="bi bi-arrow-up-circle"></i><span>Parent</span>
+              </a>
+              <a href="{% url 'families:add_child' family_id=family.id person_id=person.id %}" class="rel-add-btn">
+                <i class="bi bi-arrow-down-circle"></i><span>Child</span>
+              </a>
+              <a href="{% url 'families:relationship_add' family_id=family.id person_id=person.id %}?type=SPOUSE" class="rel-add-btn">
+                <i class="bi bi-heart"></i><span>Spouse</span>
+              </a>
+              <a href="{% url 'families:relationship_add' family_id=family.id person_id=person.id %}?type=GRANDPARENT" class="rel-add-btn">
+                <i class="bi bi-arrow-up-circle-fill"></i><span>Grandparent</span>
+              </a>
+              <a href="{% url 'families:relationship_add' family_id=family.id person_id=person.id %}?type=GREAT_GRANDPARENT" class="rel-add-btn">
+                <i class="bi bi-chevron-double-up"></i><span>Great-Grandparent</span>
+              </a>
+            </div>
+            <hr style="margin: 1rem 0; border-color: var(--fl-border);">
+            {% endif %}
             <!-- Parents -->
             {% if person.parents %}
             <div class="relationship-section">
@@ -367,6 +377,45 @@
   border: 2px solid var(--fl-card);
   vertical-align: middle;
   flex-shrink: 0;
+}
+
+.rel-add-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.rel-add-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius);
+  background: var(--fl-surface);
+  color: var(--fl-text);
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 500;
+  min-width: 72px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.rel-add-btn i {
+  font-size: 1.2rem;
+  color: var(--fl-blue);
+}
+
+.rel-add-btn:hover {
+  background: var(--fl-blue);
+  border-color: var(--fl-blue);
+  color: #fff;
+}
+
+.rel-add-btn:hover i {
+  color: #fff;
 }
 </style>
 {% endblock extra_css %}
