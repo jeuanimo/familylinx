@@ -5,9 +5,11 @@ services:
     plan: Standard
     region: oregon
     buildCommand: |
-      pip install -r requirements.txt
+      pip install -r requirements.txt && python manage.py collectstatic --noinput
+    preDeployCommand: |
+      python manage.py migrate
     startCommand: |
-      python manage.py migrate && python manage.py collectstatic --noinput && daphne -b 0.0.0.0 -p $PORT config.asgi:application
+      daphne -b 0.0.0.0 -p $PORT config.asgi:application
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
@@ -73,6 +75,7 @@ services:
   - type: cron
     name: familylinx-keepalive-1
     env: python
+    plan: Starter
     region: oregon
     schedule: "*/10 * * * *"
     buildCommand: pip install -r requirements.txt
@@ -81,6 +84,7 @@ services:
   - type: cron
     name: familylinx-keepalive-2
     env: python
+    plan: Starter
     region: oregon
     schedule: "5-55/10 * * * *"
     buildCommand: pip install -r requirements.txt
@@ -88,5 +92,5 @@ services:
 
 databases:
   - name: familylinx-db
-    plan: Standard
+    plan: basic-4gb
     region: oregon
