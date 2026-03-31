@@ -826,6 +826,48 @@ def invite_delete(request, family_id, invite_id):
     })
 
 
+@login_required
+def update_member_role(request, family_id, membership_id):
+    """
+    Change the role of an existing member.
+
+    Only OWNER and ADMIN roles can change roles.
+    Cannot change your own role, and cannot assign OWNER role.
+    """
+    fam = get_object_or_404(FamilySpace, id=family_id)
+
+    # Verify the requesting user is an OWNER or ADMIN of this space
+    my_membership = Membership.objects.filter(family=fam, user=request.user).first()
+    if not my_membership or my_membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+        return render(request, TEMPLATE_NO_ACCESS, {"family": fam})
+
+    target = get_object_or_404(Membership, id=membership_id, family=fam)
+
+    # Cannot change your own role
+    if target.user == request.user:
+        messages.error(request, "You cannot change your own role.")
+        return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
+
+    if request.method == "POST":
+        new_role = request.POST.get("role")
+        # Prevent assigning OWNER (use transfer-ownership flow for that)
+        allowed = [r for r, _ in Membership.Role.choices if r != Membership.Role.OWNER]
+        if new_role not in allowed:
+            messages.error(request, "Invalid role selected.")
+        else:
+            # ADMIN can only assign up to EDITOR; only OWNER can assign ADMIN
+            if my_membership.role == Membership.Role.ADMIN and new_role == Membership.Role.ADMIN:
+                messages.error(request, "Only an owner can assign the Admin role.")
+            else:
+                old_role = target.role
+                target.role = new_role
+                target.save(update_fields=["role"])
+                name = target.user.profile.get_display_name() if hasattr(target.user, "profile") else target.user.email
+                messages.success(request, f"{name}'s role changed from {old_role} to {new_role}.")
+
+    return redirect(URL_FAMILY_DETAIL, family_id=fam.id)
+
+
 # =============================================================================
 # Phase 2: Social Feed Views
 # =============================================================================

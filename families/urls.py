@@ -60,6 +60,10 @@ urlpatterns = [
     # Delete/revoke an invitation
     # Access: OWNER and ADMIN roles only
     path("<int:family_id>/invites/<int:invite_id>/delete/", views.invite_delete, name="invite_delete"),
+
+    # Change a member's role
+    # Access: OWNER and ADMIN roles only
+    path("<int:family_id>/members/<int:membership_id>/role/", views.update_member_role, name="update_member_role"),
     
     # Accept an invitation via secure token
     # Access: Any authenticated user with valid token

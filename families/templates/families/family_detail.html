@@ -361,6 +361,19 @@
                         </a>
                         {% endif %}
                         <span class="badge badge-blue">{{ m.role }}</span>
+                        {% if membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+                        {% if m.user != user and m.role != 'OWNER' %}
+                        <form method="post" action="{% url 'families:update_member_role' family_id=family.id membership_id=m.id %}" style="display:inline-flex;align-items:center;gap:4px;">
+                            {% csrf_token %}
+                            <select name="role" class="form-control" style="padding:2px 6px;font-size:0.8rem;height:auto;" onchange="this.form.submit()" title="Change role">
+                                <option value="ADMIN" {% if m.role == 'ADMIN' %}selected{% endif %}>Admin</option>
+                                <option value="EDITOR" {% if m.role == 'EDITOR' %}selected{% endif %}>Editor</option>
+                                <option value="MEMBER" {% if m.role == 'MEMBER' %}selected{% endif %}>Member</option>
+                                <option value="VIEWER" {% if m.role == 'VIEWER' %}selected{% endif %}>Viewer</option>
+                            </select>
+                        </form>
+                        {% endif %}
+                        {% endif %}
                     </div>
                 </li>
                 {% empty %}
