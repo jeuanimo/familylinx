@@ -3523,3 +3523,28 @@ main {
 .thread-preview-img {
   max-height: 150px;
 }
+
+/* Profile page utilities */
+.profile-actions-flex { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.badge-status { padding: 0.45rem 0.85rem; font-size: 0.9rem; }
+.badge-count { font-size: 0.75rem; vertical-align: middle; }
+.badge-sm-text { font-size: 0.75rem; }
+.tree-person-icon { font-size: 1.5rem; color: var(--fl-primary); }
+.dna-kit-badge { width: 36px; height: 36px; border-radius: var(--fl-radius); background: linear-gradient(135deg, var(--fl-blue), var(--fl-purple)); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.dna-kit-badge i { font-size: 1rem; color: white; }
+.icon-placeholder { font-size: 1.6rem; color: var(--fl-muted); }
+.username-sub { font-size: 0.78rem; }
+.browse-btn-text { font-size: 0.88rem; }
+.icon-hero-empty { font-size: 3rem; color: var(--fl-muted); }
+.empty-heading { margin: 1rem 0 0.5rem; }
+.empty-body { padding: 3rem; }
+.flex-col-gap-sm { display: flex; flex-direction: column; gap: 0.5rem; }
+.flex-fill-min { flex: 1; min-width: 0; }
+.text-truncate-block { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-075 { margin-top: 0.75rem; }
+.p-0 { padding: 0 !important; }
+.mt-line-short { margin-top: 0.45rem; }
+.fs-08 { font-size: 0.8rem; }
+.mb-4 { margin-bottom: 1.25rem; }
+.section-heading { margin-bottom: 1rem; color: var(--fl-blue); }
+.mt-section { margin-top: 1.5rem; }

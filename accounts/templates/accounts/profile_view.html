@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{{ profile.get_display_name }} | FamilyLinx{% endblock %}
+{% block title %}{{ profile.get_display_name }} | FamilyLinx{% endblock title %}
 
 {% block extra_css %}
 <style>
@@ -621,7 +621,7 @@
     border-color: var(--fl-card);
 }
 </style>
-{% endblock %}
+{% endblock extra_css %}
 
 {% block content %}
 <!-- Profile Header -->
@@ -629,7 +629,7 @@
     <!-- Cover Photo -->
     <div class="cover-photo">
         {% if profile.cover_photo %}
-        <img src="{{ profile.cover_photo.url }}" alt="Cover photo">
+        <img src="{{ profile.cover_photo.url }}" alt="Cover" width="1200" height="312">
         {% endif %}
         {% if is_own_profile %}
         <a href="{% url 'accounts:cover_photo_update' %}" class="btn btn-sm btn-secondary cover-photo-edit">
@@ -642,7 +642,7 @@
     <div class="profile-info-bar">
         <div class="profile-avatar">
             {% if profile.profile_picture %}
-            <img src="{{ profile.profile_picture.url }}" alt="{{ profile.get_display_name }}">
+            <img src="{{ profile.profile_picture.url }}" alt="{{ profile.get_display_name }}" width="168" height="168">
             {% else %}
             <div class="profile-avatar-placeholder">
                 {{ profile.get_display_name|slice:":1"|upper }}
@@ -682,9 +682,9 @@
                 <i class="bi bi-pencil"></i> Edit Profile
             </a>
             {% else %}
-            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+            <div class="profile-actions-flex">
               {% if friend_status == 'friends' %}
-              <span class="badge badge-green" style="padding: 0.45rem 0.85rem; font-size: 0.9rem;">
+              <span class="badge badge-green badge-status">
                 <i class="bi bi-people-fill"></i> Friends
               </span>
               <form method="post" action="{% url 'accounts:friend_remove' user_id=profile_user.id %}">
@@ -692,7 +692,7 @@
                 <button type="submit" class="btn btn-outline btn-sm">Remove Friend</button>
               </form>
               {% elif friend_status == 'sent' %}
-              <span class="badge badge-gold" style="padding: 0.45rem 0.85rem; font-size: 0.9rem;">
+              <span class="badge badge-gold badge-status">
                 <i class="bi bi-clock-history"></i> Request Sent
               </span>
               {% elif friend_status == 'received' %}
@@ -776,10 +776,10 @@
             <h3><i class="bi bi-diagram-3"></i> Family Tree</h3>
             {% if profile.linked_person %}
             <div class="tree-person-link">
-                <i class="bi bi-person-badge" style="font-size: 1.5rem; color: var(--fl-primary);"></i>
+                <i class="bi bi-person-badge tree-person-icon"></i>
                 <div>
                     <strong>{{ profile.linked_person.full_name }}</strong>
-                    <div class="muted" style="font-size: 0.8rem;">
+                    <div class="muted fs-08">
                         {% if profile.linked_person.birth_date %}b. {{ profile.linked_person.birth_date|date:"Y" }}{% endif %}
                     </div>
                 </div>
@@ -788,13 +788,13 @@
                 </a>
             </div>
             {% if is_own_profile %}
-            <form method="post" action="{% url 'accounts:unlink_from_tree' %}" style="margin-top: 0.5rem;">
+            <form method="post" action="{% url 'accounts:unlink_from_tree' %}" class="mt-2">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-sm btn-outline w-full">Unlink</button>
             </form>
             {% endif %}
             {% else %}
-            <p class="muted" style="font-size: 0.9rem;">
+            <p class="muted fs-md">
                 {% if is_own_profile %}
                 Connect your profile to your entry in a family tree.
                 {% else %}
@@ -813,16 +813,14 @@
         <div class="tree-link-card">
             <h3><i class="bi bi-dna"></i> DNA Kits</h3>
             {% if dna_kits %}
-            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <div class="flex-col-gap-sm">
                 {% for kit in dna_kits %}
                 <div class="tree-person-link">
-                    <div style="width: 36px; height: 36px; border-radius: var(--fl-radius); 
-                                background: linear-gradient(135deg, var(--fl-blue), var(--fl-purple)); 
-                                display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                        <i class="bi bi-dna" style="font-size: 1rem; color: white;"></i>
+                    <div class="dna-kit-badge">
+                        <i class="bi bi-dna"></i>
                     </div>
-                    <div style="flex: 1; min-width: 0;">
-                        <strong style="display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ kit.display_name }}</strong>
+                    <div class="flex-fill-min">
+                        <strong class="text-truncate-block">{{ kit.display_name }}</strong>
                         <small class="muted">{{ kit.get_provider_display }}</small>
                     </div>
                     {% if is_own_profile %}
@@ -832,7 +830,7 @@
                 {% endfor %}
             </div>
             {% else %}
-            <p class="muted" style="font-size: 0.9rem;">
+            <p class="muted fs-md">
                 {% if is_own_profile %}
                 Register your DNA test kits to discover family connections.
                 {% else %}
@@ -841,7 +839,7 @@
             </p>
             {% endif %}
             {% if is_own_profile %}
-            <a href="{% url 'families:dna_kit_create' %}" class="btn btn-outline w-full" style="margin-top: 0.75rem;">
+            <a href="{% url 'families:dna_kit_create' %}" class="btn btn-outline w-full mt-075">
                 <i class="bi bi-plus-lg"></i> Register DNA Kit
             </a>
             {% endif %}
@@ -849,9 +847,9 @@
         
         <!-- Shared Families -->
         {% if shared_families %}
-        <div class="intro-card" style="margin-top: 1rem;">
+        <div class="intro-card mt-3">
             <h3><i class="bi bi-people"></i> Shared Families</h3>
-            <p class="muted" style="font-size: 0.9rem;">
+            <p class="muted fs-md">
                 You share {{ shared_families|length }} famil{{ shared_families|length|pluralize:"y,ies" }} with {{ profile.get_display_name }}.
             </p>
         </div>
@@ -859,8 +857,8 @@
 
         {% if is_own_profile %}
         <!-- Friends Panel -->
-        <div class="intro-card" style="margin-top: 1rem;">
-            <h3><i class="bi bi-people-fill"></i> Friends{% if friends %} <span class="badge badge-blue" style="font-size: 0.75rem; vertical-align: middle;">{{ friends|length }}</span>{% endif %}</h3>
+        <div class="intro-card mt-3">
+            <h3><i class="bi bi-people-fill"></i> Friends{% if friends %} <span class="badge badge-blue badge-count">{{ friends|length }}</span>{% endif %}</h3>
 
             <!-- Search -->
             <form method="get" action="" class="friend-search-form">
@@ -878,20 +876,20 @@
                 <div class="friend-row">
                     <a href="{% url 'accounts:profile_view' user_id=p.user.id %}" class="friend-avatar">
                         {% if p.profile_picture %}
-                        <img src="{{ p.profile_picture.url }}" alt="">
+                        <img src="{{ p.profile_picture.url }}" alt="" width="38" height="38">
                         {% else %}
-                        <i class="bi bi-person-circle" style="font-size: 1.6rem; color: var(--fl-muted);"></i>
+                        <i class="bi bi-person-circle icon-placeholder"></i>
                         {% endif %}
                     </a>
                     <div class="friend-info">
                         <a href="{% url 'accounts:profile_view' user_id=p.user.id %}" class="friend-name">{{ p.get_display_name }}</a>
-                        <span class="muted" style="font-size: 0.78rem;">@{{ p.user.username }}</span>
+                        <span class="muted username-sub">@{{ p.user.username }}</span>
                     </div>
                     <div class="friend-action">
                         {% if p.search_friend_status == 'friends' %}
-                        <span class="badge badge-green" style="font-size: 0.75rem;">Friends</span>
+                        <span class="badge badge-green badge-sm-text">Friends</span>
                         {% elif p.search_friend_status == 'sent' %}
-                        <span class="badge badge-gold" style="font-size: 0.75rem;">Sent</span>
+                        <span class="badge badge-gold badge-sm-text">Sent</span>
                         {% else %}
                         <form method="post" action="{% url 'accounts:friend_request_send' user_id=p.user.id %}">
                             {% csrf_token %}
@@ -904,7 +902,7 @@
                 {% endfor %}
             </div>
             {% else %}
-            <p class="muted mt-2" style="font-size: 0.9rem;">No people found for "{{ friend_search_query }}".</p>
+            <p class="muted mt-2 fs-md">No people found for "{{ friend_search_query }}".</p>
             {% endif %}
 
             {% else %}
@@ -913,17 +911,17 @@
             <div class="friend-list mt-2">
                 {% for friend_user in friends %}
                 <div class="friend-row">
-                    <a href="{% url 'accounts:profile_view' user_id=friend_user.id %}" class="friend-avatar" style="position:relative;">
+                    <a href="{% url 'accounts:profile_view' user_id=friend_user.id %}" class="friend-avatar">
                         {% if friend_user.profile.profile_picture %}
-                        <img src="{{ friend_user.profile.profile_picture.url }}" alt="">
+                        <img src="{{ friend_user.profile.profile_picture.url }}" alt="" width="38" height="38">
                         {% else %}
-                        <i class="bi bi-person-circle" style="font-size: 1.6rem; color: var(--fl-muted);"></i>
+                        <i class="bi bi-person-circle icon-placeholder"></i>
                         {% endif %}
                         {% if friend_user.profile.is_online %}<span class="online-dot friend-online-dot"></span>{% endif %}
                     </a>
                     <div class="friend-info">
                         <a href="{% url 'accounts:profile_view' user_id=friend_user.id %}" class="friend-name">{{ friend_user.profile.get_display_name }}</a>
-                        <span class="muted" style="font-size: 0.78rem;">@{{ friend_user.username }}</span>
+                        <span class="muted username-sub">@{{ friend_user.username }}</span>
                     </div>
                     <form method="post" action="{% url 'accounts:friend_remove' user_id=friend_user.id %}">
                         {% csrf_token %}
@@ -933,10 +931,10 @@
                 {% endfor %}
             </div>
             {% else %}
-            <p class="muted mt-2" style="font-size: 0.9rem;">You haven't added any friends yet. Search by name above or browse all members.</p>
+            <p class="muted mt-2 fs-md">You haven't added any friends yet. Search by name above or browse all members.</p>
             {% endif %}
             {% endif %}
-            <a href="{% url 'accounts:user_directory' %}" class="btn btn-outline w-full mt-2" style="font-size: 0.88rem;">
+            <a href="{% url 'accounts:user_directory' %}" class="btn btn-outline w-full mt-2 browse-btn-text">
                 <i class="bi bi-people"></i> Browse All Members
             </a>
         </div>
@@ -951,7 +949,7 @@
             <div class="post-composer-header">
                 <div class="post-composer-avatar">
                     {% if profile.profile_picture %}
-                    <img src="{{ profile.profile_picture.url }}" alt="">
+                    <img src="{{ profile.profile_picture.url }}" alt="" width="40" height="40">
                     {% else %}
                     <i class="bi bi-person-fill"></i>
                     {% endif %}
@@ -968,15 +966,15 @@
                 </div>
                 
                 <!-- Image Preview -->
-                <div id="post-image-preview" class="post-image-preview" style="display: none;">
-                    <img src="" alt="Preview" id="preview-img">
+                <div id="post-image-preview" class="post-image-preview hidden">
+                    <img src="" alt="Preview" id="preview-img" width="600" height="300">
                     <button type="button" class="preview-remove" onclick="removePostImage()">
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
                 
                 <!-- Video Preview -->
-                <div id="post-video-preview" class="post-video-preview" style="display: none;">
+                <div id="post-video-preview" class="post-video-preview hidden">
                     <video id="preview-video" controls></video>
                     <button type="button" class="preview-remove" onclick="removePostVideo()">
                         <i class="bi bi-x-lg"></i>
@@ -988,12 +986,12 @@
                     <label class="post-action-btn" title="Add Photo">
                         <i class="bi bi-image"></i>
                         <span>Photo</span>
-                        <input type="file" name="image" id="post-image-input" accept="image/*" style="display: none;" onchange="previewPostImage(this)">
+                        <input type="file" name="image" id="post-image-input" accept="image/*" class="hidden" onchange="previewPostImage(this)">
                     </label>
                     <label class="post-action-btn post-action-video" title="Add Video">
                         <i class="bi bi-camera-video"></i>
                         <span>Video</span>
-                        <input type="file" name="video" id="post-video-input" accept="video/*" style="display: none;" onchange="previewPostVideo(this)">
+                        <input type="file" name="video" id="post-video-input" accept="video/*" class="hidden" onchange="previewPostVideo(this)">
                     </label>
                     <div class="post-visibility-select">
                         <i class="bi bi-people"></i>
@@ -1017,9 +1015,9 @@
             <div class="wall-post-header">
                 <a href="{% url 'accounts:profile_view' user_id=post.author.id %}" class="wall-post-avatar">
                     {% if post.author.profile.profile_picture %}
-                    <img src="{{ post.author.profile.profile_picture.url }}" alt="">
+                    <img src="{{ post.author.profile.profile_picture.url }}" alt="" width="40" height="40">
                     {% else %}
-                    <i class="bi bi-person-fill" style="font-size: 1.5rem; color: var(--fl-muted);"></i>
+                    <i class="bi bi-person-fill text-muted-icon"></i>
                     {% endif %}
                 </a>
                 <div class="wall-post-info">
@@ -1060,7 +1058,7 @@
             
             {% if post.image %}
             <div class="wall-post-image">
-                <img src="{{ post.image.url }}" alt="Post attachment">
+                <img src="{{ post.image.url }}" alt="Post attachment" width="800" height="500">
             </div>
             {% endif %}
             
@@ -1068,6 +1066,7 @@
             <div class="wall-post-video">
                 <video controls preload="metadata">
                     <source src="{{ post.video.url }}" type="video/mp4">
+                    <track kind="captions" label="Captions">
                     Your browser does not support the video tag.
                 </video>
             </div>
@@ -1080,12 +1079,12 @@
             </div>
             
             <!-- Comments Section -->
-            <div class="wall-post-comments" id="comments-{{ post.id }}" style="{% if not post.comments.exists %}display: none;{% endif %}">
+            <div class="wall-post-comments{% if not post.comments.exists %} hidden{% endif %}" id="comments-{{ post.id }}">
                 {% for comment in post.comments.all %}
                 <div class="comment">
                     <a href="{% url 'accounts:profile_view' user_id=comment.author.id %}" class="comment-avatar">
                         {% if comment.author.profile.profile_picture %}
-                        <img src="{{ comment.author.profile.profile_picture.url }}" alt="">
+                        <img src="{{ comment.author.profile.profile_picture.url }}" alt="" width="32" height="32">
                         {% else %}
                         <i class="bi bi-person-fill"></i>
                         {% endif %}
@@ -1096,9 +1095,9 @@
                     </div>
                     <span class="comment-time">{{ comment.created_at|timesince }}</span>
                     {% if comment.author == request.user %}
-                    <form method="post" action="{% url 'accounts:wall_comment_delete' comment_id=comment.id %}" style="display: inline;">
+                    <form method="post" action="{% url 'accounts:wall_comment_delete' comment_id=comment.id %}" class="d-inline-form">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-ghost btn-sm" style="padding: 0;" title="Delete">
+                        <button type="submit" class="btn btn-ghost btn-sm p-0" title="Delete">
                             <i class="bi bi-x"></i>
                         </button>
                     </form>
@@ -1118,9 +1117,9 @@
         </div>
         {% empty %}
         <div class="card">
-            <div class="card-body text-center" style="padding: 3rem;">
-                <i class="bi bi-chat-square-text" style="font-size: 3rem; color: var(--fl-muted);"></i>
-                <h3 style="margin: 1rem 0 0.5rem;">No posts yet</h3>
+            <div class="card-body text-center empty-body">
+                <i class="bi bi-chat-square-text icon-hero-empty"></i>
+                <h3 class="empty-heading">No posts yet</h3>
                 <p class="muted">
                     {% if is_own_profile %}
                     Share what's on your mind!
@@ -1232,4 +1231,4 @@ function removePostVideo() {
     previewVideo.src = '';
 }
 </script>
-{% endblock %}
+{% endblock content %}

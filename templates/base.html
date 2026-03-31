@@ -204,7 +204,10 @@
             </a>
             
             <div class="nav-links">
-                <a class="nav-link" href="{% url 'gods_word_of_day' %}">
+                <a class="nav-link" href="{% url 'welcome' %}">
+                    <i class="bi bi-map"></i> User Guide
+                </a>
+                <a class="nav-link" href="{% url 'gods_word_of_day' %}" data-fl-hint="word-of-day">
                     <i class="bi bi-book-half"></i> Word of the Day
                 </a>
                 <a class="nav-link" href="{% url 'contact' %}">
@@ -214,13 +217,13 @@
                 <a class="nav-link" href="{% url 'home' %}">
                     <i class="bi bi-house"></i> Dashboard
                 </a>
-                <a class="nav-link" href="{% url 'families:family_create' %}">
+                <a class="nav-link" href="{% url 'families:family_create' %}" data-fl-hint="new-space">
                     <i class="bi bi-plus-circle"></i> New Space
                 </a>
-                <a class="nav-link" href="{% url 'accounts:my_profile' %}">
+                <a class="nav-link" href="{% url 'accounts:my_profile' %}" data-fl-hint="profile">
                     <i class="bi bi-person"></i> Profile
                 </a>
-                <a class="nav-link" href="{% url 'accounts:user_directory' %}">
+                <a class="nav-link" href="{% url 'accounts:user_directory' %}" data-fl-hint="members">
                     <i class="bi bi-people"></i> Members
                 </a>
                 {% endif %}
@@ -230,14 +233,14 @@
                 {% if user.is_authenticated %}
                 <!-- Messages Icon -->
                 <div class="notification-bell">
-                    <a href="{% url 'accounts:message_inbox' %}" class="bell-btn" title="Messages">
+                    <a href="{% url 'accounts:message_inbox' %}" class="bell-btn" title="Messages" data-fl-hint="messages">
                         <i class="bi bi-chat-dots"></i>
                     </a>
                 </div>
-                
+
                 <!-- Notification Bell -->
                 <div class="notification-bell">
-                    <a href="{% url 'families:notification_list' %}" class="bell-btn" title="Notifications">
+                    <a href="{% url 'families:notification_list' %}" class="bell-btn" title="Notifications" data-fl-hint="notifications">
                         <i class="bi bi-bell"></i>
                         <span class="bell-badge hidden" id="notification-badge">0</span>
                     </a>
@@ -870,5 +873,126 @@
     </script>
     
     {% block extra_js %}{% endblock extra_js %}
+
+    <div id="fl-hint-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:8000;" aria-hidden="true"></div>
+    <dialog id="fl-hint-modal" aria-labelledby="fl-hint-title"
+         style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+                z-index:8001;width:90%;max-width:440px;background:var(--fl-surface);
+                border-radius:var(--fl-radius-lg);box-shadow:0 20px 50px rgba(0,0,0,0.25);
+                border:1px solid var(--fl-border);overflow:hidden;padding:0;margin:0;">
+      <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--fl-border);display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;gap:0.6rem;">
+          <span id="fl-hint-icon" style="font-size:1.4rem;color:var(--fl-blue);"></span>
+          <strong id="fl-hint-title" style="font-size:1.05rem;"></strong>
+        </div>
+        <button onclick="FLHint.close()" style="background:none;border:none;cursor:pointer;font-size:1.3rem;color:var(--fl-muted);padding:0;line-height:1;" aria-label="Close">&times;</button>
+      </div>
+      <div style="padding:1.25rem 1.5rem;">
+        <p id="fl-hint-body" style="color:var(--fl-muted);margin:0 0 1rem;line-height:1.6;font-size:0.95rem;"></p>
+        <ul id="fl-hint-tips" style="color:var(--fl-muted);font-size:0.88rem;padding-left:1.25rem;margin:0 0 1.25rem;line-height:1.7;display:none;"></ul>
+        <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+          <button onclick="FLHint.close()" class="btn btn-outline btn-sm">Maybe later</button>
+          <button id="fl-hint-go" onclick="FLHint.proceed()" class="btn btn-primary btn-sm">
+            <i class="bi bi-arrow-right"></i> Take me there
+          </button>
+        </div>
+      </div>
+    </dialog>
+
+    <script>
+    const FLHint = {
+      _pendingHref: null,
+      _pendingSubmit: null,
+
+      hints: {
+        'family-space':  { icon: 'bi bi-people-fill',      title: 'Family Space',         body: 'Your private hub for everything — tree, feed, chat, albums, events, and more. Create one space per family branch.', tips: ['Click "New Space" in the nav to create one','Invite family by email from the Invitations card','Set member roles to control who can edit'] },
+        'family-tree':   { icon: 'bi bi-diagram-3',         title: 'Family Tree',          body: 'Build a visual, interactive family tree with photos. Add parents, children, spouses and more with one click.', tips: ['Use the tile buttons on each person card to add relationships','Upload a photo on each person for the visual tree','Import a GEDCOM file to load an existing tree instantly'] },
+        'new-space':     { icon: 'bi bi-plus-circle',        title: 'Create a Family Space',body: 'A Family Space is your private family hub. Everything your family shares — the tree, feed, chat, albums — lives inside it.', tips: ['You automatically become the Owner','You can belong to multiple spaces (e.g. maternal and paternal sides)','Invite others via the Invitations card after creation'] },
+        'invite':        { icon: 'bi bi-envelope-plus',      title: 'Invite Family Members',body: 'Send a secure email invitation to bring someone into your Family Space. They get a link to create an account or sign in.', tips: ['Enter multiple emails at once — one per line','Choose their role: Member, Editor, Admin, or Viewer','Invitations expire after 14 days but can be resent'] },
+        'members':       { icon: 'bi bi-people',             title: 'Members Directory',    body: 'Browse everyone on FamilyLinx, see who\'s online, send friend requests, and start direct messages.',                   tips: ['Green dot = online (active in the last 5 min)','Click a profile to send a friend request or message','Filter and search by name'] },
+        'messages':      { icon: 'bi bi-chat-dots',          title: 'Messages',             body: 'Direct messages, family group chat, branch chats tied to parts of the tree, and event-specific conversations.',           tips: ['Start a DM from any member\'s profile or the Members list','Family Chat is the group conversation for your whole space','Branch Chat lets you discuss a specific person\'s family line'] },
+        'notifications': { icon: 'bi bi-bell',               title: 'Notifications',        body: 'Alerts for new messages, comments, reactions, friend requests, and family activity. New chat messages pop up as toasts.', tips: ['Click the bell to see all notifications','Mark all as read in one click','Chat toasts appear automatically for new messages'] },
+        'profile':       { icon: 'bi bi-person-circle',      title: 'My Profile',           body: 'Your personal profile: photo, bio, wall posts, friends list, and the family spaces you belong to.',                     tips: ['Add a profile picture — it shows on the family tree if you\'re linked','Link yourself to a person in the tree via "Find Me on Tree"','Search for and add friends from the Friends panel'] },
+        'albums':        { icon: 'bi bi-images',             title: 'Photo Albums',         body: 'Create organised albums for family photos. Upload multiple at once, write captions, and tag people in the tree.',         tips: ['Photos are cropped and optimised automatically','Tag tree members on photos for easy discovery','Set a cover photo for each album'] },
+        'events':        { icon: 'bi bi-calendar-event',     title: 'Events & Calendar',    body: 'Plan family gatherings, reunions, and holidays. Members can RSVP and each event has its own chat thread.',              tips: ['Create events from your Family Space','View upcoming dates on the calendar','RSVP with Yes / Maybe / No'] },
+        'museum':        { icon: 'bi bi-book',               title: 'Living Museum',        body: 'Preserve family stories, memories, and milestones. Each person has their own museum page with an auto-generated life story.', tips: ['Attach memories to specific people in the tree','Share a memory publicly with a secure link (no login required)','Try the AI Chatbot to explore a person\'s history'] },
+        'prayers':       { icon: 'bi bi-heart-pulse',        title: 'Prayer Requests',      body: 'Share prayer needs with your family or the wider FamilyLinx community. Support each other and celebrate answered prayers.', tips: ['Family prayers are private to your space','Global prayers are visible to all FamilyLinx users','Mark prayers as answered and write a testimony'] },
+        'dna':           { icon: 'bi bi-dna',                title: 'DNA Tools',            body: 'Track DNA kit results, log matches, and visualise genetic connections across your family tree.',                         tips: ['Supports AncestryDNA, 23andMe, and others','Link each kit to a person in your tree','Use the DNA Connections graph to see relationships visually'] },
+        'guide':         { icon: 'bi bi-map',                title: 'User Guide',           body: 'The complete guide to everything FamilyLinx can do — with step-by-step setup instructions for every feature.',           tips: ['Bookmark this page for future reference','Each feature has a setup checklist','Covers roles, permissions, tree building, and more'] },
+        'word-of-day':   { icon: 'bi bi-book-half',          title: 'Word of the Day',      body: 'A daily Bible verse to inspire and encourage. Updates every day automatically.',                                         tips: [] },
+      },
+
+      open(key, href, submitFn) {
+        const hint = this.hints[key];
+        if (!hint) { if (href) window.location.href = href; else if (submitFn) submitFn(); return; }
+
+        this._pendingHref   = href   || null;
+        this._pendingSubmit = submitFn || null;
+
+        document.getElementById('fl-hint-icon').className  = hint.icon;
+        document.getElementById('fl-hint-title').textContent = hint.title;
+        document.getElementById('fl-hint-body').textContent  = hint.body;
+
+        const tipsList = document.getElementById('fl-hint-tips');
+        if (hint.tips && hint.tips.length) {
+          tipsList.innerHTML = hint.tips.map(t => `<li>${t}</li>`).join('');
+          tipsList.style.display = 'block';
+        } else {
+          tipsList.style.display = 'none';
+        }
+
+        // Rename button if no destination
+        const goBtn = document.getElementById('fl-hint-go');
+        if (!href && !submitFn) {
+          goBtn.style.display = 'none';
+        } else {
+          goBtn.style.display = '';
+          goBtn.innerHTML = href ? '<i class="bi bi-arrow-right"></i> Take me there' : '<i class="bi bi-arrow-right"></i> Continue';
+        }
+
+        const modal = document.getElementById('fl-hint-modal');
+        modal.style.display = 'block';
+        modal.showModal();
+        document.getElementById('fl-hint-backdrop').style.display = 'block';
+        document.body.style.overflow = 'hidden';
+      },
+
+      close() {
+        const modal = document.getElementById('fl-hint-modal');
+        modal.style.display = 'none';
+        modal.close();
+        document.getElementById('fl-hint-backdrop').style.display = 'none';
+        document.body.style.overflow = '';
+        this._pendingHref   = null;
+        this._pendingSubmit = null;
+      },
+
+      proceed() {
+        const href = this._pendingHref;
+        const fn   = this._pendingSubmit;
+        this.close();
+        if (href) window.location.href = href;
+        else if (fn) fn();
+      }
+    };
+
+    // Close on backdrop click
+    document.getElementById('fl-hint-backdrop').addEventListener('click', () => FLHint.close());
+
+    // Close on Escape
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') FLHint.close(); });
+
+    // Attach to all [data-fl-hint] elements
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('[data-fl-hint]').forEach(el => {
+        el.addEventListener('click', function(e) {
+          const key  = this.dataset.flHint;
+          const href = this.href || (this.dataset.href) || null;
+          if (href) e.preventDefault();
+          FLHint.open(key, href || null, null);
+        });
+      });
+    });
+    </script>
 </body>
 </html>

@@ -36,6 +36,7 @@ from . import views
 urlpatterns = [
     # Home / Dashboard - shows landing page or dashboard based on auth
     path("", views.home, name="home"),
+    path("guide/", views.welcome, name="welcome"),
     path("gods-word-of-the-day/", views.gods_word_of_day, name="gods_word_of_day"),
     path("contact/", views.contact, name="contact"),
     

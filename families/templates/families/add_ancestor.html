@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Add {{ gen_label }} – {{ family.name }} | FamilyLinx{% endblock %}
+{% block title %}Add {{ gen_label }} – {{ family.name }} | FamilyLinx{% endblock title %}
 
 {% block content %}
 <main>
@@ -33,12 +33,12 @@
             </button>
           </div>
 
-          <p class="muted" style="margin-bottom: 1.25rem; font-size: 0.9rem;">
+          <p class="muted fs-md mb-4">
             <i class="bi bi-info-circle"></i> Adding a parent for <strong>{{ attach_to.full_name }}</strong>.
           </p>
 
           <!-- Link existing person -->
-          <div id="section-link-existing" style="display:none;">
+          <div id="section-link-existing" class="hidden">
             <form method="post">
               {% csrf_token %}
               <input type="hidden" name="add_mode" value="existing">
@@ -71,13 +71,13 @@
           <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
             
-            <h4 style="margin-bottom: 1rem; color: var(--fl-blue);">
+            <h4 class="section-heading">
               <i class="bi bi-person"></i> {{ gen_label }} Information
             </h4>
             
             <div class="grid-2">
               <div class="form-group">
-                <label class="form-label required">{{ form.first_name.label }}</label>
+                <label class="form-label required" for="id_first_name">{{ form.first_name.label }}</label>
                 {{ form.first_name }}
                 {% if form.first_name.errors %}
                 <div class="form-error">{{ form.first_name.errors.0 }}</div>
@@ -85,7 +85,7 @@
               </div>
               
               <div class="form-group">
-                <label class="form-label required">{{ form.last_name.label }}</label>
+                <label class="form-label required" for="id_last_name">{{ form.last_name.label }}</label>
                 {{ form.last_name }}
                 {% if form.last_name.errors %}
                 <div class="form-error">{{ form.last_name.errors.0 }}</div>
@@ -95,63 +95,63 @@
             
             <div class="grid-2">
               <div class="form-group">
-                <label class="form-label">{{ form.maiden_name.label }}</label>
+                <label class="form-label" for="id_maiden_name">{{ form.maiden_name.label }}</label>
                 {{ form.maiden_name }}
               </div>
               
               <div class="form-group">
-                <label class="form-label">{{ form.gender.label }}</label>
+                <label class="form-label" for="id_gender">{{ form.gender.label }}</label>
                 {{ form.gender }}
               </div>
             </div>
             
-            <h4 style="margin: 1.5rem 0 1rem; color: var(--fl-blue);">
+            <h4 class="section-heading mt-section">
               <i class="bi bi-calendar-event"></i> Vital Information
             </h4>
             
             <div class="grid-2">
               <div class="form-group">
-                <label class="form-label">{{ form.birth_date.label }}</label>
+                <label class="form-label" for="id_birth_date">{{ form.birth_date.label }}</label>
                 {{ form.birth_date }}
               </div>
               
               <div class="form-group">
-                <label class="form-label">{{ form.birth_place.label }}</label>
+                <label class="form-label" for="id_birth_place">{{ form.birth_place.label }}</label>
                 {{ form.birth_place }}
               </div>
             </div>
             
             <div class="grid-2">
               <div class="form-group">
-                <label class="form-label">{{ form.death_date.label }}</label>
+                <label class="form-label" for="id_death_date">{{ form.death_date.label }}</label>
                 {{ form.death_date }}
               </div>
               
               <div class="form-group">
-                <label class="form-label">{{ form.death_place.label }}</label>
+                <label class="form-label" for="id_death_place">{{ form.death_place.label }}</label>
                 {{ form.death_place }}
               </div>
             </div>
             
-            <h4 style="margin: 1.5rem 0 1rem; color: var(--fl-blue);">
+            <h4 class="section-heading mt-section">
               <i class="bi bi-heart"></i> Spouse (Optional)
             </h4>
-            <p class="muted" style="margin-bottom: 1rem; font-size: 0.9rem;">
+            <p class="muted fs-md mb-3">
               If this {{ gen_label|lower }} has a spouse who is also in the tree, link them here.
             </p>
             
             <div class="form-group">
-              <label class="form-label">{{ form.spouse.label }}</label>
+              <label class="form-label" for="id_spouse">{{ form.spouse.label }}</label>
               {{ form.spouse }}
               <small class="form-text muted">Select existing person as spouse</small>
             </div>
             
-            <h4 style="margin: 1.5rem 0 1rem; color: var(--fl-blue);">
+            <h4 class="section-heading mt-section">
               <i class="bi bi-image"></i> Photo (Optional)
             </h4>
             
             <div class="form-group">
-              <label class="form-label">{{ form.photo.label }}</label>
+              <label class="form-label" for="id_photo">{{ form.photo.label }}</label>
               {{ form.photo }}
             </div>
             
@@ -169,7 +169,7 @@
     </div>
   </div>
 </main>
-{% endblock %}
+{% endblock content %}
 
 {% block extra_css %}
 <style>
@@ -283,4 +283,4 @@ function setAddMode(mode) {
   }
 }
 </script>
-{% endblock %}
+{% endblock extra_css %}

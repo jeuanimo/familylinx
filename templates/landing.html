@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}FamilyLinx | Your Family. Your Legacy. One Place.{% endblock %}
+{% block title %}FamilyLinx | Your Family. Your Legacy. One Place.{% endblock title %}
 
 {% block extra_css %}
 <style>
@@ -1090,7 +1090,7 @@
         
         <!-- Brand Logo - Prominently Displayed -->
         <div class="hero-brand-logo">
-          <img src="{% static 'img/FamilyLinx.jpg' %}" alt="FamilyLinx" class="hero-brand-img">
+          <img src="{% static 'img/FamilyLinx.jpg' %}" alt="FamilyLinx" class="hero-brand-img" width="200" height="200">
         </div>
         
         <h1>Your Family. Your Legacy. One Place.</h1>
@@ -1375,7 +1375,7 @@
                 <div class="profile-avatar" aria-hidden="true"></div>
                 <div>
                   <div class="line-mid"></div>
-                  <div class="line-short" style="margin-top: 0.45rem;"></div>
+                  <div class="line-short mt-line-short"></div>
                 </div>
               </div>
               <div class="profile-tags">
