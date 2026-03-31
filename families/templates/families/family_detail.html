@@ -366,8 +366,8 @@
             </ul>
         </div>
         
-        <!-- Invites Card (Admin/Owner only) -->
-        {% if membership.role == 'OWNER' or membership.role == 'ADMIN' %}
+        <!-- Invites Card (Editor and above) -->
+        {% if membership.role == 'OWNER' or membership.role == 'ADMIN' or membership.role == 'EDITOR' %}
         <div class="card" id="family-invitations">
             <div class="card-header flex-between">
                 <span class="card-title"><i class="bi bi-envelope"></i> Invitations</span>

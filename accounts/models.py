@@ -443,6 +443,69 @@ class ProfileMessage(models.Model):
         return f"Message from {self.sender.email} to {self.recipient.email}"
 
 
+class FriendRequest(models.Model):
+    """
+    Friend request between two users.
+
+    At most one record per ordered pair (from_user, to_user).
+    Use FriendRequest.get_between() to find the relationship regardless
+    of direction.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        ACCEPTED = 'accepted', 'Accepted'
+        DECLINED = 'declined', 'Declined'
+
+    from_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='sent_friend_requests',
+    )
+    to_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='received_friend_requests',
+    )
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [['from_user', 'to_user']]
+        verbose_name = 'Friend Request'
+        verbose_name_plural = 'Friend Requests'
+
+    def __str__(self):
+        return f"{self.from_user} → {self.to_user} ({self.status})"
+
+    @classmethod
+    def get_between(cls, user_a, user_b):
+        """Return the FriendRequest between two users (either direction), or None."""
+        from django.db.models import Q
+        return cls.objects.filter(
+            Q(from_user=user_a, to_user=user_b) | Q(from_user=user_b, to_user=user_a)
+        ).first()
+
+    @classmethod
+    def get_friends_for_user(cls, user):
+        """Return list of User objects who are accepted friends with this user."""
+        from django.db.models import Q
+        accepted = cls.objects.filter(
+            Q(from_user=user) | Q(to_user=user),
+            status=cls.Status.ACCEPTED,
+        ).select_related('from_user__profile', 'to_user__profile')
+        return [
+            req.to_user if req.from_user_id == user.pk else req.from_user
+            for req in accepted
+        ]
+
+
 # Auto-create profile when user is created
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def create_user_profile(sender, instance, created, **kwargs):

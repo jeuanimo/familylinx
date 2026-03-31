@@ -70,7 +70,7 @@ from allauth.account.forms import LoginForm, SignupForm
 from allauth.account.internal import flows as account_flows
 from allauth.core.exceptions import ImmediateHttpResponse
 
-from .models import AdminAccessLog, SiteAccessLog, UserProfile, ProfilePost, ProfilePostComment, ProfileMessage
+from .models import AdminAccessLog, SiteAccessLog, UserProfile, ProfilePost, ProfilePostComment, ProfileMessage, FriendRequest
 from .security import record_site_access_event
 from .forms import (
     UserProfileForm, ProfilePictureForm, CoverPhotoForm,
@@ -341,7 +341,22 @@ def profile_view(request, user_id):
     # Post form for own profile or commenting
     post_form = ProfilePostForm() if is_own_profile else None
     comment_form = ProfilePostCommentForm()
-    
+
+    # Friend status
+    friend_status = None
+    friend_request_obj = None
+    if not is_own_profile:
+        friend_request_obj = FriendRequest.get_between(request.user, profile_user)
+        if friend_request_obj:
+            if friend_request_obj.status == FriendRequest.Status.ACCEPTED:
+                friend_status = 'friends'
+            elif friend_request_obj.status == FriendRequest.Status.PENDING:
+                if friend_request_obj.from_user_id == request.user.pk:
+                    friend_status = 'sent'
+                else:
+                    friend_status = 'received'
+            # declined -> None (can send again)
+
     context = {
         'profile_user': profile_user,
         'profile': profile,
@@ -352,6 +367,8 @@ def profile_view(request, user_id):
         'shared_families': shared_families,
         'dna_kits': dna_kits,
         'chat_family_id': chat_family_id,
+        'friend_status': friend_status,
+        'friend_request': friend_request_obj,
     }
     
     return render(request, 'accounts/profile_view.html', context)
@@ -388,11 +405,30 @@ def user_directory(request):
     family_ids_by_user = _shared_family_ids_by_user_ids(user_ids)
     viewer_family_ids = family_ids_by_user.get(request.user.id, set())
 
+    # Build a friend-status lookup keyed by other user_id
+    all_requests = FriendRequest.objects.filter(
+        Q(from_user=request.user) | Q(to_user=request.user)
+    )
+    friend_status_by_uid = {}
+    friend_request_id_by_uid = {}
+    for fr in all_requests:
+        other_id = fr.to_user_id if fr.from_user_id == request.user.pk else fr.from_user_id
+        if fr.status == FriendRequest.Status.ACCEPTED:
+            friend_status_by_uid[other_id] = 'friends'
+        elif fr.status == FriendRequest.Status.PENDING:
+            if fr.from_user_id == request.user.pk:
+                friend_status_by_uid[other_id] = 'sent'
+            else:
+                friend_status_by_uid[other_id] = 'received'
+        friend_request_id_by_uid[other_id] = fr.id
+
     for profile in profiles:
         shared_families = viewer_family_ids & family_ids_by_user.get(profile.user_id, set())
         profile.shared_family_count = len(shared_families)
         profile.can_view_profile = _can_view_profile(request.user, profile.user, profile, shared_families)
         profile.directory_email = profile.user.email if (profile.user == request.user or profile.show_email) else ""
+        profile.friend_status = friend_status_by_uid.get(profile.user_id)
+        profile.friend_request_id = friend_request_id_by_uid.get(profile.user_id)
 
     return render(request, "accounts/user_directory.html", {
         "profiles": profiles,
@@ -933,6 +969,106 @@ def unlink_from_tree(request):
         messages.success(request, "Unlinked from family tree.")
     
     return redirect('accounts:my_profile')
+
+
+# =============================================================================
+# Friends
+# =============================================================================
+
+@login_required
+def friend_requests_inbox(request):
+    """Pending friend requests received by the current user."""
+    pending = (
+        FriendRequest.objects
+        .filter(to_user=request.user, status=FriendRequest.Status.PENDING)
+        .select_related('from_user__profile')
+        .order_by('-created_at')
+    )
+    return render(request, 'accounts/friend_requests.html', {
+        'pending_requests': pending,
+    })
+
+
+@login_required
+def friend_request_send(request, user_id):
+    """Send a friend request to another user."""
+    if request.method != 'POST':
+        return redirect('accounts:profile_view', user_id=user_id)
+
+    target = get_object_or_404(User, id=user_id)
+    if target == request.user:
+        messages.error(request, "You cannot send a friend request to yourself.")
+        return redirect('accounts:profile_view', user_id=user_id)
+
+    existing = FriendRequest.get_between(request.user, target)
+    if existing:
+        if existing.status == FriendRequest.Status.ACCEPTED:
+            messages.info(request, "You are already friends.")
+        elif existing.status == FriendRequest.Status.PENDING:
+            if existing.from_user_id == request.user.pk:
+                messages.info(request, "Friend request already sent.")
+            else:
+                # They already sent us one — accept it instead
+                existing.status = FriendRequest.Status.ACCEPTED
+                existing.save()
+                messages.success(request, f"You are now friends with {target.profile.get_display_name()}!")
+        elif existing.status == FriendRequest.Status.DECLINED:
+            # Reset a previously declined request so they can try again
+            existing.status = FriendRequest.Status.PENDING
+            existing.from_user = request.user
+            existing.to_user = target
+            existing.save()
+            messages.success(request, f"Friend request sent to {target.profile.get_display_name()}.")
+    else:
+        FriendRequest.objects.create(from_user=request.user, to_user=target)
+        messages.success(request, f"Friend request sent to {target.profile.get_display_name()}.")
+
+    next_url = request.POST.get('next') or request.GET.get('next')
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return redirect(next_url)
+    return redirect('accounts:profile_view', user_id=user_id)
+
+
+@login_required
+def friend_request_accept(request, request_id):
+    """Accept a pending friend request."""
+    if request.method != 'POST':
+        return redirect('accounts:friend_requests_inbox')
+
+    fr = get_object_or_404(FriendRequest, id=request_id, to_user=request.user)
+    if fr.status == FriendRequest.Status.PENDING:
+        fr.status = FriendRequest.Status.ACCEPTED
+        fr.save()
+        messages.success(request, f"You are now friends with {fr.from_user.profile.get_display_name()}!")
+    return redirect(request.POST.get('next') or 'accounts:friend_requests_inbox')
+
+
+@login_required
+def friend_request_decline(request, request_id):
+    """Decline a pending friend request."""
+    if request.method != 'POST':
+        return redirect('accounts:friend_requests_inbox')
+
+    fr = get_object_or_404(FriendRequest, id=request_id, to_user=request.user)
+    if fr.status == FriendRequest.Status.PENDING:
+        fr.status = FriendRequest.Status.DECLINED
+        fr.save()
+        messages.info(request, "Friend request declined.")
+    return redirect(request.POST.get('next') or 'accounts:friend_requests_inbox')
+
+
+@login_required
+def friend_remove(request, user_id):
+    """Remove an existing friendship."""
+    if request.method != 'POST':
+        return redirect('accounts:profile_view', user_id=user_id)
+
+    target = get_object_or_404(User, id=user_id)
+    fr = FriendRequest.get_between(request.user, target)
+    if fr and fr.status == FriendRequest.Status.ACCEPTED:
+        fr.delete()
+        messages.info(request, f"You are no longer friends with {target.profile.get_display_name()}.")
+    return redirect('accounts:profile_view', user_id=user_id)
 
 
 @login_required

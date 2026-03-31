@@ -612,7 +612,7 @@ def invite_create(request, family_id):
     fam = get_object_or_404(FamilySpace, id=family_id)
     
     membership = Membership.objects.filter(family=fam, user=request.user).first()
-    if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+    if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN, Membership.Role.EDITOR]:
         return render(request, TEMPLATE_NO_ACCESS, {"family": fam})
 
     if request.method == "POST":
@@ -717,9 +717,9 @@ def invite_resend(request, family_id, invite_id):
     """
     fam = get_object_or_404(FamilySpace, id=family_id)
     
-    # Check user's role - only OWNER and ADMIN can resend invites
+    # Check user's role - EDITOR and above can resend invites
     membership = Membership.objects.filter(family=fam, user=request.user).first()
-    if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+    if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN, Membership.Role.EDITOR]:
         return render(request, TEMPLATE_NO_ACCESS, {"family": fam})
     
     invite = get_object_or_404(Invite, id=invite_id, family=fam)
@@ -763,9 +763,9 @@ def invite_edit(request, family_id, invite_id):
     """
     fam = get_object_or_404(FamilySpace, id=family_id)
     
-    # Check user's role - only OWNER and ADMIN can edit invites
+    # Check user's role - EDITOR and above can edit invites
     membership = Membership.objects.filter(family=fam, user=request.user).first()
-    if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+    if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN, Membership.Role.EDITOR]:
         return render(request, TEMPLATE_NO_ACCESS, {"family": fam})
     
     invite = get_object_or_404(Invite, id=invite_id, family=fam)
@@ -806,9 +806,9 @@ def invite_delete(request, family_id, invite_id):
     """
     fam = get_object_or_404(FamilySpace, id=family_id)
     
-    # Check user's role - only OWNER and ADMIN can delete invites
+    # Check user's role - EDITOR and above can delete invites
     membership = Membership.objects.filter(family=fam, user=request.user).first()
-    if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN]:
+    if not membership or membership.role not in [Membership.Role.OWNER, Membership.Role.ADMIN, Membership.Role.EDITOR]:
         return render(request, TEMPLATE_NO_ACCESS, {"family": fam})
     
     invite = get_object_or_404(Invite, id=invite_id, family=fam)
@@ -3692,13 +3692,53 @@ def add_ancestor(request, family_id, person_id):
     attach_to = get_object_or_404(Person, id=attach_to_id, family=family)
     gen_label = _get_generation_label(generation)
     
+    # People already direct-parents of attach_to (exclude from "link existing" dropdown)
+    existing_parent_ids = set(
+        Relationship.objects.filter(
+            person2=attach_to,
+            relationship_type=Relationship.Type.PARENT_CHILD,
+            is_deleted=False,
+        ).values_list("person1_id", flat=True)
+    )
+    # Candidates for "link existing": everyone in the family except the person themselves
+    # and anyone who is already their parent
+    candidate_parents = (
+        Person.objects.filter(family=family, is_deleted=False)
+        .exclude(id=attach_to.id)
+        .exclude(id__in=existing_parent_ids)
+        .order_by("last_name", "first_name")
+    )
+
     if request.method == "POST":
-        result, form = _handle_ancestor_creation(request, family, attach_to, gen_label, person)
-        if result:
-            return result
+        if request.POST.get("add_mode") == "existing":
+            # Link an already-existing person as parent
+            existing_person_id = request.POST.get("existing_person_id")
+            if not existing_person_id:
+                messages.error(request, "Please select a person from the tree.")
+            else:
+                existing_person = get_object_or_404(Person, id=existing_person_id, family=family)
+                if existing_person.id == attach_to.id:
+                    messages.error(request, "A person cannot be their own parent.")
+                else:
+                    Relationship.objects.get_or_create(
+                        family=family,
+                        person1=existing_person,
+                        person2=attach_to,
+                        relationship_type=Relationship.Type.PARENT_CHILD,
+                    )
+                    messages.success(
+                        request,
+                        f"Linked {existing_person.full_name} as {gen_label.lower()} of {attach_to.full_name}.",
+                    )
+                    return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id)
+            form = PersonForm(family=family)
+        else:
+            result, form = _handle_ancestor_creation(request, family, attach_to, gen_label, person)
+            if result:
+                return result
     else:
         form = PersonForm(family=family)
-    
+
     return render(request, "families/add_ancestor.html", {
         "family": family,
         "membership": membership,
@@ -3708,6 +3748,7 @@ def add_ancestor(request, family_id, person_id):
         "gen_label": gen_label,
         "form": form,
         "existing_ancestors": _get_person_ancestors_tree(person),
+        "candidate_parents": candidate_parents,
     })
 
 
@@ -3728,50 +3769,85 @@ def add_child(request, family_id, person_id):
         return render(request, TEMPLATE_NO_ACCESS, {"family": family})
     
     person = get_object_or_404(Person, id=person_id, family=family)
-    
+
+    # People already recorded as children of this person
+    existing_child_ids = set(
+        Relationship.objects.filter(
+            person1=person,
+            relationship_type=Relationship.Type.PARENT_CHILD,
+            is_deleted=False,
+        ).values_list("person2_id", flat=True)
+    )
+    # Candidates for "link existing": everyone in the family except the person themselves
+    # and anyone already their child
+    candidate_children = (
+        Person.objects.filter(family=family, is_deleted=False)
+        .exclude(id=person.id)
+        .exclude(id__in=existing_child_ids)
+        .order_by("last_name", "first_name")
+    )
+
     if request.method == "POST":
-        form = PersonForm(request.POST, request.FILES, family=family)
-        if form.is_valid():
-            child = form.save(commit=False)
-            child.family = family
-            child.created_by = request.user
-            child.save()
-            
-            # Handle cropped image if present
-            content_file, filename = process_cropped_image(request)
-            if content_file and filename:
-                child.photo.save(filename, content_file, save=True)
-            
-            # Create parent-child relationship: current person is PARENT of the new child
-            Relationship.objects.create(
-                family=family,
-                person1=person,  # Parent (the current person)
-                person2=child,   # Child (the new person)
-                relationship_type=Relationship.Type.PARENT_CHILD
-            )
-            
-            # If the form specified an "other parent", create that relationship too
-            other_parent = form.cleaned_data.get('other_parent')
-            if other_parent and other_parent.id != person.id:
+        if request.POST.get("add_mode") == "existing":
+            existing_person_id = request.POST.get("existing_person_id")
+            if not existing_person_id:
+                messages.error(request, "Please select a person from the tree.")
+            else:
+                existing_child = get_object_or_404(Person, id=existing_person_id, family=family)
+                if existing_child.id == person.id:
+                    messages.error(request, "A person cannot be their own child.")
+                else:
+                    Relationship.objects.get_or_create(
+                        family=family,
+                        person1=person,
+                        person2=existing_child,
+                        relationship_type=Relationship.Type.PARENT_CHILD,
+                    )
+                    messages.success(
+                        request,
+                        f"Linked {existing_child.full_name} as child of {person.full_name}.",
+                    )
+                    return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id)
+            form = PersonForm(family=family)
+        else:
+            form = PersonForm(request.POST, request.FILES, family=family)
+            if form.is_valid():
+                child = form.save(commit=False)
+                child.family = family
+                child.created_by = request.user
+                child.save()
+
+                content_file, filename = process_cropped_image(request)
+                if content_file and filename:
+                    child.photo.save(filename, content_file, save=True)
+
                 Relationship.objects.create(
                     family=family,
-                    person1=other_parent,  # Other parent
-                    person2=child,         # Child
+                    person1=person,
+                    person2=child,
                     relationship_type=Relationship.Type.PARENT_CHILD
                 )
-            
-            messages.success(request, f"Added {child.full_name} as child of {person.full_name}.")
-            
-            # Redirect back to the person's detail page
-            return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id)
+
+                other_parent = form.cleaned_data.get('other_parent')
+                if other_parent and other_parent.id != person.id:
+                    Relationship.objects.create(
+                        family=family,
+                        person1=other_parent,
+                        person2=child,
+                        relationship_type=Relationship.Type.PARENT_CHILD
+                    )
+
+                messages.success(request, f"Added {child.full_name} as child of {person.full_name}.")
+                return redirect(URL_PERSON_DETAIL, family_id=family.id, person_id=person.id)
     else:
         form = PersonForm(family=family)
-    
+
     return render(request, "families/add_child.html", {
         "family": family,
         "membership": membership,
         "person": person,
         "form": form,
+        "candidate_children": candidate_children,
     })
 
 

@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Friend Requests | FamilyLinx{% endblock title %}
+
+{% block content %}
+<div style="max-width: 700px; margin: 0 auto;">
+  <nav class="breadcrumb">
+    <a href="{% url 'home' %}">Home</a>
+    <span class="separator">/</span>
+    <a href="{% url 'accounts:my_profile' %}">My Profile</a>
+    <span class="separator">/</span>
+    <span class="current">Friend Requests</span>
+  </nav>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="bi bi-person-plus"></i> Friend Requests</span>
+      {% if pending_requests %}
+      <span class="badge badge-red">{{ pending_requests|length }} pending</span>
+      {% endif %}
+    </div>
+
+    {% if pending_requests %}
+    <div class="fr-list">
+      {% for fr in pending_requests %}
+      <div class="fr-row">
+        <a href="{% url 'accounts:profile_view' user_id=fr.from_user.id %}" class="fr-avatar">
+          {% if fr.from_user.profile.profile_picture %}
+          <img src="{{ fr.from_user.profile.profile_picture.url }}" alt="{{ fr.from_user.profile.get_display_name }}" width="52" height="52">
+          {% else %}
+          <div class="fr-avatar-placeholder">{{ fr.from_user.profile.get_display_name|slice:":1"|upper }}</div>
+          {% endif %}
+        </a>
+        <div class="fr-info">
+          <a href="{% url 'accounts:profile_view' user_id=fr.from_user.id %}" class="fr-name">
+            {{ fr.from_user.profile.get_display_name }}
+          </a>
+          <span class="fr-time muted">Sent {{ fr.created_at|timesince }} ago</span>
+        </div>
+        <div class="fr-actions">
+          <form method="post" action="{% url 'accounts:friend_request_accept' request_id=fr.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary btn-sm">
+              <i class="bi bi-person-check"></i> Accept
+            </button>
+          </form>
+          <form method="post" action="{% url 'accounts:friend_request_decline' request_id=fr.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline btn-sm">Decline</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card-body" style="text-align: center; padding: 3rem;">
+      <i class="bi bi-people" style="font-size: 3rem; color: var(--fl-muted);"></i>
+      <h3 style="margin: 1rem 0 0.5rem;">No pending requests</h3>
+      <p class="muted">When someone sends you a friend request, it will appear here.</p>
+      <a href="{% url 'accounts:user_directory' %}" class="btn btn-outline btn-sm">Find People</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+.fr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.fr-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--fl-border);
+}
+
+.fr-row:last-child {
+  border-bottom: none;
+}
+
+.fr-avatar {
+  flex-shrink: 0;
+  display: block;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--fl-surface);
+  text-decoration: none;
+}
+
+.fr-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fr-avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fl-primary);
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.fr-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.fr-name {
+  font-weight: 600;
+  color: var(--fl-text);
+  text-decoration: none;
+}
+
+.fr-name:hover {
+  color: var(--fl-blue);
+}
+
+.fr-time {
+  font-size: 0.85rem;
+}
+
+.fr-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+</style>
+{% endblock content %}

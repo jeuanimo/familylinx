@@ -100,7 +100,17 @@ urlpatterns = [
     # Link/unlink profile to Person record in family tree
     path('profile/link-to-tree/', views.link_to_tree, name='link_to_tree'),
     path('profile/unlink-from-tree/', views.unlink_from_tree, name='unlink_from_tree'),
-    
+
     # AJAX endpoint for person dropdown (used by link-to-tree form)
     path('api/family/<int:family_id>/persons/', views.get_family_persons, name='get_family_persons'),
+
+    # ==========================================================================
+    # Friends
+    # ==========================================================================
+
+    path('friends/', views.friend_requests_inbox, name='friend_requests_inbox'),
+    path('friends/request/<int:user_id>/', views.friend_request_send, name='friend_request_send'),
+    path('friends/accept/<int:request_id>/', views.friend_request_accept, name='friend_request_accept'),
+    path('friends/decline/<int:request_id>/', views.friend_request_decline, name='friend_request_decline'),
+    path('friends/remove/<int:user_id>/', views.friend_remove, name='friend_remove'),
 ]

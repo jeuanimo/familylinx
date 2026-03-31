@@ -23,15 +23,57 @@
           <span class="card-title"><i class="bi bi-person-plus"></i> Add Child</span>
         </div>
         <div class="card-body">
+          <!-- Mode toggle -->
+          <div class="add-mode-toggle" id="add-mode-toggle">
+            <button type="button" class="add-mode-btn active" id="btn-create-new" onclick="setAddMode('new')">
+              <i class="bi bi-person-plus"></i> Create New Person
+            </button>
+            <button type="button" class="add-mode-btn" id="btn-link-existing" onclick="setAddMode('existing')">
+              <i class="bi bi-link-45deg"></i> Link Existing Person
+            </button>
+          </div>
+
           <!-- Info Box -->
           <div class="alert alert-info mb-4">
             <i class="bi bi-info-circle"></i>
             <div>
               <strong>Adding a child for {{ person.full_name }}</strong><br>
-              <span class="muted">This will create a new person and link them as a child of {{ person.full_name }}.</span>
+              <span class="muted" id="info-text-new">Fill in the details below to create and link a new child.</span>
+              <span class="muted" id="info-text-existing" style="display:none;">Choose someone already in the tree to link as a child of {{ person.full_name }}.</span>
             </div>
           </div>
-          
+
+          <!-- Link existing child -->
+          <div id="section-link-existing" style="display:none;">
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="add_mode" value="existing">
+              <div class="form-group">
+                <label for="existing-child-select" class="form-label required">Choose person from the tree</label>
+                <select name="existing_person_id" id="existing-child-select" class="form-control" required>
+                  <option value="">— Select a person —</option>
+                  {% for p in candidate_children %}
+                  <option value="{{ p.id }}">{{ p.full_name }}{% if p.birth_date %} (b. {{ p.birth_date|date:"Y" }}){% endif %}</option>
+                  {% empty %}
+                  <option value="" disabled>No other people in the tree yet</option>
+                  {% endfor %}
+                </select>
+                {% if not candidate_children %}
+                <small class="form-text muted">Everyone in the tree is already linked as a child. Use "Create New Person" to add someone new.</small>
+                {% endif %}
+              </div>
+              <div class="form-actions">
+                <a href="{% url 'families:person_detail' family_id=family.id person_id=person.id %}" class="btn btn-outline">Cancel</a>
+                <button type="submit" class="btn btn-primary" {% if not candidate_children %}disabled{% endif %}>
+                  <i class="bi bi-link-45deg"></i> Link as Child
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Create new child (default) -->
+          <div id="section-create-new">
+
           <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
             
@@ -127,9 +169,73 @@
               </button>
             </div>
           </form>
+          </div><!-- end section-create-new -->
         </div>
       </div>
     </div>
   </div>
 </main>
+
+{% block extra_css %}
+<style>
+.add-mode-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-radius);
+  overflow: hidden;
+}
+
+.add-mode-btn {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  background: var(--fl-surface);
+  border: none;
+  cursor: pointer;
+  color: var(--fl-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.add-mode-btn + .add-mode-btn {
+  border-left: 1px solid var(--fl-border);
+}
+
+.add-mode-btn.active {
+  background: var(--fl-blue);
+  color: #fff;
+}
+</style>
+<script>
+function setAddMode(mode) {
+  const createNew = document.getElementById('section-create-new');
+  const linkExisting = document.getElementById('section-link-existing');
+  const btnNew = document.getElementById('btn-create-new');
+  const btnExisting = document.getElementById('btn-link-existing');
+  const infoNew = document.getElementById('info-text-new');
+  const infoExisting = document.getElementById('info-text-existing');
+  if (mode === 'existing') {
+    createNew.style.display = 'none';
+    linkExisting.style.display = 'block';
+    btnNew.classList.remove('active');
+    btnExisting.classList.add('active');
+    infoNew.style.display = 'none';
+    infoExisting.style.display = '';
+  } else {
+    createNew.style.display = 'block';
+    linkExisting.style.display = 'none';
+    btnNew.classList.add('active');
+    btnExisting.classList.remove('active');
+    infoNew.style.display = '';
+    infoExisting.style.display = 'none';
+  }
+}
+</script>
+{% endblock extra_css %}
 {% endblock content %}

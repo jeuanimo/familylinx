@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}People | FamilyLinx{% endblock %}
+{% block title %}People | FamilyLinx{% endblock title %}
 
 {% block content %}
 <div style="max-width: 1100px; margin: 0 auto;">
@@ -78,10 +78,26 @@
                         {% if profile.can_view_profile %}
                         <a href="{% url 'accounts:profile_view' user_id=profile.user.id %}" class="btn btn-outline btn-sm">View Profile</a>
                         {% else %}
-                        <span class="muted">Profile limited to family members</span>
+                        <span class="muted directory-private-note">Private profile</span>
                         {% endif %}
                         {% if profile.user != user %}
-                        <a href="{% url 'accounts:message_compose_to' recipient_id=profile.user.id %}" class="btn btn-primary btn-sm">Message</a>
+                          {% if profile.friend_status == 'friends' %}
+                          <span class="badge badge-green"><i class="bi bi-people-fill"></i> Friends</span>
+                          {% elif profile.friend_status == 'sent' %}
+                          <span class="badge badge-gold">Request Sent</span>
+                          {% elif profile.friend_status == 'received' %}
+                          <form method="post" action="{% url 'accounts:friend_request_accept' request_id=profile.friend_request_id %}" class="d-inline-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{% url 'accounts:user_directory' %}{% if query %}?q={{ query }}{% endif %}">
+                            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-person-check"></i> Accept</button>
+                          </form>
+                          {% else %}
+                          <form method="post" action="{% url 'accounts:friend_request_send' user_id=profile.user.id %}" class="d-inline-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{% url 'accounts:user_directory' %}{% if query %}?q={{ query }}{% endif %}">
+                            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-person-plus"></i> Add Friend</button>
+                          </form>
+                          {% endif %}
                         {% endif %}
                     </div>
                 </article>
@@ -199,5 +215,13 @@
     gap: 0.75rem;
     flex-wrap: wrap;
 }
+
+.directory-private-note {
+    font-size: 0.85rem;
+}
+
+.d-inline-form {
+    display: inline;
+}
 </style>
-{% endblock %}
+{% endblock content %}

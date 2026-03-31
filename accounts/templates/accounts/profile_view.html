@@ -612,13 +612,46 @@
                 <i class="bi bi-pencil"></i> Edit Profile
             </a>
             {% else %}
-            <div class="grid-2" style="gap: 0.5rem;">
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+              {% if friend_status == 'friends' %}
+              <span class="badge badge-green" style="padding: 0.45rem 0.85rem; font-size: 0.9rem;">
+                <i class="bi bi-people-fill"></i> Friends
+              </span>
+              <form method="post" action="{% url 'accounts:friend_remove' user_id=profile_user.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline btn-sm">Remove Friend</button>
+              </form>
+              {% elif friend_status == 'sent' %}
+              <span class="badge badge-gold" style="padding: 0.45rem 0.85rem; font-size: 0.9rem;">
+                <i class="bi bi-clock-history"></i> Request Sent
+              </span>
+              {% elif friend_status == 'received' %}
+              <form method="post" action="{% url 'accounts:friend_request_accept' request_id=friend_request.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.path }}">
+                <button type="submit" class="btn btn-primary btn-sm">
+                  <i class="bi bi-person-check"></i> Accept Friend Request
+                </button>
+              </form>
+              <form method="post" action="{% url 'accounts:friend_request_decline' request_id=friend_request.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.path }}">
+                <button type="submit" class="btn btn-outline btn-sm">Decline</button>
+              </form>
+              {% else %}
+              <form method="post" action="{% url 'accounts:friend_request_send' user_id=profile_user.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-person-plus"></i> Add Friend
+                </button>
+              </form>
+              {% endif %}
               <a href="{% url 'accounts:message_compose_to' recipient_id=profile_user.id %}" class="btn btn-outline">
                   <i class="bi bi-envelope"></i> Message
               </a>
               {% if chat_family_id %}
-              <a href="{% url 'families:direct_conversation_start' family_id=chat_family_id user_id=profile_user.id %}" class="btn btn-primary">
-                  <i class="bi bi-chat-dots"></i> Live Chat
+              <a href="{% url 'families:direct_conversation_start' family_id=chat_family_id user_id=profile_user.id %}" class="btn btn-outline">
+                  <i class="bi bi-chat-dots"></i> Chat
               </a>
               {% endif %}
             </div>
