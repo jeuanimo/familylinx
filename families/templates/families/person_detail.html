@@ -58,6 +58,7 @@
             <div class="linked-user-badge">
               <i class="bi bi-link-45deg"></i>
               <span class="linked-user-name">{{ profile.display_name|default:profile.user.email }}</span>
+              {% if profile.is_online %}<span class="online-dot" title="Online now"></span>{% endif %}
             </div>
             <div class="mt-2 mb-3">
               <a href="{% url 'accounts:profile_view' user_id=profile.user.id %}" class="btn btn-primary btn-sm">
@@ -355,4 +356,18 @@
     </div>
   </div>
 </main>
+{% block extra_css %}
+<style>
+.online-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  background: #22c55e;
+  border-radius: 50%;
+  border: 2px solid var(--fl-card);
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+</style>
+{% endblock extra_css %}
 {% endblock content %}

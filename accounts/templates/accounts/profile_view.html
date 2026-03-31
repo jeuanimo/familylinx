@@ -550,6 +550,76 @@
     background: var(--fl-surface);
     border-radius: var(--fl-radius);
 }
+
+.friend-search-form { margin-top: 0.75rem; }
+.friend-search-row { display: flex; gap: 0.4rem; }
+.friend-search-row .form-control { flex: 1; }
+
+.friend-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.friend-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.friend-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--fl-surface);
+    text-decoration: none;
+    position: relative;
+}
+
+.friend-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.friend-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.friend-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--fl-text);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.friend-name:hover { color: var(--fl-blue); }
+
+.friend-action { flex-shrink: 0; }
+
+.online-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    background: #22c55e;
+    border-radius: 50%;
+    border: 2px solid var(--fl-card);
+    flex-shrink: 0;
+}
+
+.friend-online-dot {
+    position: absolute;
+    bottom: 1px;
+    right: 1px;
+    border-color: var(--fl-card);
+}
 </style>
 {% endblock %}
 
@@ -786,6 +856,88 @@
             </p>
         </div>
         {% endif %}
+
+        {% if is_own_profile %}
+        <!-- Friends Panel -->
+        <div class="intro-card" style="margin-top: 1rem;">
+            <h3><i class="bi bi-people-fill"></i> Friends{% if friends %} <span class="badge badge-blue" style="font-size: 0.75rem; vertical-align: middle;">{{ friends|length }}</span>{% endif %}</h3>
+
+            <!-- Search -->
+            <form method="get" action="" class="friend-search-form">
+                <div class="friend-search-row">
+                    <input type="search" name="fq" value="{{ friend_search_query }}" class="form-control form-control-sm" placeholder="Search people…">
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search"></i></button>
+                </div>
+            </form>
+
+            {% if friend_search_query %}
+            <!-- Search results -->
+            {% if friend_search_results %}
+            <div class="friend-list mt-2">
+                {% for p in friend_search_results %}
+                <div class="friend-row">
+                    <a href="{% url 'accounts:profile_view' user_id=p.user.id %}" class="friend-avatar">
+                        {% if p.profile_picture %}
+                        <img src="{{ p.profile_picture.url }}" alt="">
+                        {% else %}
+                        <i class="bi bi-person-circle" style="font-size: 1.6rem; color: var(--fl-muted);"></i>
+                        {% endif %}
+                    </a>
+                    <div class="friend-info">
+                        <a href="{% url 'accounts:profile_view' user_id=p.user.id %}" class="friend-name">{{ p.get_display_name }}</a>
+                        <span class="muted" style="font-size: 0.78rem;">@{{ p.user.username }}</span>
+                    </div>
+                    <div class="friend-action">
+                        {% if p.search_friend_status == 'friends' %}
+                        <span class="badge badge-green" style="font-size: 0.75rem;">Friends</span>
+                        {% elif p.search_friend_status == 'sent' %}
+                        <span class="badge badge-gold" style="font-size: 0.75rem;">Sent</span>
+                        {% else %}
+                        <form method="post" action="{% url 'accounts:friend_request_send' user_id=p.user.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.path }}?fq={{ friend_search_query }}">
+                            <button type="submit" class="btn btn-primary btn-sm" title="Add Friend"><i class="bi bi-person-plus"></i></button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted mt-2" style="font-size: 0.9rem;">No people found for "{{ friend_search_query }}".</p>
+            {% endif %}
+
+            {% else %}
+            <!-- Current friends -->
+            {% if friends %}
+            <div class="friend-list mt-2">
+                {% for friend_user in friends %}
+                <div class="friend-row">
+                    <a href="{% url 'accounts:profile_view' user_id=friend_user.id %}" class="friend-avatar" style="position:relative;">
+                        {% if friend_user.profile.profile_picture %}
+                        <img src="{{ friend_user.profile.profile_picture.url }}" alt="">
+                        {% else %}
+                        <i class="bi bi-person-circle" style="font-size: 1.6rem; color: var(--fl-muted);"></i>
+                        {% endif %}
+                        {% if friend_user.profile.is_online %}<span class="online-dot friend-online-dot"></span>{% endif %}
+                    </a>
+                    <div class="friend-info">
+                        <a href="{% url 'accounts:profile_view' user_id=friend_user.id %}" class="friend-name">{{ friend_user.profile.get_display_name }}</a>
+                        <span class="muted" style="font-size: 0.78rem;">@{{ friend_user.username }}</span>
+                    </div>
+                    <form method="post" action="{% url 'accounts:friend_remove' user_id=friend_user.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline btn-sm" title="Remove friend"><i class="bi bi-person-dash"></i></button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted mt-2" style="font-size: 0.9rem;">You haven't added any friends yet. Use the search above to find people.</p>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
     </div>
     
     <!-- Right Column - Wall -->
@@ -978,19 +1130,6 @@
         {% endfor %}
         
         <!-- Inline Messenger below posts -->
-        {% if chat_family_id %}
-        <div class="card profile-chat-card" style="margin-top: 1rem;">
-          <div class="card-header flex-between">
-            <span class="card-title"><i class="bi bi-chat-dots"></i> Chat with {{ profile.get_display_name }}</span>
-            <a href="{% url 'families:direct_conversation_start' family_id=chat_family_id user_id=profile_user.id %}" class="btn btn-outline btn-sm">Open Full</a>
-          </div>
-          <div class="card-body">
-            <iframe src="{% url 'families:direct_conversation_start' family_id=chat_family_id user_id=profile_user.id %}?embed=1"
-                    class="profile-chat-embed"
-                    style="width: 100%; height: 320px;"></iframe>
-          </div>
-        </div>
-        {% endif %}
     </div>
 </div>
 

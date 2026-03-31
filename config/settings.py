@@ -233,7 +233,7 @@ ACCOUNT_LOGOUT_ON_GET = False  # Require POST for logout (CSRF protection)
 ACCOUNT_SESSION_REMEMBER = True  # Remember me by default
 
 # Login/Logout redirects
-LOGIN_REDIRECT_URL = '/'  # After login, go to home
+LOGIN_REDIRECT_URL = '/u/profile/'  # After login, go to user profile
 LOGOUT_REDIRECT_URL = '/'  # After logout, go to home
 LOGIN_URL = '/u/access/'
 

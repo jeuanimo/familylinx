@@ -346,7 +346,10 @@
                         {% else %}
                         <i class="bi bi-person-circle"></i>
                         {% endif %}
-                        <span>{{ m.user.profile.get_display_name|default:m.user.email }}</span>
+                        <div class="flex-center gap-xs" style="position:relative;">
+                          <span>{{ m.user.profile.get_display_name|default:m.user.email }}</span>
+                          {% if m.user.profile.is_online %}<span class="online-dot" title="Online now"></span>{% endif %}
+                        </div>
                         {% if m.user == user %}
                         <span class="badge badge-green fs-xs">You</span>
                         {% endif %}
@@ -680,6 +683,17 @@
 }
 [data-theme="dark"] .occasion-kudos {
     border-color: rgba(52, 211, 153, 0.45);
+}
+
+.online-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    background: #22c55e;
+    border-radius: 50%;
+    border: 2px solid var(--fl-card);
+    vertical-align: middle;
+    flex-shrink: 0;
 }
 </style>
 {% endblock content %}

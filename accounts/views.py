@@ -357,6 +357,42 @@ def profile_view(request, user_id):
                     friend_status = 'received'
             # declined -> None (can send again)
 
+    # Friends list + search (own profile only)
+    friends = []
+    friend_search_results = []
+    friend_search_query = ""
+    if is_own_profile:
+        from django.db.models import Q
+        friends = FriendRequest.get_friends_for_user(request.user)
+
+        friend_search_query = request.GET.get("fq", "").strip()
+        if friend_search_query:
+            friend_ids = {u.pk for u in friends} | {request.user.pk}
+            search_profiles = (
+                UserProfile.objects
+                .filter(user__last_login__isnull=False)
+                .filter(
+                    Q(display_name__icontains=friend_search_query) |
+                    Q(user__first_name__icontains=friend_search_query) |
+                    Q(user__last_name__icontains=friend_search_query) |
+                    Q(user__username__icontains=friend_search_query)
+                )
+                .exclude(user=request.user)
+                .select_related("user")[:10]
+            )
+            all_sent = set(
+                FriendRequest.objects.filter(from_user=request.user, status=FriendRequest.Status.PENDING)
+                .values_list("to_user_id", flat=True)
+            )
+            for p in search_profiles:
+                if p.user.pk in friend_ids:
+                    p.search_friend_status = "friends"
+                elif p.user.pk in all_sent:
+                    p.search_friend_status = "sent"
+                else:
+                    p.search_friend_status = "none"
+                friend_search_results.append(p)
+
     context = {
         'profile_user': profile_user,
         'profile': profile,
@@ -369,6 +405,9 @@ def profile_view(request, user_id):
         'chat_family_id': chat_family_id,
         'friend_status': friend_status,
         'friend_request': friend_request_obj,
+        'friends': friends,
+        'friend_search_results': friend_search_results,
+        'friend_search_query': friend_search_query,
     }
     
     return render(request, 'accounts/profile_view.html', context)
