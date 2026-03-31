@@ -2721,8 +2721,14 @@ def _handle_link_to_tree_post(request, family, membership, next_url):
     
     expects_json = _wants_json_response(request) or CONTENT_TYPE_JSON in content_type
 
+    # Clear linked_user from any person in this family that was previously linked to this user
+    # (handles the case where claim_person set linked_user and now the user is re-linking)
+    Person.objects.filter(family=family, linked_user=request.user).update(linked_user=None)
+
     if person_id:
         person = get_object_or_404(Person, id=person_id, family=family, is_deleted=False)
+        person.linked_user = request.user
+        person.save(update_fields=["linked_user"])
         membership.linked_person = person
         membership.save(update_fields=["linked_person"])
 
@@ -8409,7 +8415,9 @@ def _verify_birth_date(provided_date_str, expected_date):
 
 
 def _link_person_to_membership(membership, person, user):
-    """Link a person to a membership and user."""
+    """Link a person to a membership and user, clearing any stale linked_user on other persons."""
+    # Clear linked_user from any other person in this family that was previously linked to this user
+    Person.objects.filter(family=person.family, linked_user=user).exclude(pk=person.pk).update(linked_user=None)
     membership.linked_person = person
     membership.save()
     person.linked_user = user
