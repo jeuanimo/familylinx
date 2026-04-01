@@ -226,7 +226,12 @@
                 <span>FamilyLinx</span>
             </a>
             
-            <div class="nav-links">
+            <!-- Hamburger (mobile only) -->
+            <button class="hamburger" id="hamburger-btn" type="button" aria-label="Open menu" aria-expanded="false">
+                <span></span><span></span><span></span>
+            </button>
+
+            <div class="nav-links" id="nav-links">
                 <a class="nav-link" href="{% url 'welcome' %}">
                     <i class="bi bi-map"></i> User Guide
                 </a>
@@ -904,6 +909,34 @@
         })();
     </script>
     
+    <!-- Mobile nav overlay -->
+    <div class="nav-overlay" id="nav-overlay"></div>
+    <script>
+    (function(){
+      const btn = document.getElementById('hamburger-btn');
+      const nav = document.getElementById('nav-links');
+      const overlay = document.getElementById('nav-overlay');
+      if (!btn || !nav) return;
+      function toggle() {
+        const open = nav.classList.toggle('open');
+        btn.classList.toggle('active', open);
+        overlay.classList.toggle('active', open);
+        btn.setAttribute('aria-expanded', open);
+      }
+      function close() {
+        nav.classList.remove('open');
+        btn.classList.remove('active');
+        overlay.classList.remove('active');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+      btn.addEventListener('click', toggle);
+      overlay.addEventListener('click', close);
+      nav.querySelectorAll('a.nav-link').forEach(function(a){
+        a.addEventListener('click', close);
+      });
+    })();
+    </script>
+
     {% block extra_js %}{% endblock extra_js %}
 
     <div id="fl-hint-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:8000;" aria-hidden="true"></div>
