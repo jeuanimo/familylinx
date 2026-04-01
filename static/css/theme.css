@@ -1825,7 +1825,7 @@ main {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.4);
+  background: var(--fl-primary, #1a1a2e);
   z-index: 999;
 }
 .nav-overlay.active { display: block; }
