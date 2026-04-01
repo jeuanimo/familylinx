@@ -192,6 +192,29 @@
       }
     </style>
     
+    <style>
+      .nav-hint-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 0;
+      }
+      .nav-hint-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0 2px;
+        color: var(--fl-muted);
+        font-size: 0.75rem;
+        line-height: 1;
+        opacity: 0.5;
+        transition: opacity 0.15s, color 0.15s;
+      }
+      .nav-hint-btn:hover {
+        opacity: 1;
+        color: var(--fl-blue);
+      }
+    </style>
+
     {% block extra_css %}{% endblock extra_css %}
 </head>
 <body>
@@ -207,7 +230,7 @@
                 <a class="nav-link" href="{% url 'welcome' %}">
                     <i class="bi bi-map"></i> User Guide
                 </a>
-                <a class="nav-link" href="{% url 'gods_word_of_day' %}" data-fl-hint="word-of-day">
+                <a class="nav-link" href="{% url 'gods_word_of_day' %}">
                     <i class="bi bi-book-half"></i> Word of the Day
                 </a>
                 <a class="nav-link" href="{% url 'contact' %}">
@@ -217,15 +240,24 @@
                 <a class="nav-link" href="{% url 'home' %}">
                     <i class="bi bi-house"></i> Dashboard
                 </a>
-                <a class="nav-link" href="{% url 'families:family_create' %}" data-fl-hint="new-space">
-                    <i class="bi bi-plus-circle"></i> New Space
-                </a>
-                <a class="nav-link" href="{% url 'accounts:my_profile' %}" data-fl-hint="profile">
-                    <i class="bi bi-person"></i> Profile
-                </a>
-                <a class="nav-link" href="{% url 'accounts:user_directory' %}" data-fl-hint="members">
-                    <i class="bi bi-people"></i> Members
-                </a>
+                <span class="nav-hint-group">
+                    <a class="nav-link" href="{% url 'families:family_create' %}">
+                        <i class="bi bi-plus-circle"></i> New Space
+                    </a>
+                    <button class="nav-hint-btn" data-fl-hint="new-space" title="What is this?" aria-label="Learn about New Space"><i class="bi bi-question-circle"></i></button>
+                </span>
+                <span class="nav-hint-group">
+                    <a class="nav-link" href="{% url 'accounts:my_profile' %}">
+                        <i class="bi bi-person"></i> Profile
+                    </a>
+                    <button class="nav-hint-btn" data-fl-hint="profile" title="What is this?" aria-label="Learn about Profile"><i class="bi bi-question-circle"></i></button>
+                </span>
+                <span class="nav-hint-group">
+                    <a class="nav-link" href="{% url 'accounts:user_directory' %}">
+                        <i class="bi bi-people"></i> Members
+                    </a>
+                    <button class="nav-hint-btn" data-fl-hint="members" title="What is this?" aria-label="Learn about Members"><i class="bi bi-question-circle"></i></button>
+                </span>
                 {% endif %}
             </div>
             
@@ -233,14 +265,14 @@
                 {% if user.is_authenticated %}
                 <!-- Messages Icon -->
                 <div class="notification-bell">
-                    <a href="{% url 'accounts:message_inbox' %}" class="bell-btn" title="Messages" data-fl-hint="messages">
+                    <a href="{% url 'accounts:message_inbox' %}" class="bell-btn" title="Messages">
                         <i class="bi bi-chat-dots"></i>
                     </a>
                 </div>
 
                 <!-- Notification Bell -->
                 <div class="notification-bell">
-                    <a href="{% url 'families:notification_list' %}" class="bell-btn" title="Notifications" data-fl-hint="notifications">
+                    <a href="{% url 'families:notification_list' %}" class="bell-btn" title="Notifications">
                         <i class="bi bi-bell"></i>
                         <span class="bell-badge hidden" id="notification-badge">0</span>
                     </a>
