@@ -1,0 +1,4 @@
+#!/bin/sh
+# Blocks member data, databases, secrets and lock files before they're committed.
+# Enable once per clone:  git config core.hooksPath .githooks
+exec python3 scripts/check_data_files.py --staged

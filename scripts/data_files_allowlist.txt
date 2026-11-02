@@ -1,0 +1,2 @@
+# Files that match a blocked pattern but are known safe to commit.
+# One exact path per line, with a reason after a #. Keep this list short.
